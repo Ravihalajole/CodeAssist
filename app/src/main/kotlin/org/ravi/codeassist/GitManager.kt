@@ -160,7 +160,9 @@ object GitManager {
         try {
             if (!isGitInitialized(workspaceRoot)) return commits
             Git.open(workspaceRoot).use { git ->
-                val logs = git.log().call()
+                // Explicitly resolve HEAD to prevent stale reads and limit count for performance
+                val head = git.repository.resolve("HEAD") ?: return commits
+                val logs = git.log().add(head).setMaxCount(100).call()
                 for (rev in logs) {
                     commits.add(
                         CommitInfo(
@@ -175,6 +177,7 @@ object GitManager {
         } catch (e: Exception) {
             android.util.Log.e("CodeAssist", "Git log failed", e)
         }
-        return commits
+        // Guarantee newest commits are always at the top of the UI
+        return commits.sortedByDescending { it.time }
     }
 }
