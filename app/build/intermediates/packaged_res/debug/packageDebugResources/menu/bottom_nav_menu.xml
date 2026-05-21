@@ -17,6 +17,11 @@
         android:title="Logs" />
 
     <item
+        android:id="@+id/nav_source_control"
+        android:icon="@drawable/ic_git_branch"
+        android:title="Source" />
+
+    <item
         android:id="@+id/nav_settings"
         android:icon="@drawable/ic_settings"
         android:title="Settings" />

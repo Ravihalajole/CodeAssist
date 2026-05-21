@@ -3732,6 +3732,7 @@ drawable ic_copy
 drawable ic_expand_less_22px
 drawable ic_expand_more_22px
 drawable ic_folder
+drawable ic_git_branch
 drawable ic_history
 drawable ic_keyboard_black_24dp
 drawable ic_launcher_background
@@ -3993,10 +3994,15 @@ id btnApprove
 id btnCopyError
 id btnCopyPrompt
 id btnCopySkeleton
+id btnInitGit
+id btnPopStash
+id btnRefreshStatus
 id btnReject
+id btnReset
+id btnRevert
 id btnRunManual
 id btnSelectWorkspace
-id btnUndo
+id btnStash
 id bubbleIcon
 id buttonPanel
 id cache_measures
@@ -4214,6 +4220,7 @@ id multiply
 id nav_logs
 id nav_prompt_vault
 id nav_settings
+id nav_source_control
 id nav_workspace
 id navigation_bar_item_active_indicator_view
 id navigation_bar_item_content_container
@@ -4409,6 +4416,7 @@ id transition_scene_layoutid_cache
 id transition_transform
 id triangle
 id tvCommandSummary
+id tvGitStatus
 id tvLogCommand
 id tvLogPath
 id tvLogStatus
@@ -4425,6 +4433,7 @@ id vertical_only
 id viewLogs
 id viewPromptVault
 id viewSettings
+id viewSourceControl
 id viewWorkspace
 id view_offset_helper
 id view_transition

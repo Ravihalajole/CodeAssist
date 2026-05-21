@@ -12,6 +12,7 @@ object EnvelopeParser {
         var currentCommandName = ""
         var currentPath = ""
         var currentPattern = ""
+        var currentMessage = ""
         
         // Dynamic content buffers
         val contentBuffer = StringBuilder()
@@ -32,23 +33,27 @@ object EnvelopeParser {
                     when {
                         trimmedLine == ":::END_CODE_ASSIST:::" -> {
                             // Flush out the final command if one was pending
-                            buildPendingCommand(currentCommandName, currentPath, currentPattern, contentBuffer, searchBuffer, replaceBuffer)?.let {
+                            buildPendingCommand(currentCommandName, currentPath, currentPattern, currentMessage, contentBuffer, searchBuffer, replaceBuffer)?.let {
                                 commands.add(it)
                             }
                             currentState = ParseState.IDLE
                         }
                         trimmedLine.startsWith("[COMMAND:") -> {
                             // Flush out previous command block if existing before moving to next command
-                            buildPendingCommand(currentCommandName, currentPath, currentPattern, contentBuffer, searchBuffer, replaceBuffer)?.let {
+                            buildPendingCommand(currentCommandName, currentPath, currentPattern, currentMessage, contentBuffer, searchBuffer, replaceBuffer)?.let {
                                 commands.add(it)
                             }
                             // Reset state parameters for the new command
                             currentCommandName = trimmedLine.substringAfter("[COMMAND:").substringBefore("]").trim().uppercase(Locale.US)
                             currentPath = ""
                             currentPattern = ""
+                            currentMessage = ""
                             contentBuffer.setLength(0)
                             searchBuffer.setLength(0)
                             replaceBuffer.setLength(0)
+                        }
+                        trimmedLine.startsWith("[MESSAGE:") -> {
+                            currentMessage = trimmedLine.substringAfter("[MESSAGE:").substringBefore("]").trim()
                         }
                         trimmedLine.startsWith("[PATH:") -> {
                             currentPath = trimmedLine.substringAfter("[PATH:").substringBefore("]").trim()
@@ -98,13 +103,16 @@ object EnvelopeParser {
         name: String,
         path: String,
         pattern: String,
+        message: String,
         content: StringBuilder,
         search: StringBuilder,
         replace: StringBuilder
     ): CodeCommand? {
-        if (name.isEmpty() || path.isEmpty()) return null
+        if (name.isEmpty()) return null
+        if (name != "COMMIT_MESSAGE" && path.isEmpty()) return null
 
         return when (name) {
+            "COMMIT_MESSAGE" -> if (message.isNotEmpty()) CodeCommand.CommitMessage(message) else null
             "GREP_FILE" -> if (pattern.isNotEmpty()) CodeCommand.GrepFile(path, pattern) else null
             "READ_FILE" -> CodeCommand.ReadFile(path)
             "LIST_DIR" -> CodeCommand.ListDir(path)

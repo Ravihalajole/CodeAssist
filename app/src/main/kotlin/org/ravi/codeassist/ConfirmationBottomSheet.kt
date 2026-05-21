@@ -106,6 +106,7 @@ class ConfirmationBottomSheet(
                     is CodeCommand.ReadFile -> command.path
                     is CodeCommand.GrepFile -> command.path
                     is CodeCommand.ListDir -> command.path
+                    is CodeCommand.CommitMessage -> "Message: ${command.message}"
                 }
                 summaryText.append("${index + 1}. [$actionName]\n   └─ $targetPath\n\n")
             }

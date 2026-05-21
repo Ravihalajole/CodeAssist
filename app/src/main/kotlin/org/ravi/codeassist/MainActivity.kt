@@ -32,16 +32,22 @@ class MainActivity : AppCompatActivity() {
     private lateinit var viewWorkspace: View
     private lateinit var viewPromptVault: View
     private lateinit var viewLogs: View
+    private lateinit var viewSourceControl: View
     private lateinit var viewSettings: View
     
     // UI Elements
     private lateinit var tvWorkspacePath: TextView
+    private lateinit var tvGitStatus: TextView
     private lateinit var switchBubble: com.google.android.material.materialswitch.MaterialSwitch
     private lateinit var switchAutoRead: com.google.android.material.materialswitch.MaterialSwitch
     private lateinit var btnSelectWorkspace: MaterialButton
-    private lateinit var btnCopyPrompt: ExtendedFloatingActionButton
+    private lateinit var btnCopyPrompt: MaterialButton
     private lateinit var btnCopySkeleton: MaterialButton
     private lateinit var btnRunManual: MaterialButton
+    private lateinit var btnInitGit: MaterialButton
+    private lateinit var btnStash: MaterialButton
+    private lateinit var btnPopStash: MaterialButton
+    private lateinit var btnRefreshStatus: MaterialButton
     private lateinit var bottomNavigation: BottomNavigationView
     private lateinit var btnRevert: MaterialButton
     private lateinit var btnReset: MaterialButton
@@ -62,6 +68,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Auto-refresh active tabs when returning to the app from ClipboardActivity
+        if (this::viewLogs.isInitialized && viewLogs.visibility == View.VISIBLE) {
+            showLogsScreen()
+        } else if (this::viewSourceControl.isInitialized && viewSourceControl.visibility == View.VISIBLE) {
+            refreshGitStatus()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -70,15 +86,21 @@ class MainActivity : AppCompatActivity() {
         viewWorkspace = findViewById(R.id.viewWorkspace)
         viewPromptVault = findViewById(R.id.viewPromptVault)
         viewLogs = findViewById(R.id.viewLogs)
+        viewSourceControl = findViewById(R.id.viewSourceControl)
         viewSettings = findViewById(R.id.viewSettings)
         
         tvWorkspacePath = findViewById(R.id.tvWorkspacePath)
+        tvGitStatus = findViewById(R.id.tvGitStatus)
         switchBubble = findViewById(R.id.switchBubble)
         switchAutoRead = findViewById(R.id.switchAutoRead)
         btnSelectWorkspace = findViewById(R.id.btnSelectWorkspace)
         btnCopyPrompt = findViewById(R.id.btnCopyPrompt)
         btnCopySkeleton = findViewById(R.id.btnCopySkeleton)
         btnRunManual = findViewById(R.id.btnRunManual)
+        btnInitGit = findViewById(R.id.btnInitGit)
+        btnStash = findViewById(R.id.btnStash)
+        btnPopStash = findViewById(R.id.btnPopStash)
+        btnRefreshStatus = findViewById(R.id.btnRefreshStatus)
         bottomNavigation = findViewById(R.id.bottomNavigation)
         btnRevert = findViewById(R.id.btnRevert)
         btnReset = findViewById(R.id.btnReset)
@@ -86,8 +108,8 @@ class MainActivity : AppCompatActivity() {
 
         // Setup RecyclerView
         rvLogs.layoutManager = LinearLayoutManager(this)
-        logsAdapter = LogsAdapter(emptyList()) { batchLogs ->
-            showBatchDetailsDialog(batchLogs)
+        logsAdapter = LogsAdapter(emptyList()) { commit ->
+            showCommitDetailsDialog(commit)
         }
         rvLogs.adapter = logsAdapter
 
@@ -162,6 +184,57 @@ class MainActivity : AppCompatActivity() {
             handleGitUndoAction(isReset = true)
         }
 
+        btnInitGit.setOnClickListener {
+            val path = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE).getString("WORKSPACE_ROOT", null)
+            if (path != null) {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    GitManager.initGit(File(path))
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Git Initialized.", Toast.LENGTH_SHORT).show()
+                        refreshGitStatus()
+                    }
+                }
+            }
+        }
+
+        btnStash.setOnClickListener {
+            val path = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE).getString("WORKSPACE_ROOT", null)
+            if (path != null) {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val success = GitManager.stashChanges(File(path))
+                    withContext(Dispatchers.Main) {
+                        if (success) {
+                            Toast.makeText(this@MainActivity, "Changes stashed.", Toast.LENGTH_SHORT).show()
+                            refreshGitStatus()
+                        } else {
+                            Toast.makeText(this@MainActivity, "Failed to stash.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        }
+
+        btnPopStash.setOnClickListener {
+            val path = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE).getString("WORKSPACE_ROOT", null)
+            if (path != null) {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val success = GitManager.popStash(File(path))
+                    withContext(Dispatchers.Main) {
+                        if (success) {
+                            Toast.makeText(this@MainActivity, "Stash popped.", Toast.LENGTH_SHORT).show()
+                            refreshGitStatus()
+                        } else {
+                            Toast.makeText(this@MainActivity, "Failed to pop stash.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        }
+
+        btnRefreshStatus.setOnClickListener {
+            refreshGitStatus()
+        }
+
         // Setup Bottom Navigation Logic
         bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {
@@ -175,6 +248,10 @@ class MainActivity : AppCompatActivity() {
                 }
                 R.id.nav_logs -> {
                     showLogsScreen()
+                    true
+                }
+                R.id.nav_source_control -> {
+                    showSourceControlScreen()
                     true
                 }
                 R.id.nav_settings -> {
@@ -192,6 +269,7 @@ class MainActivity : AppCompatActivity() {
         viewWorkspace.visibility = View.VISIBLE
         viewPromptVault.visibility = View.GONE
         viewLogs.visibility = View.GONE
+        viewSourceControl.visibility = View.GONE
         viewSettings.visibility = View.GONE
     }
 
@@ -199,6 +277,7 @@ class MainActivity : AppCompatActivity() {
         viewPromptVault.visibility = View.VISIBLE
         viewWorkspace.visibility = View.GONE
         viewLogs.visibility = View.GONE
+        viewSourceControl.visibility = View.GONE
         viewSettings.visibility = View.GONE
     }
 
@@ -206,11 +285,29 @@ class MainActivity : AppCompatActivity() {
         viewLogs.visibility = View.VISIBLE
         viewWorkspace.visibility = View.GONE
         viewPromptVault.visibility = View.GONE
+        viewSourceControl.visibility = View.GONE
         viewSettings.visibility = View.GONE
         
-        // Fetch fresh logs from the database every time the tab is opened
-        val dbHelper = LogDatabaseHelper(this)
-        logsAdapter.updateData(dbHelper.getAllLogs())
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
+        if (!workspaceRoot.isNullOrEmpty()) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                val commits = GitManager.getCommitHistory(File(workspaceRoot))
+                withContext(Dispatchers.Main) {
+                    logsAdapter.updateData(commits)
+                }
+            }
+        }
+    }
+
+    private fun showSourceControlScreen() {
+        viewSourceControl.visibility = View.VISIBLE
+        viewWorkspace.visibility = View.GONE
+        viewPromptVault.visibility = View.GONE
+        viewLogs.visibility = View.GONE
+        viewSettings.visibility = View.GONE
+        
+        refreshGitStatus()
     }
 
     private fun showSettingsScreen() {
@@ -218,32 +315,60 @@ class MainActivity : AppCompatActivity() {
         viewWorkspace.visibility = View.GONE
         viewPromptVault.visibility = View.GONE
         viewLogs.visibility = View.GONE
+        viewSourceControl.visibility = View.GONE
+    }
+
+    private fun refreshGitStatus() {
+        val path = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE).getString("WORKSPACE_ROOT", null)
+        if (path.isNullOrEmpty()) {
+            tvGitStatus.text = "Workspace not set."
+            return
+        }
+        lifecycleScope.launch(Dispatchers.IO) {
+            val statusStr = GitManager.getStatusString(File(path))
+            withContext(Dispatchers.Main) {
+                tvGitStatus.text = statusStr
+            }
+        }
     }
 
     // --- ACTIONS ---
 
-    private fun showBatchDetailsDialog(batchLogs: List<ExecutionLog>) {
-        if (batchLogs.isEmpty()) return
-
-        val sb = java.lang.StringBuilder()
+    private fun showCommitDetailsDialog(commit: GitManager.CommitInfo) {
         val df = java.text.SimpleDateFormat("MMM dd, yyyy  hh:mm a", java.util.Locale.getDefault())
-        sb.append("Time: ${df.format(java.util.Date(batchLogs.first().timestamp))}\n\n")
-
-        batchLogs.forEachIndexed { index, log ->
-            val statusIcon = if (log.isSuccess) "✅" else "❌"
-            sb.append("${index + 1}. [${log.commandType}] $statusIcon\n")
-            sb.append("   Path: ${log.targetPath.ifEmpty { "N/A" }}\n")
-            if (!log.isSuccess && log.message.isNotEmpty()) {
-                sb.append("   Error: ${log.message}\n")
-            }
-            sb.append("\n")
-        }
+        val sb = java.lang.StringBuilder()
+        sb.append("Commit: ${commit.hash}\n")
+        sb.append("Author: ${commit.author}\n")
+        sb.append("Date: ${df.format(java.util.Date(commit.time))}\n\n")
+        sb.append("Message:\n${commit.message}\n")
 
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle("Batch Details")
+            .setTitle("Commit Details")
             .setMessage(sb.toString().trim())
             .setPositiveButton("Close", null)
             .show()
+    }
+
+    private fun generateProjectSkeletonString(rootDir: File): String {
+        val ignoreList = listOf("build", ".gradle", ".git", ".idea", ".codeassist", "outputs", "tmp")
+        val sb = java.lang.StringBuilder("Project Skeleton:\n")
+
+        fun walkDir(currentDir: File, depth: Int) {
+            val files = currentDir.listFiles()?.sortedWith(compareBy({ !it.isDirectory }, { it.name })) ?: return
+            for (file in files) {
+                if (ignoreList.contains(file.name)) continue
+                
+                val indent = "  ".repeat(depth)
+                val prefix = if (file.isDirectory) "📁 " else "📄 "
+                sb.append("$indent$prefix${file.name}\n")
+                
+                if (file.isDirectory) {
+                    walkDir(file, depth + 1)
+                }
+            }
+        }
+        walkDir(rootDir, 0)
+        return sb.toString()
     }
 
     private fun exportProjectSkeleton() {
@@ -261,31 +386,11 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // Folders to ignore so the LLM doesn't waste tokens on compiled junk
-        val ignoreList = listOf("build", ".gradle", ".git", ".idea", ".codeassist", "outputs", "tmp")
-        val sb = java.lang.StringBuilder("Project Skeleton:\n")
-
         lifecycleScope.launch(Dispatchers.IO) {
-            fun walkDir(currentDir: File, depth: Int) {
-                val files = currentDir.listFiles()?.sortedWith(compareBy({ !it.isDirectory }, { it.name })) ?: return
-                for (file in files) {
-                    if (ignoreList.contains(file.name)) continue
-                    
-                    val indent = "  ".repeat(depth)
-                    val prefix = if (file.isDirectory) "📁 " else "📄 "
-                    sb.append("$indent$prefix${file.name}\n")
-                    
-                    if (file.isDirectory) {
-                        walkDir(file, depth + 1)
-                    }
-                }
-            }
-
-            walkDir(rootDir, 0)
-
+            val skeleton = generateProjectSkeletonString(rootDir)
             withContext(Dispatchers.Main) {
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                val clip = ClipData.newPlainText("Project Skeleton", sb.toString())
+                val clip = ClipData.newPlainText("Project Skeleton", skeleton)
                 clipboard.setPrimaryClip(clip)
                 Toast.makeText(this@MainActivity, "Skeleton copied to clipboard!", Toast.LENGTH_SHORT).show()
             }
@@ -294,60 +399,58 @@ class MainActivity : AppCompatActivity() {
 
     private fun copyProtocolToClipboard() {
         val protocolText = getString(R.string.ai_protocol_text)
-        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = ClipData.newPlainText("CodeAssist Protocol", protocolText)
-        clipboard.setPrimaryClip(clip)
-        Toast.makeText(this, "Protocol copied to clipboard!", Toast.LENGTH_SHORT).show()
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            var finalText = protocolText
+            
+            if (!workspaceRoot.isNullOrEmpty()) {
+                val rootDir = File(workspaceRoot)
+                if (rootDir.exists() && rootDir.isDirectory) {
+                    val skeleton = generateProjectSkeletonString(rootDir)
+                    finalText = "$protocolText\n\n$skeleton"
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("CodeAssist Protocol", finalText)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this@MainActivity, "Protocol + Skeleton copied to clipboard!", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun handleGitUndoAction(isReset: Boolean) {
-        val dbHelper = LogDatabaseHelper(this)
-        val batchLogs = dbHelper.getLastModifyingBatch()
-
-        if (batchLogs.isEmpty()) {
-            Toast.makeText(this, "No reversible actions found.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return
         val rootFile = File(workspaceRoot)
-        val newBatchId = java.util.UUID.randomUUID().toString()
-        
-        // Find the Git commit hash which we stored in backupPath for the first success log
-        val commitHash = batchLogs.firstNotNullOfOrNull { it.backupPath }
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val actionSuccess = if (GitManager.isGitInitialized(rootFile)) {
-                if (isReset) {
-                    GitManager.resetHardToPrevious(rootFile)
-                } else {
-                    if (commitHash != null) GitManager.revertCommit(rootFile, commitHash) else false
+            if (!GitManager.isGitInitialized(rootFile)) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Git not initialized.", Toast.LENGTH_SHORT).show()
                 }
+                return@launch
+            }
+
+            val commits = GitManager.getCommitHistory(rootFile)
+            if (commits.isEmpty()) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "No reversible actions found.", Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
+
+            val commitHash = commits.first().hash
+            val actionSuccess = if (isReset) {
+                GitManager.resetHardToPrevious(rootFile)
             } else {
-                false
+                GitManager.revertCommit(rootFile, commitHash)
             }
             
             val actionName = if (isReset) "Git Reset" else "Git Revert"
-            val logMessage = if (actionSuccess) {
-                if (isReset) "$actionName successful (HEAD moved back)" 
-                else "$actionName successful for commit: ${commitHash?.take(7)}"
-            } else {
-                "$actionName failed or commit hash missing."
-            }
-
-            // Log the Undo action itself
-            dbHelper.insertLog(
-                ExecutionLog(
-                    batchId = newBatchId,
-                    timestamp = System.currentTimeMillis(),
-                    commandType = "UNDO ($actionName)",
-                    targetPath = "Multiple Files",
-                    isSuccess = actionSuccess,
-                    message = logMessage,
-                    backupPath = null
-                )
-            )
 
             withContext(Dispatchers.Main) {
                 if (actionSuccess) {
@@ -355,7 +458,12 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     Toast.makeText(this@MainActivity, "Undo Failed: Could not complete $actionName.", Toast.LENGTH_SHORT).show()
                 }
-                logsAdapter.updateData(dbHelper.getAllLogs())
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val commits = GitManager.getCommitHistory(rootFile)
+                    withContext(Dispatchers.Main) {
+                        logsAdapter.updateData(commits)
+                    }
+                }
             }
         }
     }

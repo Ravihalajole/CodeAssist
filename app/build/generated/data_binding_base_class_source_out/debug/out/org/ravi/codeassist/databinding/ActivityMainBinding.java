@@ -14,7 +14,6 @@ import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import java.lang.NullPointerException;
 import java.lang.Override;
@@ -29,10 +28,25 @@ public final class ActivityMainBinding implements ViewBinding {
   public final BottomNavigationView bottomNavigation;
 
   @NonNull
-  public final ExtendedFloatingActionButton btnCopyPrompt;
+  public final MaterialButton btnCopyPrompt;
 
   @NonNull
   public final MaterialButton btnCopySkeleton;
+
+  @NonNull
+  public final MaterialButton btnInitGit;
+
+  @NonNull
+  public final MaterialButton btnPopStash;
+
+  @NonNull
+  public final MaterialButton btnRefreshStatus;
+
+  @NonNull
+  public final MaterialButton btnReset;
+
+  @NonNull
+  public final MaterialButton btnRevert;
 
   @NonNull
   public final MaterialButton btnRunManual;
@@ -41,7 +55,7 @@ public final class ActivityMainBinding implements ViewBinding {
   public final MaterialButton btnSelectWorkspace;
 
   @NonNull
-  public final MaterialButton btnUndo;
+  public final MaterialButton btnStash;
 
   @NonNull
   public final RecyclerView rvLogs;
@@ -51,6 +65,9 @@ public final class ActivityMainBinding implements ViewBinding {
 
   @NonNull
   public final MaterialSwitch switchBubble;
+
+  @NonNull
+  public final TextView tvGitStatus;
 
   @NonNull
   public final TextView tvProtocolText;
@@ -68,32 +85,45 @@ public final class ActivityMainBinding implements ViewBinding {
   public final LinearLayout viewSettings;
 
   @NonNull
+  public final LinearLayout viewSourceControl;
+
+  @NonNull
   public final LinearLayout viewWorkspace;
 
   private ActivityMainBinding(@NonNull CoordinatorLayout rootView,
-      @NonNull BottomNavigationView bottomNavigation,
-      @NonNull ExtendedFloatingActionButton btnCopyPrompt, @NonNull MaterialButton btnCopySkeleton,
+      @NonNull BottomNavigationView bottomNavigation, @NonNull MaterialButton btnCopyPrompt,
+      @NonNull MaterialButton btnCopySkeleton, @NonNull MaterialButton btnInitGit,
+      @NonNull MaterialButton btnPopStash, @NonNull MaterialButton btnRefreshStatus,
+      @NonNull MaterialButton btnReset, @NonNull MaterialButton btnRevert,
       @NonNull MaterialButton btnRunManual, @NonNull MaterialButton btnSelectWorkspace,
-      @NonNull MaterialButton btnUndo, @NonNull RecyclerView rvLogs,
+      @NonNull MaterialButton btnStash, @NonNull RecyclerView rvLogs,
       @NonNull MaterialSwitch switchAutoRead, @NonNull MaterialSwitch switchBubble,
-      @NonNull TextView tvProtocolText, @NonNull TextView tvWorkspacePath,
-      @NonNull LinearLayout viewLogs, @NonNull LinearLayout viewPromptVault,
-      @NonNull LinearLayout viewSettings, @NonNull LinearLayout viewWorkspace) {
+      @NonNull TextView tvGitStatus, @NonNull TextView tvProtocolText,
+      @NonNull TextView tvWorkspacePath, @NonNull LinearLayout viewLogs,
+      @NonNull LinearLayout viewPromptVault, @NonNull LinearLayout viewSettings,
+      @NonNull LinearLayout viewSourceControl, @NonNull LinearLayout viewWorkspace) {
     this.rootView = rootView;
     this.bottomNavigation = bottomNavigation;
     this.btnCopyPrompt = btnCopyPrompt;
     this.btnCopySkeleton = btnCopySkeleton;
+    this.btnInitGit = btnInitGit;
+    this.btnPopStash = btnPopStash;
+    this.btnRefreshStatus = btnRefreshStatus;
+    this.btnReset = btnReset;
+    this.btnRevert = btnRevert;
     this.btnRunManual = btnRunManual;
     this.btnSelectWorkspace = btnSelectWorkspace;
-    this.btnUndo = btnUndo;
+    this.btnStash = btnStash;
     this.rvLogs = rvLogs;
     this.switchAutoRead = switchAutoRead;
     this.switchBubble = switchBubble;
+    this.tvGitStatus = tvGitStatus;
     this.tvProtocolText = tvProtocolText;
     this.tvWorkspacePath = tvWorkspacePath;
     this.viewLogs = viewLogs;
     this.viewPromptVault = viewPromptVault;
     this.viewSettings = viewSettings;
+    this.viewSourceControl = viewSourceControl;
     this.viewWorkspace = viewWorkspace;
   }
 
@@ -131,7 +161,7 @@ public final class ActivityMainBinding implements ViewBinding {
       }
 
       id = R.id.btnCopyPrompt;
-      ExtendedFloatingActionButton btnCopyPrompt = ViewBindings.findChildViewById(rootView, id);
+      MaterialButton btnCopyPrompt = ViewBindings.findChildViewById(rootView, id);
       if (btnCopyPrompt == null) {
         break missingId;
       }
@@ -139,6 +169,36 @@ public final class ActivityMainBinding implements ViewBinding {
       id = R.id.btnCopySkeleton;
       MaterialButton btnCopySkeleton = ViewBindings.findChildViewById(rootView, id);
       if (btnCopySkeleton == null) {
+        break missingId;
+      }
+
+      id = R.id.btnInitGit;
+      MaterialButton btnInitGit = ViewBindings.findChildViewById(rootView, id);
+      if (btnInitGit == null) {
+        break missingId;
+      }
+
+      id = R.id.btnPopStash;
+      MaterialButton btnPopStash = ViewBindings.findChildViewById(rootView, id);
+      if (btnPopStash == null) {
+        break missingId;
+      }
+
+      id = R.id.btnRefreshStatus;
+      MaterialButton btnRefreshStatus = ViewBindings.findChildViewById(rootView, id);
+      if (btnRefreshStatus == null) {
+        break missingId;
+      }
+
+      id = R.id.btnReset;
+      MaterialButton btnReset = ViewBindings.findChildViewById(rootView, id);
+      if (btnReset == null) {
+        break missingId;
+      }
+
+      id = R.id.btnRevert;
+      MaterialButton btnRevert = ViewBindings.findChildViewById(rootView, id);
+      if (btnRevert == null) {
         break missingId;
       }
 
@@ -154,9 +214,9 @@ public final class ActivityMainBinding implements ViewBinding {
         break missingId;
       }
 
-      id = R.id.btnUndo;
-      MaterialButton btnUndo = ViewBindings.findChildViewById(rootView, id);
-      if (btnUndo == null) {
+      id = R.id.btnStash;
+      MaterialButton btnStash = ViewBindings.findChildViewById(rootView, id);
+      if (btnStash == null) {
         break missingId;
       }
 
@@ -175,6 +235,12 @@ public final class ActivityMainBinding implements ViewBinding {
       id = R.id.switchBubble;
       MaterialSwitch switchBubble = ViewBindings.findChildViewById(rootView, id);
       if (switchBubble == null) {
+        break missingId;
+      }
+
+      id = R.id.tvGitStatus;
+      TextView tvGitStatus = ViewBindings.findChildViewById(rootView, id);
+      if (tvGitStatus == null) {
         break missingId;
       }
 
@@ -208,6 +274,12 @@ public final class ActivityMainBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.viewSourceControl;
+      LinearLayout viewSourceControl = ViewBindings.findChildViewById(rootView, id);
+      if (viewSourceControl == null) {
+        break missingId;
+      }
+
       id = R.id.viewWorkspace;
       LinearLayout viewWorkspace = ViewBindings.findChildViewById(rootView, id);
       if (viewWorkspace == null) {
@@ -215,9 +287,10 @@ public final class ActivityMainBinding implements ViewBinding {
       }
 
       return new ActivityMainBinding((CoordinatorLayout) rootView, bottomNavigation, btnCopyPrompt,
-          btnCopySkeleton, btnRunManual, btnSelectWorkspace, btnUndo, rvLogs, switchAutoRead,
-          switchBubble, tvProtocolText, tvWorkspacePath, viewLogs, viewPromptVault, viewSettings,
-          viewWorkspace);
+          btnCopySkeleton, btnInitGit, btnPopStash, btnRefreshStatus, btnReset, btnRevert,
+          btnRunManual, btnSelectWorkspace, btnStash, rvLogs, switchAutoRead, switchBubble,
+          tvGitStatus, tvProtocolText, tvWorkspacePath, viewLogs, viewPromptVault, viewSettings,
+          viewSourceControl, viewWorkspace);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

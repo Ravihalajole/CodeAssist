@@ -98,4 +98,83 @@ object GitManager {
             return false
         }
     }
+
+    fun getStatusString(workspaceRoot: File): String {
+        try {
+            if (!isGitInitialized(workspaceRoot)) return "Git is not initialized in this workspace."
+            
+            Git.open(workspaceRoot).use { git ->
+                val status = git.status().call()
+                if (status.isClean) return "Working directory is clean.\nNothing to commit."
+                
+                val sb = StringBuilder()
+                if (status.added.isNotEmpty()) sb.append("🚀 Added:\n").append(status.added.joinToString("\n")).append("\n\n")
+                if (status.changed.isNotEmpty()) sb.append("📝 Changed (Staged):\n").append(status.changed.joinToString("\n")).append("\n\n")
+                if (status.modified.isNotEmpty()) sb.append("✍️ Modified:\n").append(status.modified.joinToString("\n")).append("\n\n")
+                if (status.removed.isNotEmpty() || status.missing.isNotEmpty()) {
+                    sb.append("🗑️ Removed/Missing:\n")
+                    status.removed.forEach { sb.append(it).append("\n") }
+                    status.missing.forEach { sb.append(it).append("\n") }
+                    sb.append("\n")
+                }
+                if (status.untracked.isNotEmpty()) sb.append("❓ Untracked:\n").append(status.untracked.joinToString("\n")).append("\n\n")
+                
+                return sb.toString().trim()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("CodeAssist", "Git status failed", e)
+            return "Error getting status: ${e.message}"
+        }
+    }
+
+    fun stashChanges(workspaceRoot: File): Boolean {
+        try {
+            Git.open(workspaceRoot).use { git ->
+                git.stashCreate().setIncludeUntracked(true).setWorkingDirectoryMessage("Manual CodeAssist Stash").call()
+                return true
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("CodeAssist", "Git stash failed", e)
+            return false
+        }
+    }
+
+    fun popStash(workspaceRoot: File): Boolean {
+        try {
+            Git.open(workspaceRoot).use { git ->
+                // apply and drop
+                git.stashApply().call()
+                git.stashDrop().call()
+                return true
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("CodeAssist", "Git stash pop failed", e)
+            return false
+        }
+    }
+
+    data class CommitInfo(val hash: String, val message: String, val author: String, val time: Long)
+
+    fun getCommitHistory(workspaceRoot: File): List<CommitInfo> {
+        val commits = mutableListOf<CommitInfo>()
+        try {
+            if (!isGitInitialized(workspaceRoot)) return commits
+            Git.open(workspaceRoot).use { git ->
+                val logs = git.log().call()
+                for (rev in logs) {
+                    commits.add(
+                        CommitInfo(
+                            hash = rev.name,
+                            message = rev.fullMessage,
+                            author = rev.authorIdent.name,
+                            time = rev.commitTime.toLong() * 1000L
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("CodeAssist", "Git log failed", e)
+        }
+        return commits
+    }
 }

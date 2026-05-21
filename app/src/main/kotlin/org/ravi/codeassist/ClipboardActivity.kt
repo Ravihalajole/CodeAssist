@@ -106,37 +106,21 @@ class ClipboardActivity : AppCompatActivity() {
             val finalClipboardFeedback = java.lang.StringBuilder()
             var successCount = 0
             val batchId = java.util.UUID.randomUUID().toString()
-            
-            // Initialize SQLite Database Helper
-            val dbHelper = LogDatabaseHelper(this@ClipboardActivity)
+            var commitMessage = "Automated CodeAssist Execution"
             
             val rootFile = File(workspaceRoot)
             GitManager.initGit(rootFile) // Ensure Git is initialized to establish a baseline
 
-            for (command in commands) {
-                val result = CommandExecutor.execute(command, workspaceRoot)
-                
-                // Extract metadata for structural logging
-                val cmdName = command.javaClass.simpleName
-                val cmdPath = when (command) {
-                    is CodeCommand.CreateFile -> command.path
-                    is CodeCommand.PatchFile -> command.path
-                    is CodeCommand.DeleteFile -> command.path
-                    is CodeCommand.ReadFile -> command.path
-                    is CodeCommand.GrepFile -> command.path
-                    is CodeCommand.ListDir -> command.path
-                }
+            // Pre-process to extract the commit message if provided
+            commands.filterIsInstance<CodeCommand.CommitMessage>().firstOrNull()?.let {
+                commitMessage = it.message
+            }
+            
+            // Filter out CommitMessage commands before execution
+            val executableCommands = commands.filter { it !is CodeCommand.CommitMessage }
 
-                // === PERSISTENT EXECUTION LOGGING ===
-                dbHelper.insertLog(ExecutionLog(
-                    batchId = batchId,
-                    timestamp = System.currentTimeMillis(),
-                    commandType = cmdName,
-                    targetPath = cmdPath,
-                    isSuccess = result.success,
-                    message = result.logMsg,
-                    backupPath = result.backupPath
-                ))
+            for (command in executableCommands) {
+                val result = CommandExecutor.execute(command, workspaceRoot)
                 
                 if (result.success) {
                     successCount++
@@ -146,15 +130,6 @@ class ClipboardActivity : AppCompatActivity() {
                 } else {
                     // Discard uncommitted changes via Git
                     GitManager.discardUncommittedChanges(rootFile)
-                    
-                    try {
-                        dbHelper.writableDatabase.execSQL(
-                            "UPDATE execution_logs SET is_success = 0, message = 'Rolled back due to batch failure' WHERE batch_id = ?",
-                            arrayOf(batchId)
-                        )
-                    } catch (e: Exception) {
-                        android.util.Log.e("CodeAssist", "Failed to clear db state for rollback batch", e)
-                    }
 
                     withContext(Dispatchers.Main) {
                         Toast.makeText(this@ClipboardActivity, "Batch Failed, Rolled Back: ${result.logMsg}", Toast.LENGTH_LONG).show()
@@ -165,20 +140,25 @@ class ClipboardActivity : AppCompatActivity() {
             }
 
             // Commit changes to Git if we had successful file modifications
-            val hasModifications = commands.any { it is CodeCommand.PatchFile || it is CodeCommand.CreateFile || it is CodeCommand.DeleteFile }
+            val hasModifications = executableCommands.any { it is CodeCommand.PatchFile || it is CodeCommand.CreateFile || it is CodeCommand.DeleteFile }
             if (hasModifications && successCount > 0) {
-                val commitHash = GitManager.commitChanges(rootFile, "CodeAssist Batch: $batchId")
-                if (commitHash != null) {
-                    try {
-                        // Store the Git commit hash in the backupPath column so we can revert it later
-                        dbHelper.writableDatabase.execSQL(
-                            "UPDATE execution_logs SET backup_path = ? WHERE batch_id = ?",
-                            arrayOf(commitHash, batchId)
-                        )
-                    } catch (e: Exception) {
-                        android.util.Log.e("CodeAssist", "Failed to update commit hash", e)
+                val detailedMessage = buildString {
+                    appendLine(commitMessage)
+                    appendLine()
+                    appendLine("Operations:")
+                    executableCommands.forEach { cmd ->
+                        when (cmd) {
+                            is CodeCommand.PatchFile -> appendLine("- Patched: ${cmd.path}")
+                            is CodeCommand.CreateFile -> appendLine("- Created: ${cmd.path}")
+                            is CodeCommand.DeleteFile -> appendLine("- Deleted: ${cmd.path}")
+                            is CodeCommand.ReadFile -> appendLine("- Read: ${cmd.path}")
+                            is CodeCommand.GrepFile -> appendLine("- Grep: ${cmd.path}")
+                            is CodeCommand.ListDir -> appendLine("- Listed: ${cmd.path}")
+                            else -> {}
+                        }
                     }
                 }
+                GitManager.commitChanges(rootFile, detailedMessage.trim())
             }
 
             withContext(Dispatchers.Main) {

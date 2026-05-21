@@ -6,10 +6,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class LogsAdapter(
-    private var groupedLogs: List<List<ExecutionLog>>,
-    private val onBatchClick: (List<ExecutionLog>) -> Unit
+    private var commits: List<GitManager.CommitInfo>,
+    private val onCommitClick: (GitManager.CommitInfo) -> Unit
 ) : RecyclerView.Adapter<LogsAdapter.LogViewHolder>() {
 
     class LogViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -24,41 +27,31 @@ class LogsAdapter(
     }
 
     override fun onBindViewHolder(holder: LogViewHolder, position: Int) {
-        val batch = groupedLogs[position]
-        val firstLog = batch.first()
-        val isUndo = firstLog.commandType.startsWith("UNDO")
-        val isSuccess = batch.all { it.isSuccess }
+        val commit = commits[position]
 
-        holder.tvLogCommand.text = if (isUndo) "Undo Operation (${batch.size} actions)" else "Batch Execution (${batch.size} commands)"
+        val df = SimpleDateFormat("MMM dd, hh:mm a", Locale.getDefault())
+        holder.tvLogCommand.text = commit.hash.take(7) + " - " + df.format(Date(commit.time))
         
-        val paths = batch.map { it.targetPath }.filter { it.isNotEmpty() }
-        holder.tvLogPath.text = if (paths.size > 1) {
-            "${paths.first()} (+${paths.size - 1} more)"
-        } else {
-            paths.firstOrNull() ?: firstLog.message
-        }
+        // Show up to 4 lines of the commit message to include the operations summary
+        val displayMsg = commit.message.lines()
+            .filter { it.isNotBlank() }
+            .take(4)
+            .joinToString("\n")
+            
+        holder.tvLogPath.text = displayMsg.ifEmpty { "No message" }
 
-        if (isSuccess) {
-            holder.tvLogStatus.text = "SUCCESS"
-            holder.tvLogStatus.setTextColor(Color.parseColor("#4CAF50"))
-        } else {
-            holder.tvLogStatus.text = "FAILED"
-            holder.tvLogStatus.setTextColor(Color.parseColor("#F44336"))
-        }
+        holder.tvLogStatus.text = "COMMIT"
+        holder.tvLogStatus.setTextColor(Color.parseColor("#4CAF50"))
 
         holder.itemView.setOnClickListener {
-            onBatchClick(batch)
+            onCommitClick(commit)
         }
     }
 
-    override fun getItemCount() = groupedLogs.size
+    override fun getItemCount() = commits.size
 
-    fun updateData(newLogs: List<ExecutionLog>) {
-        val groupedMap = java.util.LinkedHashMap<String, MutableList<ExecutionLog>>()
-        for (log in newLogs) {
-            groupedMap.getOrPut(log.batchId) { mutableListOf() }.add(log)
-        }
-        this.groupedLogs = groupedMap.values.toList()
+    fun updateData(newCommits: List<GitManager.CommitInfo>) {
+        this.commits = newCommits
         notifyDataSetChanged()
     }
 }

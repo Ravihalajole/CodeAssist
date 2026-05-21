@@ -113,6 +113,15 @@
             android:textStyle="bold"
             android:layout_marginBottom="16dp"/>
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCopyPrompt"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Copy Protocol &amp; Workspace Structure"
+            app:icon="@drawable/ic_copy"
+            android:layout_marginBottom="16dp" />
+
         <ScrollView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
@@ -131,19 +140,6 @@
                 android:padding="16dp"/>
         </ScrollView>
     </LinearLayout>
-
-    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-        android:id="@+id/btnCopyPrompt"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_marginBottom="100dp"
-        android:layout_marginEnd="24dp"
-        android:text="Copy Prompt"
-        android:visibility="gone"
-        app:icon="@drawable/ic_copy"
-        android:backgroundTint="?attr/colorPrimary"
-        android:textColor="?attr/colorOnPrimary"/>
 
     <!-- === SCREEN 3: LOGS VIEW (Hidden by default) === -->
     <LinearLayout
@@ -195,6 +191,92 @@
             android:layout_height="match_parent"
             android:clipToPadding="false"
             android:paddingBottom="16dp"/>
+    </LinearLayout>
+
+    <!-- === SCREEN 5: SOURCE CONTROL VIEW (Hidden by default) === -->
+    <LinearLayout
+        android:id="@+id/viewSourceControl"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:layout_marginBottom="80dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Source Control"
+            android:textAppearance="?attr/textAppearanceHeadlineMedium"
+            android:textColor="?attr/colorPrimary"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnInitGit"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Init Repository" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnStash"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Stash"
+                android:layout_marginEnd="8dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPopStash"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Pop Stash" />
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRefreshStatus"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:text="Refresh Status" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fadeScrollbars="false"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/tvGitStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Status will appear here..."
+                android:textIsSelectable="true"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:fontFamily="monospace"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:background="?attr/colorSurfaceContainer"
+                android:padding="16dp"/>
+        </ScrollView>
     </LinearLayout>
 
     <!-- === SCREEN 4: SETTINGS VIEW (Hidden by default) === -->

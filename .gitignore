@@ -1,0 +1,29 @@
+# Built application files
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Unpacked native libraries
+*.so
+
+# Gradle files
+.gradle/
+build/
+app/build/
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# IntelliJ IDEA / Android Studio
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# CodeAssist specific
+.codeassist/

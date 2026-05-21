@@ -24,6 +24,7 @@ object CommandExecutor {
                 is CodeCommand.ListDir -> command.path
                 is CodeCommand.CreateFile -> command.path
                 is CodeCommand.DeleteFile -> command.path
+                is CodeCommand.CommitMessage -> return null // CommitMessage has no path, skip validation
             }
             val targetFile = File(rootDir, targetPath)
             if (!targetFile.canonicalPath.startsWith(rootDir.canonicalPath)) {
@@ -83,6 +84,7 @@ object CommandExecutor {
                 is CodeCommand.CreateFile -> handleCreateFile(rootDir, command.path, command.content)
                 is CodeCommand.PatchFile -> handlePatchFile(rootDir, command.path, command.search, command.replace)
                 is CodeCommand.DeleteFile -> handleDeleteFile(rootDir, command.path)
+                is CodeCommand.CommitMessage -> ExecutionResult(true, "Commit message parsed")
             }
         } catch (e: Exception) {
             ExecutionResult(false, "System Error: ${e.localizedMessage}")

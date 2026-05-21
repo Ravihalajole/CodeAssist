@@ -1,6 +1,7 @@
 package org.ravi.codeassist
 
 sealed class CodeCommand {
+    data class CommitMessage(val message: String) : CodeCommand()
     data class GrepFile(val path: String, val pattern: String) : CodeCommand()
     data class ReadFile(val path: String) : CodeCommand()
     data class ListDir(val path: String) : CodeCommand()
