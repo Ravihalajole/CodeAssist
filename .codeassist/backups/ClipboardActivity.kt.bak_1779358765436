@@ -24,8 +24,7 @@ class ClipboardActivity : AppCompatActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus && !hasProcessed) {
-            hasProcessed = true
+        if (hasFocus) {
             executeClipboardAction()
         }
     }
