@@ -170,53 +170,6 @@ class MainActivity : AppCompatActivity() {
             handleGitUndoAction(isReset = true)
         }
 
-        btnInitGit.setOnClickListener {
-            val path = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE).getString("WORKSPACE_ROOT", null)
-            if (path != null) {
-                lifecycleScope.launch(Dispatchers.IO) {
-                    GitManager.initGit(File(path))
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(this@MainActivity, "Git Initialized.", Toast.LENGTH_SHORT).show()
-                        refreshGitStatus()
-                    }
-                }
-            }
-        }
-
-        btnStash.setOnClickListener {
-            val path = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE).getString("WORKSPACE_ROOT", null)
-            if (path != null) {
-                lifecycleScope.launch(Dispatchers.IO) {
-                    val success = GitManager.stashChanges(File(path))
-                    withContext(Dispatchers.Main) {
-                        if (success) {
-                            Toast.makeText(this@MainActivity, "Changes stashed.", Toast.LENGTH_SHORT).show()
-                            refreshGitStatus()
-                        } else {
-                            Toast.makeText(this@MainActivity, "Failed to stash.", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-            }
-        }
-
-        btnPopStash.setOnClickListener {
-            val path = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE).getString("WORKSPACE_ROOT", null)
-            if (path != null) {
-                lifecycleScope.launch(Dispatchers.IO) {
-                    val success = GitManager.popStash(File(path))
-                    withContext(Dispatchers.Main) {
-                        if (success) {
-                            Toast.makeText(this@MainActivity, "Stash popped.", Toast.LENGTH_SHORT).show()
-                            refreshGitStatus()
-                        } else {
-                            Toast.makeText(this@MainActivity, "Failed to pop stash.", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-            }
-        }
-
         // Setup Bottom Navigation Logic
         bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {
@@ -247,7 +200,6 @@ class MainActivity : AppCompatActivity() {
         viewWorkspace.visibility = View.VISIBLE
         viewPromptVault.visibility = View.GONE
         viewLogs.visibility = View.GONE
-        viewSourceControl.visibility = View.GONE
         viewSettings.visibility = View.GONE
     }
 
