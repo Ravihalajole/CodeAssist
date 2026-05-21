@@ -21,3 +21,4 @@
 - [x] Migrate Log screen to display Git history instead of SQLite.
 - [x] Enhance batch commit message with execution summary.
 - [x] Strip off old LogDatabaseHelper and SQLite saving logic.
+- [x] Resolve silent JGit commit failures (cleared stale index.lock).
