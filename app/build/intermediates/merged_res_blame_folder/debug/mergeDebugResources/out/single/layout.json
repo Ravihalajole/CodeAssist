@@ -1,0 +1,18 @@
+[
+    {
+        "merged": "org.ravi.codeassist.app-mergeDebugResources-35:/layout/activity_main.xml",
+        "source": "org.ravi.codeassist.app-main-38:/layout/activity_main.xml"
+    },
+    {
+        "merged": "org.ravi.codeassist.app-mergeDebugResources-35:/layout/bottom_sheet_confirmation.xml",
+        "source": "org.ravi.codeassist.app-main-38:/layout/bottom_sheet_confirmation.xml"
+    },
+    {
+        "merged": "org.ravi.codeassist.app-mergeDebugResources-35:/layout/bubble_view.xml",
+        "source": "org.ravi.codeassist.app-main-38:/layout/bubble_view.xml"
+    },
+    {
+        "merged": "org.ravi.codeassist.app-mergeDebugResources-35:/layout/item_log.xml",
+        "source": "org.ravi.codeassist.app-main-38:/layout/item_log.xml"
+    }
+]

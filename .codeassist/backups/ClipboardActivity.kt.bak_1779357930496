@@ -1,0 +1,204 @@
+package org.ravi.codeassist
+
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.os.Bundle
+import android.util.Log
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+
+class ClipboardActivity : AppCompatActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        Log.i("CodeAssist", "Invisible Activity Created. Waiting for window focus...")
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            executeClipboardAction()
+        }
+    }
+
+    private fun executeClipboardAction() {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+
+        if (!clipboard.hasPrimaryClip()) {
+            Toast.makeText(this, "Clipboard is empty.", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+
+        val clipData = clipboard.primaryClip
+        if (clipData != null && clipData.itemCount > 0) {
+            val textToParse = clipData.getItemAt(0).text?.toString()
+
+            if (textToParse.isNullOrEmpty() || !textToParse.contains(":::CODE_ASSIST:::")) {
+                Toast.makeText(this, "No valid CodeAssist envelope found.", Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
+
+            processClipboardPayload(textToParse, clipboard)
+        } else {
+            finish()
+        }
+    }
+
+    private fun processClipboardPayload(payload: String, clipboard: ClipboardManager) {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
+
+        if (workspaceRoot.isNullOrEmpty()) {
+            Toast.makeText(this, "Error: Set workspace path first.", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+
+        val commands = EnvelopeParser.parse(payload)
+        
+        if (commands.isEmpty()) {
+            Toast.makeText(this, "Parsing error: No valid instructions.", Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
+
+        val autoReadEnabled = sharedPref.getBoolean("AUTO_READ_ENABLED", false)
+        val isReadOnlyBatch = commands.all { 
+            it is CodeCommand.ReadFile || it is CodeCommand.GrepFile || it is CodeCommand.ListDir 
+        }
+
+        if (autoReadEnabled && isReadOnlyBatch) {
+            // Bypass approval for read-only batches
+            executeCommands(commands, workspaceRoot, clipboard)
+        } else {
+            // === HUMAN-IN-THE-LOOP SAFETY NET INTERCEPTOR ===
+            val bottomSheet = ConfirmationBottomSheet(
+                commands = commands,
+                workspaceRoot = workspaceRoot,
+                onApprove = {
+                    // User approved the execution! Run the engine.
+                    executeCommands(commands, workspaceRoot, clipboard)
+                },
+                onReject = {
+                    // User rejected the changes. Abort safely.
+                    Toast.makeText(this, "Execution Aborted.", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+            )
+            
+            bottomSheet.show(supportFragmentManager, "ConfirmationSheet")
+        }
+    }
+
+    private fun executeCommands(commands: List<CodeCommand>, workspaceRoot: String, clipboard: ClipboardManager) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val finalClipboardFeedback = java.lang.StringBuilder()
+            var successCount = 0
+            val batchId = java.util.UUID.randomUUID().toString()
+            
+            // Initialize SQLite Database Helper
+            val dbHelper = LogDatabaseHelper(this@ClipboardActivity)
+
+            for (command in commands) {
+                val result = CommandExecutor.execute(command, workspaceRoot)
+                
+                // Extract metadata for structural logging
+                val cmdName = command.javaClass.simpleName
+                val cmdPath = when (command) {
+                    is CodeCommand.CreateFile -> command.path
+                    is CodeCommand.PatchFile -> command.path
+                    is CodeCommand.DeleteFile -> command.path
+                    is CodeCommand.ReadFile -> command.path
+                    is CodeCommand.GrepFile -> command.path
+                    is CodeCommand.ListDir -> command.path
+                }
+
+                // === PERSISTENT EXECUTION LOGGING ===
+                dbHelper.insertLog(ExecutionLog(
+                    batchId = batchId,
+                    timestamp = System.currentTimeMillis(),
+                    commandType = cmdName,
+                    targetPath = cmdPath,
+                    isSuccess = result.success,
+                    message = result.logMsg,
+                    backupPath = result.backupPath
+                ))
+                
+                if (result.success) {
+                    successCount++
+                    result.outputToClipboard?.let {
+                        finalClipboardFeedback.append(it).append("\n")
+                    }
+                } else {
+                    // Rollback successful modifying commands in this batch
+                    rollbackBatch(batchId, dbHelper, workspaceRoot)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@ClipboardActivity, "Batch Failed, Rolled Back: ${result.logMsg}", Toast.LENGTH_LONG).show()
+                        finish()
+                    }
+                    return@launch
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                // Write processing output back to clipboard for LLM evaluation loop
+                if (finalClipboardFeedback.isNotEmpty()) {
+                    val clip = ClipData.newPlainText("CodeAssist Result", finalClipboardFeedback.toString().trim())
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(this@ClipboardActivity, "Executed $successCount ops. Copied to clipboard!", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this@ClipboardActivity, "Executed $successCount ops successfully.", Toast.LENGTH_LONG).show()
+                }
+                finish()
+            }
+        }
+    }
+
+    private fun rollbackBatch(batchId: String, dbHelper: LogDatabaseHelper, workspaceRoot: String) {
+        val batchLogs = dbHelper.getAllLogs().filter { it.batchId == batchId && it.isSuccess }
+        for (log in batchLogs.reversed()) {
+            val targetFile = File(workspaceRoot, log.targetPath)
+            try {
+                when (log.commandType) {
+                    "PatchFile", "DeleteFile" -> {
+                        val backupDir = File(workspaceRoot, ".codeassist/backups")
+                        val backupFile = File(backupDir, log.backupPath ?: continue)
+                        if (backupFile.exists()) {
+                            backupFile.copyTo(targetFile, overwrite = true)
+                            backupFile.delete()
+                        }
+                    }
+                    "CreateFile" -> {
+                        if (targetFile.exists()) {
+                            targetFile.delete()
+                            
+                            // Clean up orphaned empty parent directories
+                            var parent = targetFile.parentFile
+                            while (parent != null && parent.absolutePath != workspaceRoot && parent.isDirectory && parent.list()?.isEmpty() == true) {
+                                parent.delete()
+                                parent = parent.parentFile
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("CodeAssist", "Rollback failed for ${log.targetPath}", e)
+            }
+        }
+        
+        // Clean up database state for the rolled back batch
+        try {
+            dbHelper.writableDatabase.execSQL("UPDATE logs SET isSuccess = 0, message = 'Rolled back due to batch failure' WHERE batchId = ?", arrayOf(batchId))
+        } catch (e: Exception) {
+            android.util.Log.e("CodeAssist", "Failed to clear db state for rollback batch", e)
+        }
+    }
+}
