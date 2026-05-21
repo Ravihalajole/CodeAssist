@@ -138,21 +138,16 @@ class ClipboardActivity : AppCompatActivity() {
                 }
             }
 
-            // Commit changes to Git if we had successful file modifications
             val hasModifications = executableCommands.any { it is CodeCommand.PatchFile || it is CodeCommand.CreateFile || it is CodeCommand.DeleteFile }
             if (hasModifications && successCount > 0) {
                 val detailedMessage = buildString {
                     appendLine(commitMessage)
-                    appendLine()
-                    appendLine("Operations:")
+                    appendLine("\nOperations:")
                     executableCommands.forEach { cmd ->
                         when (cmd) {
                             is CodeCommand.PatchFile -> appendLine("- Patched: ${cmd.path}")
                             is CodeCommand.CreateFile -> appendLine("- Created: ${cmd.path}")
                             is CodeCommand.DeleteFile -> appendLine("- Deleted: ${cmd.path}")
-                            is CodeCommand.ReadFile -> appendLine("- Read: ${cmd.path}")
-                            is CodeCommand.GrepFile -> appendLine("- Grep: ${cmd.path}")
-                            is CodeCommand.ListDir -> appendLine("- Listed: ${cmd.path}")
                             else -> {}
                         }
                     }

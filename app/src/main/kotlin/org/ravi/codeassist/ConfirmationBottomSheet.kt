@@ -89,28 +89,29 @@ class ConfirmationBottomSheet(
 
         // Build a readable summary of what the LLM wants to do
         if (hasErrors) {
-            val errorSummary = java.lang.StringBuilder("The following commands will fail:\n\n")
-            errors.forEachIndexed { index, err ->
-                errorSummary.append("${index + 1}. $err\n\n")
+            val errorSummary = buildString {
+                appendLine("The following commands will fail:\n")
+                errors.forEachIndexed { index, err -> appendLine("${index + 1}. $err\n") }
             }
-            tvSummary.text = errorSummary.toString().trim()
-            tvSummary.setTextColor(android.graphics.Color.parseColor("#F44336")) // Red color
+            tvSummary.text = errorSummary.trim()
+            tvSummary.setTextColor(android.graphics.Color.parseColor("#F44336"))
         } else {
-            val summaryText = java.lang.StringBuilder()
-            commands.forEachIndexed { index, command ->
-                val actionName = command.javaClass.simpleName
-                val targetPath = when (command) {
-                    is CodeCommand.CreateFile -> command.path
-                    is CodeCommand.PatchFile -> command.path
-                    is CodeCommand.DeleteFile -> command.path
-                    is CodeCommand.ReadFile -> command.path
-                    is CodeCommand.GrepFile -> command.path
-                    is CodeCommand.ListDir -> command.path
-                    is CodeCommand.CommitMessage -> "Message: ${command.message}"
+            val summaryText = buildString {
+                commands.forEachIndexed { index, command ->
+                    val actionName = command.javaClass.simpleName
+                    val targetPath = when (command) {
+                        is CodeCommand.CreateFile -> command.path
+                        is CodeCommand.PatchFile -> command.path
+                        is CodeCommand.DeleteFile -> command.path
+                        is CodeCommand.ReadFile -> command.path
+                        is CodeCommand.GrepFile -> command.path
+                        is CodeCommand.ListDir -> command.path
+                        is CodeCommand.CommitMessage -> "Message: ${command.message}"
+                    }
+                    appendLine("${index + 1}. [$actionName]\n   └─ $targetPath\n")
                 }
-                summaryText.append("${index + 1}. [$actionName]\n   └─ $targetPath\n\n")
             }
-            tvSummary.text = summaryText.toString().trim()
+            tvSummary.text = summaryText.trim()
         }
 
         btnApprove.setOnClickListener {

@@ -20,7 +20,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -346,15 +345,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun showCommitDetailsDialog(commit: GitManager.CommitInfo) {
         val df = java.text.SimpleDateFormat("MMM dd, yyyy  hh:mm a", java.util.Locale.getDefault())
-        val sb = java.lang.StringBuilder()
-        sb.append("Commit: ${commit.hash}\n")
-        sb.append("Author: ${commit.author}\n")
-        sb.append("Date: ${df.format(java.util.Date(commit.time))}\n\n")
-        sb.append("Message:\n${commit.message}\n")
+        val messageBody = """
+            Commit: ${commit.hash}
+            Author: ${commit.author}
+            Date: ${df.format(java.util.Date(commit.time))}
+            
+            Message:
+            ${commit.message}
+        """.trimIndent()
 
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle("Commit Details")
-            .setMessage(sb.toString().trim())
+            .setMessage(messageBody)
             .setPositiveButton("Close", null)
             .show()
     }

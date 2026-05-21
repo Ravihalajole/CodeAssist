@@ -98,9 +98,7 @@ object CommandExecutor {
     private fun handleGrepFile(rootDir: File, relativePath: String, patternStr: String): ExecutionResult {
         val targetFile = File(rootDir, relativePath)
         if (!isPathSafe(rootDir, targetFile)) return ExecutionResult(false, "Security Error: Path traversal attempt blocked.")
-        if (!targetFile.exists() || !targetFile.isFile) {
-            return ExecutionResult(false, "File not found for Grep: $relativePath")
-        }
+        if (!targetFile.exists() || !targetFile.isFile) return ExecutionResult(false, "File not found for Grep: $relativePath")
 
         val pattern = try {
             Pattern.compile(patternStr, Pattern.CASE_INSENSITIVE)
@@ -117,8 +115,7 @@ object CommandExecutor {
             }
         }
 
-        val resultText = if (matchedLines.isNotEmpty()) matchedLines.toString() else "No matches found for pattern: $patternStr"
-        return ExecutionResult(true, "Grep complete for $relativePath", resultText)
+        return ExecutionResult(true, "Grep complete for $relativePath", matchedLines.toString().ifEmpty { "No matches found for pattern: $patternStr" })
     }
 
     private fun handleListDir(rootDir: File, relativePath: String): ExecutionResult {
