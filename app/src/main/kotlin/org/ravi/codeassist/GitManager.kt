@@ -72,6 +72,18 @@ object GitManager {
         }
     }
 
+    fun resetHardToPrevious(workspaceRoot: File): Boolean {
+        try {
+            Git.open(workspaceRoot).use { git ->
+                git.reset().setMode(ResetCommand.ResetType.HARD).setRef("HEAD~1").call()
+                return true
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("CodeAssist", "Git reset failed", e)
+            return false
+        }
+    }
+
     fun discardUncommittedChanges(workspaceRoot: File): Boolean {
         try {
             Git.open(workspaceRoot).use { git ->

@@ -43,7 +43,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnCopySkeleton: MaterialButton
     private lateinit var btnRunManual: MaterialButton
     private lateinit var bottomNavigation: BottomNavigationView
-    private lateinit var btnUndo: MaterialButton
+    private lateinit var btnRevert: MaterialButton
+    private lateinit var btnReset: MaterialButton
     
     // RecyclerView Components
     private lateinit var rvLogs: RecyclerView
@@ -79,7 +80,8 @@ class MainActivity : AppCompatActivity() {
         btnCopySkeleton = findViewById(R.id.btnCopySkeleton)
         btnRunManual = findViewById(R.id.btnRunManual)
         bottomNavigation = findViewById(R.id.bottomNavigation)
-        btnUndo = findViewById(R.id.btnUndo)
+        btnRevert = findViewById(R.id.btnRevert)
+        btnReset = findViewById(R.id.btnReset)
         rvLogs = findViewById(R.id.rvLogs)
 
         // Setup RecyclerView
@@ -152,8 +154,12 @@ class MainActivity : AppCompatActivity() {
             startActivity(intent)
         }
         
-        btnUndo.setOnClickListener {
-            revertLastCommand()
+        btnRevert.setOnClickListener {
+            handleGitUndoAction(isReset = false)
+        }
+
+        btnReset.setOnClickListener {
+            handleGitUndoAction(isReset = true)
         }
 
         // Setup Bottom Navigation Logic
@@ -294,7 +300,7 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "Protocol copied to clipboard!", Toast.LENGTH_SHORT).show()
     }
 
-    private fun revertLastCommand() {
+    private fun handleGitUndoAction(isReset: Boolean) {
         val dbHelper = LogDatabaseHelper(this)
         val batchLogs = dbHelper.getLastModifyingBatch()
 
@@ -312,16 +318,22 @@ class MainActivity : AppCompatActivity() {
         val commitHash = batchLogs.firstNotNullOfOrNull { it.backupPath }
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val revertSuccess = if (commitHash != null && GitManager.isGitInitialized(rootFile)) {
-                GitManager.revertCommit(rootFile, commitHash)
+            val actionSuccess = if (GitManager.isGitInitialized(rootFile)) {
+                if (isReset) {
+                    GitManager.resetHardToPrevious(rootFile)
+                } else {
+                    if (commitHash != null) GitManager.revertCommit(rootFile, commitHash) else false
+                }
             } else {
                 false
             }
             
-            val logMessage = if (revertSuccess) {
-                "Git Revert successful for commit: ${commitHash?.take(7)}"
+            val actionName = if (isReset) "Git Reset" else "Git Revert"
+            val logMessage = if (actionSuccess) {
+                if (isReset) "$actionName successful (HEAD moved back)" 
+                else "$actionName successful for commit: ${commitHash?.take(7)}"
             } else {
-                "Git Revert failed or commit hash missing."
+                "$actionName failed or commit hash missing."
             }
 
             // Log the Undo action itself
@@ -329,19 +341,19 @@ class MainActivity : AppCompatActivity() {
                 ExecutionLog(
                     batchId = newBatchId,
                     timestamp = System.currentTimeMillis(),
-                    commandType = "UNDO (Git Revert)",
+                    commandType = "UNDO ($actionName)",
                     targetPath = "Multiple Files",
-                    isSuccess = revertSuccess,
+                    isSuccess = actionSuccess,
                     message = logMessage,
                     backupPath = null
                 )
             )
 
             withContext(Dispatchers.Main) {
-                if (revertSuccess) {
-                    Toast.makeText(this@MainActivity, "Undo Complete: Git commit reverted successfully.", Toast.LENGTH_SHORT).show()
+                if (actionSuccess) {
+                    Toast.makeText(this@MainActivity, "Undo Complete: $actionName successful.", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this@MainActivity, "Undo Failed: Could not revert Git commit.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Undo Failed: Could not complete $actionName.", Toast.LENGTH_SHORT).show()
                 }
                 logsAdapter.updateData(dbHelper.getAllLogs())
             }
