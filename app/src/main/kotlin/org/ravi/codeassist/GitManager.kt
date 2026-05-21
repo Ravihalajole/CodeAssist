@@ -101,58 +101,7 @@ object GitManager {
         }
     }
 
-    suspend fun getStatusString(workspaceRoot: File): String = gitMutex.withLock {
-        try {
-            if (!isGitInitialized(workspaceRoot)) return "Git is not initialized in this workspace."
-            
-            Git.open(workspaceRoot).use { git ->
-                val status = git.status().call()
-                if (status.isClean) return "Working directory is clean.\nNothing to commit."
-                
-                val sb = StringBuilder()
-                if (status.added.isNotEmpty()) sb.append("🚀 Added:\n").append(status.added.joinToString("\n")).append("\n\n")
-                if (status.changed.isNotEmpty()) sb.append("📝 Changed (Staged):\n").append(status.changed.joinToString("\n")).append("\n\n")
-                if (status.modified.isNotEmpty()) sb.append("✍️ Modified:\n").append(status.modified.joinToString("\n")).append("\n\n")
-                if (status.removed.isNotEmpty() || status.missing.isNotEmpty()) {
-                    sb.append("🗑️ Removed/Missing:\n")
-                    status.removed.forEach { sb.append(it).append("\n") }
-                    status.missing.forEach { sb.append(it).append("\n") }
-                    sb.append("\n")
-                }
-                if (status.untracked.isNotEmpty()) sb.append("❓ Untracked:\n").append(status.untracked.joinToString("\n")).append("\n\n")
-                
-                return sb.toString().trim()
-            }
-        } catch (e: Exception) {
-            return "Error getting status: ${e.message}"
-        }
-    }
 
-    suspend fun stashChanges(workspaceRoot: File): Boolean = gitMutex.withLock {
-        try {
-            Git.open(workspaceRoot).use { git ->
-                val rev = git.stashCreate().setIncludeUntracked(true).setWorkingDirectoryMessage("Manual CodeAssist Stash").call()
-                return rev != null
-            }
-        } catch (e: Exception) {
-            return false
-        }
-    }
-
-    suspend fun popStash(workspaceRoot: File): Boolean = gitMutex.withLock {
-        try {
-            Git.open(workspaceRoot).use { git ->
-                val stashes = git.stashList().call()
-                if (stashes.isNullOrEmpty()) return false
-                
-                git.stashApply().call()
-                git.stashDrop().setStashRef(0).call()
-                return true
-            }
-        } catch (e: Exception) {
-            return false
-        }
-    }
 
     data class CommitInfo(val hash: String, val message: String, val author: String, val time: Long)
 

@@ -31,22 +31,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var viewWorkspace: View
     private lateinit var viewPromptVault: View
     private lateinit var viewLogs: View
-    private lateinit var viewSourceControl: View
     private lateinit var viewSettings: View
     
     // UI Elements
     private lateinit var tvWorkspacePath: TextView
-    private lateinit var tvGitStatus: TextView
     private lateinit var switchBubble: com.google.android.material.materialswitch.MaterialSwitch
     private lateinit var switchAutoRead: com.google.android.material.materialswitch.MaterialSwitch
     private lateinit var btnSelectWorkspace: MaterialButton
     private lateinit var btnCopyPrompt: MaterialButton
     private lateinit var btnCopySkeleton: MaterialButton
     private lateinit var btnRunManual: MaterialButton
-    private lateinit var btnInitGit: MaterialButton
-    private lateinit var btnStash: MaterialButton
-    private lateinit var btnPopStash: MaterialButton
-    private lateinit var btnRefreshStatus: MaterialButton
     private lateinit var bottomNavigation: BottomNavigationView
     private lateinit var btnRevert: MaterialButton
     private lateinit var btnReset: MaterialButton
@@ -70,11 +64,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Auto-refresh active tabs when returning to the app from ClipboardActivity
         if (this::viewLogs.isInitialized && viewLogs.visibility == View.VISIBLE) {
             showLogsScreen()
-        } else if (this::viewSourceControl.isInitialized && viewSourceControl.visibility == View.VISIBLE) {
-            refreshGitStatus()
         }
     }
 
@@ -86,21 +77,15 @@ class MainActivity : AppCompatActivity() {
         viewWorkspace = findViewById(R.id.viewWorkspace)
         viewPromptVault = findViewById(R.id.viewPromptVault)
         viewLogs = findViewById(R.id.viewLogs)
-        viewSourceControl = findViewById(R.id.viewSourceControl)
         viewSettings = findViewById(R.id.viewSettings)
         
         tvWorkspacePath = findViewById(R.id.tvWorkspacePath)
-        tvGitStatus = findViewById(R.id.tvGitStatus)
         switchBubble = findViewById(R.id.switchBubble)
         switchAutoRead = findViewById(R.id.switchAutoRead)
         btnSelectWorkspace = findViewById(R.id.btnSelectWorkspace)
         btnCopyPrompt = findViewById(R.id.btnCopyPrompt)
         btnCopySkeleton = findViewById(R.id.btnCopySkeleton)
         btnRunManual = findViewById(R.id.btnRunManual)
-        btnInitGit = findViewById(R.id.btnInitGit)
-        btnStash = findViewById(R.id.btnStash)
-        btnPopStash = findViewById(R.id.btnPopStash)
-        btnRefreshStatus = findViewById(R.id.btnRefreshStatus)
         bottomNavigation = findViewById(R.id.bottomNavigation)
         btnRevert = findViewById(R.id.btnRevert)
         btnReset = findViewById(R.id.btnReset)
@@ -232,10 +217,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        btnRefreshStatus.setOnClickListener {
-            refreshGitStatus()
-        }
-
         // Setup Bottom Navigation Logic
         bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {
@@ -249,10 +230,6 @@ class MainActivity : AppCompatActivity() {
                 }
                 R.id.nav_logs -> {
                     showLogsScreen()
-                    true
-                }
-                R.id.nav_source_control -> {
-                    showSourceControlScreen()
                     true
                 }
                 R.id.nav_settings -> {
@@ -278,7 +255,6 @@ class MainActivity : AppCompatActivity() {
         viewPromptVault.visibility = View.VISIBLE
         viewWorkspace.visibility = View.GONE
         viewLogs.visibility = View.GONE
-        viewSourceControl.visibility = View.GONE
         viewSettings.visibility = View.GONE
     }
 
@@ -286,7 +262,6 @@ class MainActivity : AppCompatActivity() {
         viewLogs.visibility = View.VISIBLE
         viewWorkspace.visibility = View.GONE
         viewPromptVault.visibility = View.GONE
-        viewSourceControl.visibility = View.GONE
         viewSettings.visibility = View.GONE
         
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
@@ -309,36 +284,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showSourceControlScreen() {
-        viewSourceControl.visibility = View.VISIBLE
-        viewWorkspace.visibility = View.GONE
-        viewPromptVault.visibility = View.GONE
-        viewLogs.visibility = View.GONE
-        viewSettings.visibility = View.GONE
-        
-        refreshGitStatus()
-    }
-
     private fun showSettingsScreen() {
         viewSettings.visibility = View.VISIBLE
         viewWorkspace.visibility = View.GONE
         viewPromptVault.visibility = View.GONE
         viewLogs.visibility = View.GONE
-        viewSourceControl.visibility = View.GONE
-    }
-
-    private fun refreshGitStatus() {
-        val path = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE).getString("WORKSPACE_ROOT", null)
-        if (path.isNullOrEmpty()) {
-            tvGitStatus.text = "Workspace not set."
-            return
-        }
-        lifecycleScope.launch(Dispatchers.IO) {
-            val statusStr = GitManager.getStatusString(File(path))
-            withContext(Dispatchers.Main) {
-                tvGitStatus.text = statusStr
-            }
-        }
     }
 
     // --- ACTIONS ---
