@@ -67,6 +67,9 @@ public final class ActivityMainBinding implements ViewBinding {
   public final MaterialSwitch switchBubble;
 
   @NonNull
+  public final TextView tvEmptyLogs;
+
+  @NonNull
   public final TextView tvGitStatus;
 
   @NonNull
@@ -98,10 +101,11 @@ public final class ActivityMainBinding implements ViewBinding {
       @NonNull MaterialButton btnRunManual, @NonNull MaterialButton btnSelectWorkspace,
       @NonNull MaterialButton btnStash, @NonNull RecyclerView rvLogs,
       @NonNull MaterialSwitch switchAutoRead, @NonNull MaterialSwitch switchBubble,
-      @NonNull TextView tvGitStatus, @NonNull TextView tvProtocolText,
-      @NonNull TextView tvWorkspacePath, @NonNull LinearLayout viewLogs,
-      @NonNull LinearLayout viewPromptVault, @NonNull LinearLayout viewSettings,
-      @NonNull LinearLayout viewSourceControl, @NonNull LinearLayout viewWorkspace) {
+      @NonNull TextView tvEmptyLogs, @NonNull TextView tvGitStatus,
+      @NonNull TextView tvProtocolText, @NonNull TextView tvWorkspacePath,
+      @NonNull LinearLayout viewLogs, @NonNull LinearLayout viewPromptVault,
+      @NonNull LinearLayout viewSettings, @NonNull LinearLayout viewSourceControl,
+      @NonNull LinearLayout viewWorkspace) {
     this.rootView = rootView;
     this.bottomNavigation = bottomNavigation;
     this.btnCopyPrompt = btnCopyPrompt;
@@ -117,6 +121,7 @@ public final class ActivityMainBinding implements ViewBinding {
     this.rvLogs = rvLogs;
     this.switchAutoRead = switchAutoRead;
     this.switchBubble = switchBubble;
+    this.tvEmptyLogs = tvEmptyLogs;
     this.tvGitStatus = tvGitStatus;
     this.tvProtocolText = tvProtocolText;
     this.tvWorkspacePath = tvWorkspacePath;
@@ -238,6 +243,12 @@ public final class ActivityMainBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.tvEmptyLogs;
+      TextView tvEmptyLogs = ViewBindings.findChildViewById(rootView, id);
+      if (tvEmptyLogs == null) {
+        break missingId;
+      }
+
       id = R.id.tvGitStatus;
       TextView tvGitStatus = ViewBindings.findChildViewById(rootView, id);
       if (tvGitStatus == null) {
@@ -289,8 +300,8 @@ public final class ActivityMainBinding implements ViewBinding {
       return new ActivityMainBinding((CoordinatorLayout) rootView, bottomNavigation, btnCopyPrompt,
           btnCopySkeleton, btnInitGit, btnPopStash, btnRefreshStatus, btnReset, btnRevert,
           btnRunManual, btnSelectWorkspace, btnStash, rvLogs, switchAutoRead, switchBubble,
-          tvGitStatus, tvProtocolText, tvWorkspacePath, viewLogs, viewPromptVault, viewSettings,
-          viewSourceControl, viewWorkspace);
+          tvEmptyLogs, tvGitStatus, tvProtocolText, tvWorkspacePath, viewLogs, viewPromptVault,
+          viewSettings, viewSourceControl, viewWorkspace);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

@@ -10,8 +10,10 @@
 - [x] Migrate Log screen to display Git history instead of SQLite.
 - [x] Enhance batch commit message with execution summary.
 - [x] Strip off old LogDatabaseHelper and SQLite saving logic.
-- [x] Resolve silent JGit commit failures (cleared stale index.lock).
+- [x] Resolve silent JGit commit failures (implemented automated index.lock cleanup).
+- [x] Fix Source Control and Logs UI bugs (Stash safety, RecyclerView layouts, Empty states).
 
 ## Pending Tasks
-- [ ] Analyze UI components (`MainActivity.kt`, `ClipboardActivity.kt`, `ConfirmationBottomSheet.kt`).
-- [ ] Review state and integrations (`GitManager.kt`, `CodeAssistTileService.kt`, `FloatingBubbleService.kt`).
+- [x] Refactor system integrations (`CodeAssistTileService.kt`, `FloatingBubbleService.kt`).
+- [ ] Final project cleanup and refactor, code has lot of logs and debug codes, sqlite related unused codes, needs to cleanup
+- [x] Refactor and stabilize `ClipboardActivity` layout transitions and lifecycle edge cases

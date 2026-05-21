@@ -97,13 +97,15 @@ class FloatingBubbleService : Service() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
         if (::floatingView.isInitialized) {
             try {
                 windowManager.removeView(floatingView)
+            } catch (e: IllegalArgumentException) {
+                android.util.Log.w("CodeAssist", "Bubble view already removed.")
             } catch (e: Exception) {
-                // Ignore exception if view was already detached by the system
+                android.util.Log.e("CodeAssist", "Error removing bubble view", e)
             }
         }
+        super.onDestroy()
     }
 }

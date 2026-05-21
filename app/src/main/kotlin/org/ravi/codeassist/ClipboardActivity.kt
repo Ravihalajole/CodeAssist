@@ -19,7 +19,6 @@ class ClipboardActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.i("CodeAssist", "Invisible Activity Created. Waiting for window focus...")
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

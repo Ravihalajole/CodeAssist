@@ -9,9 +9,17 @@ object GitManager {
         return File(workspaceRoot, ".git").exists()
     }
 
+    private fun cleanupStaleLocks(workspaceRoot: File) {
+        val indexLock = File(workspaceRoot, ".git/index.lock")
+        if (indexLock.exists()) {
+            indexLock.delete()
+        }
+    }
+
     fun initGit(workspaceRoot: File) {
         try {
             if (!isGitInitialized(workspaceRoot)) {
+                cleanupStaleLocks(workspaceRoot)
                 Git.init().setDirectory(workspaceRoot).call().use { git ->
                     // Create a robust default .gitignore to avoid committing build artifacts
                     val gitignore = File(workspaceRoot, ".gitignore")
@@ -34,10 +42,10 @@ object GitManager {
 
     fun commitChanges(workspaceRoot: File, message: String): String? {
         try {
+            cleanupStaleLocks(workspaceRoot)
             Git.open(workspaceRoot).use { git ->
                 // Stage new and modified files
                 git.add().addFilepattern(".").call()
-                
                 // Stage deleted files
                 git.add().setUpdate(true).addFilepattern(".").call()
                 
@@ -130,8 +138,8 @@ object GitManager {
     fun stashChanges(workspaceRoot: File): Boolean {
         try {
             Git.open(workspaceRoot).use { git ->
-                git.stashCreate().setIncludeUntracked(true).setWorkingDirectoryMessage("Manual CodeAssist Stash").call()
-                return true
+                val rev = git.stashCreate().setIncludeUntracked(true).setWorkingDirectoryMessage("Manual CodeAssist Stash").call()
+                return rev != null // Return false if no changes were available to stash
             }
         } catch (e: Exception) {
             android.util.Log.e("CodeAssist", "Git stash failed", e)
@@ -142,9 +150,11 @@ object GitManager {
     fun popStash(workspaceRoot: File): Boolean {
         try {
             Git.open(workspaceRoot).use { git ->
-                // apply and drop
+                val stashes = git.stashList().call()
+                if (stashes.isNullOrEmpty()) return false
+                
                 git.stashApply().call()
-                git.stashDrop().call()
+                git.stashDrop().setStashRef(0).call()
                 return true
             }
         } catch (e: Exception) {
@@ -159,25 +169,25 @@ object GitManager {
         val commits = mutableListOf<CommitInfo>()
         try {
             if (!isGitInitialized(workspaceRoot)) return commits
+            
             Git.open(workspaceRoot).use { git ->
-                // Explicitly resolve HEAD to prevent stale reads and limit count for performance
-                val head = git.repository.resolve("HEAD") ?: return commits
-                val logs = git.log().add(head).setMaxCount(100).call()
+                org.eclipse.jgit.lib.RepositoryCache.clear()
+                git.repository.refDatabase.refresh()
+                
+                val logs = git.log().all().call()
                 for (rev in logs) {
-                    commits.add(
-                        CommitInfo(
-                            hash = rev.name,
-                            message = rev.fullMessage,
-                            author = rev.authorIdent.name,
-                            time = rev.commitTime.toLong() * 1000L
-                        )
+                    val info = CommitInfo(
+                        hash = rev.name,
+                        message = rev.fullMessage,
+                        author = rev.authorIdent.name,
+                        time = rev.commitTime.toLong() * 1000L
                     )
+                    commits.add(info)
                 }
             }
         } catch (e: Exception) {
             android.util.Log.e("CodeAssist", "Git log failed", e)
         }
-        // Guarantee newest commits are always at the top of the UI
-        return commits.sortedByDescending { it.time }
+        return commits.sortedWith(compareByDescending<CommitInfo> { it.time }.thenByDescending { it.hash })
     }
 }

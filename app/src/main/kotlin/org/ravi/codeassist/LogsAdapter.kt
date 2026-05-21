@@ -16,9 +16,9 @@ class LogsAdapter(
 ) : RecyclerView.Adapter<LogsAdapter.LogViewHolder>() {
 
     class LogViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        val tvLogCommand: TextView = view.findViewById(R.id.tvLogCommand)
-        val tvLogStatus: TextView = view.findViewById(R.id.tvLogStatus)
-        val tvLogPath: TextView = view.findViewById(R.id.tvLogPath)
+        val tvCommitHeader: TextView = view.findViewById(R.id.tvCommitHeader)
+        val tvCommitAuthor: TextView = view.findViewById(R.id.tvCommitAuthor)
+        val tvCommitMessage: TextView = view.findViewById(R.id.tvCommitMessage)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): LogViewHolder {
@@ -30,7 +30,7 @@ class LogsAdapter(
         val commit = commits[position]
 
         val df = SimpleDateFormat("MMM dd, hh:mm a", Locale.getDefault())
-        holder.tvLogCommand.text = commit.hash.take(7) + " - " + df.format(Date(commit.time))
+        holder.tvCommitHeader.text = commit.hash.take(7) + " - " + df.format(Date(commit.time))
         
         // Show up to 4 lines of the commit message to include the operations summary
         val displayMsg = commit.message.lines()
@@ -38,10 +38,8 @@ class LogsAdapter(
             .take(4)
             .joinToString("\n")
             
-        holder.tvLogPath.text = displayMsg.ifEmpty { "No message" }
-
-        holder.tvLogStatus.text = "COMMIT"
-        holder.tvLogStatus.setTextColor(Color.parseColor("#4CAF50"))
+        holder.tvCommitMessage.text = displayMsg.ifEmpty { "No message" }
+        holder.tvCommitAuthor.text = commit.author
 
         holder.itemView.setOnClickListener {
             onCommitClick(commit)

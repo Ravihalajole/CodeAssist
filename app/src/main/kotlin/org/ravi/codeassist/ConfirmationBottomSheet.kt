@@ -114,8 +114,17 @@ class ConfirmationBottomSheet(
         }
 
         btnApprove.setOnClickListener {
+            // Lock the UI into a loading state
+            btnApprove.isEnabled = false
+            btnReject.isEnabled = false
+            btnApprove.text = "Executing Batch..."
+            tvTitle?.text = "Applying Changes..."
+            
+            // Trigger the background execution
             onApprove()
-            dismiss()
+            
+            // Note: We intentionally DO NOT call dismiss() here. 
+            // The sheet will stay visible until ClipboardActivity finishes its IO job and destroys itself.
         }
 
         btnReject.setOnClickListener {

@@ -184,6 +184,17 @@
                 android:text="Reset" />
         </LinearLayout>
 
+        <TextView
+            android:id="@+id/tvEmptyLogs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:gravity="center"
+            android:text="No commits found in this workspace."
+            android:textAppearance="?attr/textAppearanceBodyLarge"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:visibility="gone" />
+
         <!-- The List of Logs -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvLogs"

@@ -20,20 +20,20 @@ public final class ItemLogBinding implements ViewBinding {
   private final MaterialCardView rootView;
 
   @NonNull
-  public final TextView tvLogCommand;
+  public final TextView tvCommitAuthor;
 
   @NonNull
-  public final TextView tvLogPath;
+  public final TextView tvCommitHeader;
 
   @NonNull
-  public final TextView tvLogStatus;
+  public final TextView tvCommitMessage;
 
-  private ItemLogBinding(@NonNull MaterialCardView rootView, @NonNull TextView tvLogCommand,
-      @NonNull TextView tvLogPath, @NonNull TextView tvLogStatus) {
+  private ItemLogBinding(@NonNull MaterialCardView rootView, @NonNull TextView tvCommitAuthor,
+      @NonNull TextView tvCommitHeader, @NonNull TextView tvCommitMessage) {
     this.rootView = rootView;
-    this.tvLogCommand = tvLogCommand;
-    this.tvLogPath = tvLogPath;
-    this.tvLogStatus = tvLogStatus;
+    this.tvCommitAuthor = tvCommitAuthor;
+    this.tvCommitHeader = tvCommitHeader;
+    this.tvCommitMessage = tvCommitMessage;
   }
 
   @Override
@@ -63,25 +63,26 @@ public final class ItemLogBinding implements ViewBinding {
     // This is done to optimize the compiled bytecode for size and performance.
     int id;
     missingId: {
-      id = R.id.tvLogCommand;
-      TextView tvLogCommand = ViewBindings.findChildViewById(rootView, id);
-      if (tvLogCommand == null) {
+      id = R.id.tvCommitAuthor;
+      TextView tvCommitAuthor = ViewBindings.findChildViewById(rootView, id);
+      if (tvCommitAuthor == null) {
         break missingId;
       }
 
-      id = R.id.tvLogPath;
-      TextView tvLogPath = ViewBindings.findChildViewById(rootView, id);
-      if (tvLogPath == null) {
+      id = R.id.tvCommitHeader;
+      TextView tvCommitHeader = ViewBindings.findChildViewById(rootView, id);
+      if (tvCommitHeader == null) {
         break missingId;
       }
 
-      id = R.id.tvLogStatus;
-      TextView tvLogStatus = ViewBindings.findChildViewById(rootView, id);
-      if (tvLogStatus == null) {
+      id = R.id.tvCommitMessage;
+      TextView tvCommitMessage = ViewBindings.findChildViewById(rootView, id);
+      if (tvCommitMessage == null) {
         break missingId;
       }
 
-      return new ItemLogBinding((MaterialCardView) rootView, tvLogCommand, tvLogPath, tvLogStatus);
+      return new ItemLogBinding((MaterialCardView) rootView, tvCommitAuthor, tvCommitHeader,
+          tvCommitMessage);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

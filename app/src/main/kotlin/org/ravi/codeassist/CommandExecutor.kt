@@ -63,18 +63,8 @@ object CommandExecutor {
 
     fun execute(command: CodeCommand, workspaceRoot: String): ExecutionResult {
         val rootDir = File(workspaceRoot)
-        
-        // NEW FIX: Auto-create the workspace root if it is missing
-        if (!rootDir.exists()) {
-            val created = rootDir.mkdirs()
-            if (!created) {
-                return ExecutionResult(false, "Critical: Could not create Workspace root at $workspaceRoot. Check 'All Files Access' permission in Android Settings.")
-            }
-        }
-
-        if (!rootDir.isDirectory) {
-            return ExecutionResult(false, "Workspace root exists but is not a directory.")
-        }
+        val setupResult = ensureWorkspaceReady(rootDir)
+        if (setupResult != null) return setupResult
 
         return try {
             when (command) {
@@ -91,15 +81,18 @@ object CommandExecutor {
         }
     }
 
+    private fun ensureWorkspaceReady(rootDir: File): ExecutionResult? {
+        if (!rootDir.exists()) {
+            if (!rootDir.mkdirs()) return ExecutionResult(false, "Critical: Could not create Workspace root.")
+        }
+        return if (!rootDir.isDirectory) ExecutionResult(false, "Workspace root is not a directory.") else null
+    }
+
     private fun handleReadFile(rootDir: File, relativePath: String): ExecutionResult {
         val targetFile = File(rootDir, relativePath)
         if (!isPathSafe(rootDir, targetFile)) return ExecutionResult(false, "Security Error: Path traversal attempt blocked.")
-        return if (targetFile.exists() && targetFile.isFile) {
-            val content = targetFile.readText()
-            ExecutionResult(true, "Successfully read file: $relativePath", content)
-        } else {
-            ExecutionResult(false, "File not found: $relativePath")
-        }
+        if (!targetFile.exists() || !targetFile.isFile) return ExecutionResult(false, "File not found: $relativePath")
+        return ExecutionResult(true, "Successfully read file: $relativePath", targetFile.readText())
     }
 
     private fun handleGrepFile(rootDir: File, relativePath: String, patternStr: String): ExecutionResult {

@@ -54,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     
     // RecyclerView Components
     private lateinit var rvLogs: RecyclerView
+    private lateinit var tvEmptyLogs: TextView
     private lateinit var logsAdapter: LogsAdapter
 
     private val directoryPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -105,6 +106,7 @@ class MainActivity : AppCompatActivity() {
         btnRevert = findViewById(R.id.btnRevert)
         btnReset = findViewById(R.id.btnReset)
         rvLogs = findViewById(R.id.rvLogs)
+        tvEmptyLogs = findViewById(R.id.tvEmptyLogs)
 
         // Setup RecyclerView
         rvLogs.layoutManager = LinearLayoutManager(this)
@@ -295,8 +297,16 @@ class MainActivity : AppCompatActivity() {
                 val commits = GitManager.getCommitHistory(File(workspaceRoot))
                 withContext(Dispatchers.Main) {
                     logsAdapter.updateData(commits)
+                    tvEmptyLogs.visibility = if (commits.isEmpty()) View.VISIBLE else View.GONE
+                    if (commits.isNotEmpty()) {
+                        rvLogs.scrollToPosition(0)
+                    }
                 }
             }
+        } else {
+            logsAdapter.updateData(emptyList())
+            tvEmptyLogs.visibility = View.VISIBLE
+            tvEmptyLogs.text = "Workspace not set."
         }
     }
 
@@ -462,6 +472,7 @@ class MainActivity : AppCompatActivity() {
                     val commits = GitManager.getCommitHistory(rootFile)
                     withContext(Dispatchers.Main) {
                         logsAdapter.updateData(commits)
+                        tvEmptyLogs.visibility = if (commits.isEmpty()) View.VISIBLE else View.GONE
                     }
                 }
             }

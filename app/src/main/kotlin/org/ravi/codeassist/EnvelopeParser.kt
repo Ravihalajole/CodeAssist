@@ -111,15 +111,19 @@ object EnvelopeParser {
         if (name.isEmpty()) return null
         if (name != "COMMIT_MESSAGE" && path.isEmpty()) return null
 
-        return when (name) {
-            "COMMIT_MESSAGE" -> if (message.isNotEmpty()) CodeCommand.CommitMessage(message) else null
-            "GREP_FILE" -> if (pattern.isNotEmpty()) CodeCommand.GrepFile(path, pattern) else null
-            "READ_FILE" -> CodeCommand.ReadFile(path)
-            "LIST_DIR" -> CodeCommand.ListDir(path)
-            "CREATE_FILE" -> CodeCommand.CreateFile(path, content.toString().removeSuffix("\n"))
-            "PATCH_FILE" -> CodeCommand.PatchFile(path, search.toString().removeSuffix("\n"), replace.toString().removeSuffix("\n"))
-            "DELETE_FILE" -> CodeCommand.DeleteFile(path)
-            else -> null
+        return try {
+            when (name) {
+                "COMMIT_MESSAGE" -> CodeCommand.CommitMessage(message.ifEmpty { "Automated Update" })
+                "GREP_FILE" -> CodeCommand.GrepFile(path, pattern)
+                "READ_FILE" -> CodeCommand.ReadFile(path)
+                "LIST_DIR" -> CodeCommand.ListDir(path)
+                "CREATE_FILE" -> CodeCommand.CreateFile(path, content.toString().removeSuffix("\n"))
+                "PATCH_FILE" -> CodeCommand.PatchFile(path, search.toString().removeSuffix("\n"), replace.toString().removeSuffix("\n"))
+                "DELETE_FILE" -> CodeCommand.DeleteFile(path)
+                else -> null
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 }

@@ -4416,10 +4416,11 @@ id transition_scene_layoutid_cache
 id transition_transform
 id triangle
 id tvCommandSummary
+id tvCommitAuthor
+id tvCommitHeader
+id tvCommitMessage
+id tvEmptyLogs
 id tvGitStatus
-id tvLogCommand
-id tvLogPath
-id tvLogStatus
 id tvProtocolText
 id tvTitle
 id tvWorkspacePath

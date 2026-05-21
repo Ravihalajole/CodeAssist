@@ -27,3 +27,4 @@ CodeAssist is an Android-native developer execution engine operating via a clipb
 - Core engine analyzed.
 - Next step: Analyze UI components and state integrations.
 - **Update**: Migrated logging system from SQLite to native Git commits with auto-refreshing UI.
+- **Fix**: Added stale `index.lock` cleanup to `GitManager` to prevent intermittent commit failures.
