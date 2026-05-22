@@ -39,13 +39,7 @@ class ConfirmationBottomSheet(
         val btnReject = view.findViewById<MaterialButton>(R.id.btnReject)
         val btnCopyError = view.findViewById<MaterialButton>(R.id.btnCopyError)
 
-        // Run pre-flight validation
-        val errors = mutableListOf<String>()
-        commands.forEach { cmd ->
-            val err = CommandExecutor.validate(cmd, workspaceRoot)
-            if (err != null) errors.add(err)
-        }
-
+        val errors = commands.mapNotNull { CommandExecutor.validate(it, workspaceRoot) }
         val hasErrors = errors.isNotEmpty()
 
         if (hasErrors) {
