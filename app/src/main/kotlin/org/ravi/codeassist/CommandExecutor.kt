@@ -1,9 +1,20 @@
 package org.ravi.codeassist
 
+import android.content.Context
 import java.io.File
 import java.util.regex.Pattern
 
 object CommandExecutor {
+
+    private var appContextRef: java.lang.ref.WeakReference<Context>? = null
+
+    fun registerContext(context: Context) {
+        if (appContextRef?.get() == null) {
+            appContextRef = java.lang.ref.WeakReference(context.applicationContext)
+        }
+    }
+
+    fun getAppContext(): Context? = appContextRef?.get()
 
     data class ExecutionResult(
         val success: Boolean,
@@ -40,7 +51,14 @@ object CommandExecutor {
                         val normalizedSearch = command.search.replace("\r\n", "\n")
                         val occurrences = countOccurrences(normalizedOriginal, normalizedSearch)
                         if (occurrences != 1) {
-                            "Patch block rejection: Exact matching block appears $occurrences times in ${command.path}"
+                            val sharedPref = getAppContext()?.getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+                            val isForgivingEnabled = sharedPref?.getBoolean("FORGIVING_WHITESPACE_ENABLED", true) ?: true
+                            if (isForgivingEnabled) {
+                                val (fuzzySuccess, _) = findFuzzyMatchAndReplace(normalizedOriginal, normalizedSearch, command.replace)
+                                if (fuzzySuccess) null else "Patch block rejection: Search block not found even with forgiving layout verification rules."
+                            } else {
+                                "Patch block rejection: Exact matching block appears $occurrences times in ${command.path}"
+                            }
                         } else null
                     }
                 }
@@ -167,17 +185,78 @@ object CommandExecutor {
         val normalizedReplace = replace.replace("\r\n", "\n")
 
         val occurrences = countOccurrences(normalizedOriginal, normalizedSearch)
-        if (occurrences != 1) {
-            return ExecutionResult(false, "Patch rejected: Search block appears $occurrences times. Must be uniquely identifiable.")
-        }
+        var updatedText = ""
 
-        var updatedText = normalizedOriginal.replaceFirst(normalizedSearch, normalizedReplace)
+        if (occurrences != 1) {
+            val sharedPref = getAppContext()?.getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+            val isForgivingEnabled = sharedPref?.getBoolean("FORGIVING_WHITESPACE_ENABLED", true) ?: true
+            if (isForgivingEnabled) {
+                val (fuzzySuccess, fuzzyText) = findFuzzyMatchAndReplace(normalizedOriginal, normalizedSearch, normalizedReplace)
+                if (fuzzySuccess) {
+                    updatedText = fuzzyText
+                } else {
+                    return ExecutionResult(false, "Patch rejected: Multi-pass alignment failure on forgiving whitespace fallback vectors.")
+                }
+            } else {
+                return ExecutionResult(false, "Patch rejected: Search block appears $occurrences times. Must be uniquely identifiable.")
+            }
+        } else {
+            updatedText = normalizedOriginal.replaceFirst(normalizedSearch, normalizedReplace)
+        }
         if (isWindowsLineEndings) {
             updatedText = updatedText.replace("\n", "\r\n")
         }
         targetFile.writeText(updatedText)
         
         return ExecutionResult(true, "Successfully applied file patch modifications to: $relativePath")
+    }
+
+    private fun findFuzzyMatchAndReplace(original: String, search: String, replace: String): Pair<Boolean, String> {
+        val originalLines = original.split("\n")
+        val searchLines = search.split("\n")
+        
+        val normalizedOriginalLines = originalLines.map { it.replace("\\s".toRegex(), "") }
+        val normalizedSearchLines = searchLines.map { it.replace("\\s".toRegex(), "") }
+        
+        if (normalizedSearchLines.isEmpty() || normalizedSearchLines.all { it.isEmpty() }) return Pair(false, original)
+
+        var matchIndex = -1
+        var matchCount = 0
+
+        for (i in 0..normalizedOriginalLines.size - normalizedSearchLines.size) {
+            var linesMatch = true
+            for (j in normalizedSearchLines.indices) {
+                if (normalizedOriginalLines[i + j] != normalizedSearchLines[j]) {
+                    linesMatch = false
+                    break
+                }
+            }
+            if (linesMatch) {
+                matchCount++
+                matchIndex = i
+            }
+        }
+
+        if (matchCount == 1) {
+            val sbBefore = java.lang.StringBuilder()
+            for (i in 0 until matchIndex) {
+                sbBefore.append(originalLines[i]).append("\n")
+            }
+            
+            val sbAfter = java.lang.StringBuilder()
+            for (i in (matchIndex + searchLines.size) until originalLines.size) {
+                sbAfter.append(originalLines[i])
+                if (i < originalLines.size - 1) sbAfter.append("\n")
+            }
+
+            val baseIndent = originalLines[matchIndex].takeWhile { it == ' ' || it == '\t' }
+            val alignedReplace = replace.split("\n").joinToString("\n") { line ->
+                if (line.trim().isEmpty()) "" else baseIndent + line.trimStart()
+            }
+
+            return Pair(true, sbBefore.toString() + alignedReplace + "\n" + sbAfter.toString())
+        }
+        return Pair(false, original)
     }
 
     private fun countOccurrences(text: String, search: String): Int {

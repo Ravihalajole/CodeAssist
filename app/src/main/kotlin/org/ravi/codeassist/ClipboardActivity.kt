@@ -20,6 +20,7 @@ class ClipboardActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         GitManager.registerContext(this)
+        CommandExecutor.registerContext(this)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -55,12 +56,63 @@ class ClipboardActivity : AppCompatActivity() {
         }
     }
 
+    private fun showQuickActionNotification(workspaceRoot: String) {
+        val channelId = "codeassist_quick_actions"
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = android.app.NotificationChannel(
+                channelId, "CodeAssist Quick Actions", android.app.NotificationManager.IMPORTANCE_HIGH
+            )
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val approveIntent = Intent(this, CodeAssistReceiver::class.java).apply {
+            action = "org.ravi.codeassist.ACTION_QUICK_APPROVE"
+            putExtra("WORKSPACE_ROOT", workspaceRoot)
+        }
+        val approvePendingIntent = android.app.PendingIntent.getBroadcast(
+            this, 0, approveIntent, android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val reviewIntent = Intent(this, ClipboardActivity::class.java).apply {
+            putExtra("BYPASS_QUICK_ACTIONS", true)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        val reviewPendingIntent = android.app.PendingIntent.getActivity(
+            this, 1, reviewIntent, android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = androidx.core.app.NotificationCompat.Builder(this, channelId)
+            .setContentTitle("CodeAssist Patch Intercepted")
+            .setContentText("Tap Quick Approve to apply changes instantly.")
+            .setSmallIcon(R.drawable.ic_qs_tile)
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .addAction(R.drawable.ic_qs_tile, "Quick Approve", approvePendingIntent)
+            .addAction(R.drawable.ic_qs_tile, "Review Details", reviewPendingIntent)
+            .build()
+
+        notificationManager.notify(2002, notification)
+    }
+
     private fun processClipboardPayload(payload: String, clipboard: ClipboardManager) {
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
 
         if (workspaceRoot.isNullOrEmpty()) {
             Toast.makeText(this, "Error: Set workspace path first.", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+
+        val quickActionsEnabled = sharedPref.getBoolean("QUICK_ACTIONS_ENABLED", false)
+        val bypassQuickActions = intent.getBooleanExtra("BYPASS_QUICK_ACTIONS", false)
+
+        if (quickActionsEnabled && !bypassQuickActions) {
+            val cacheFile = File(cacheDir, "pending_envelope.txt")
+            cacheFile.writeText(payload)
+            showQuickActionNotification(workspaceRoot)
             finish()
             return
         }
