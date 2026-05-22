@@ -11,6 +11,7 @@
 
     <!-- Floating Bubble Support -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <!-- FIXED: Application theme changed to Theme.CodeAssist to support Material 3 attributes -->
     <application

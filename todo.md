@@ -23,6 +23,7 @@
 - [x] Restricted multi-line file execution operation details to the click details dialog popup exclusively, flattening the layout view cards.
 - [x] Integrated custom configurable text fields within the UI Settings interface allowing granular control over internal Git Author name/email tracking parameters.
 - [x] Resolved scope reference compilation errors in ClipboardActivity by locally initializing the SharedPreferences preference context manager.
+- [x] Hardened overlay persistence by modernizing FloatingBubbleService into a persistent Foreground Service with low-overhead notification bounds to survive aggressive Android Low Memory Killer (LMK) cleaning sweeps.
 
 ## Pending Tasks
 - [ ] Monitor user workflow performance metrics across diverse workspace trees to identify further platform optimization vectors.

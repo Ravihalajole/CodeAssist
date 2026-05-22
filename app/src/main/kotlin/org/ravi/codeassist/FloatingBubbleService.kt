@@ -1,6 +1,9 @@
 package org.ravi.codeassist
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
@@ -12,11 +15,18 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import androidx.core.app.NotificationCompat
 import kotlin.math.abs
 
 class FloatingBubbleService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var floatingView: View
+
+    companion object {
+        private const val NOTIFICATION_ID = 1001
+        private const val CHANNEL_ID = "codeassist_bubble_channel"
+        private const val CHANNEL_NAME = "CodeAssist Background Tracking"
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -94,6 +104,37 @@ class FloatingBubbleService : Service() {
                 }
             }
         }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        setupForegroundNotification()
+        return START_STICKY
+    }
+
+    private fun setupForegroundNotification() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_MIN
+            ).apply {
+                description = "Keeps the overlay interface running reliably in the background."
+                setShowBadge(false)
+            }
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("CodeAssist Engine Active")
+            .setContentText("The floating quick-access bubble is running.")
+            .setSmallIcon(R.drawable.ic_qs_tile)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setOngoing(true)
+            .build()
+
+        startForeground(NOTIFICATION_ID, notification)
     }
 
     override fun onDestroy() {
