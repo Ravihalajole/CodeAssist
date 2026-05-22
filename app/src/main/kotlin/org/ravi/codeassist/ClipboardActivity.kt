@@ -104,7 +104,6 @@ class ClipboardActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val finalClipboardFeedback = java.lang.StringBuilder()
             var successCount = 0
-            val batchId = java.util.UUID.randomUUID().toString()
             var commitMessage = "Automated CodeAssist Execution"
             
             val rootFile = File(workspaceRoot)

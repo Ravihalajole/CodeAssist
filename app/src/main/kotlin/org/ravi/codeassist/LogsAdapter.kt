@@ -1,6 +1,6 @@
 package org.ravi.codeassist
 
-import android.graphics.Color
+
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup

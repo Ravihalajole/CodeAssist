@@ -14,10 +14,7 @@ object GitManager {
     }
 
     private fun cleanupStaleLocks(workspaceRoot: File) {
-        val indexLock = File(workspaceRoot, ".git/index.lock")
-        if (indexLock.exists()) {
-            indexLock.delete()
-        }
+        File(workspaceRoot, ".git/index.lock").apply { if (exists()) delete() }
     }
 
     suspend fun initGit(workspaceRoot: File) = gitMutex.withLock {
@@ -29,7 +26,6 @@ object GitManager {
                     if (!gitignore.exists()) {
                         gitignore.writeText("build/\n.gradle/\n.idea/\n*.iml\nlocal.properties\n.codeassist/\n")
                     }
-
                     git.add().addFilepattern(".").call()
                     git.commit()
                         .setMessage("Initial commit before CodeAssist")
@@ -38,9 +34,7 @@ object GitManager {
                         .call()
                 }
             }
-        } catch (e: Exception) {
-            // Safe fallback logging omitted for clean runtime production compliance
-        }
+        } catch (_: Exception) {}
     }
 
     suspend fun commitChanges(workspaceRoot: File, message: String): String? = gitMutex.withLock {
@@ -61,7 +55,7 @@ object GitManager {
                 }
                 return null
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             return null
         }
     }
@@ -71,10 +65,10 @@ object GitManager {
             Git.open(workspaceRoot).use { git ->
                 val commitId = git.repository.resolve(commitHash) ?: return false
                 git.revert().include(commitId).call()
-                return true
+                true
             }
-        } catch (e: Exception) {
-            return false
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -82,10 +76,10 @@ object GitManager {
         try {
             Git.open(workspaceRoot).use { git ->
                 git.reset().setMode(ResetCommand.ResetType.HARD).setRef("HEAD~1").call()
-                return true
+                true
             }
-        } catch (e: Exception) {
-            return false
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -94,10 +88,10 @@ object GitManager {
             Git.open(workspaceRoot).use { git ->
                 git.reset().setMode(ResetCommand.ResetType.HARD).setRef("HEAD").call()
                 git.clean().setCleanDirectories(true).setForce(true).call()
-                return true
+                true
             }
-        } catch (e: Exception) {
-            return false
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -125,9 +119,7 @@ object GitManager {
                     commits.add(info)
                 }
             }
-        } catch (e: Exception) {
-            // Unhandled context safety block
-        }
+        } catch (_: Exception) {}
         return commits.sortedWith(compareByDescending<CommitInfo> { it.time }.thenByDescending { it.hash })
     }
 }
