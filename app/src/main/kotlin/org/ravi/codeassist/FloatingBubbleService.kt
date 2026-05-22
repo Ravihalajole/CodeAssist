@@ -63,7 +63,10 @@ class FloatingBubbleService : Service() {
 
         windowManager.addView(floatingView, params)
 
-        floatingView.findViewById<View>(R.id.bubbleIcon).apply {
+        val bubbleIconView = floatingView.findViewById<android.widget.ImageView>(R.id.bubbleIcon)
+        applyBubbleIconStyle(bubbleIconView)
+
+        bubbleIconView.apply {
             var initialX = 0
             var initialY = 0
             var initialTouchX = 0f
@@ -138,6 +141,58 @@ class FloatingBubbleService : Service() {
             startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
             startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    private fun applyBubbleIconStyle(imageView: android.widget.ImageView) {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val style = sharedPref.getInt("BUBBLE_ICON_STYLE", 0)
+
+        imageView.setImageTintList(null)
+        imageView.setBackgroundTintList(null)
+        imageView.setPadding(0, 0, 0, 0)
+
+        val density = resources.displayMetrics.density
+        val dp12 = (12 * density).toInt()
+        val dp8 = (8 * density).toInt()
+
+        when (style) {
+            0 -> { // Current Icon
+                imageView.setImageResource(R.drawable.ic_qs_tile)
+                imageView.setBackgroundResource(R.drawable.bubble_bg)
+                imageView.setPadding(dp12, dp12, dp12, dp12)
+            }
+            1 -> { // Current Icon (Dark Background)
+                imageView.setImageResource(R.drawable.ic_qs_tile)
+                imageView.setBackgroundResource(R.drawable.bubble_bg)
+                imageView.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#1D1B20")))
+                imageView.setImageTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE))
+                imageView.setPadding(dp12, dp12, dp12, dp12)
+            }
+            2 -> { // Current Icon (Dark Icon)
+                imageView.setImageResource(R.drawable.ic_qs_tile)
+                imageView.setBackgroundResource(R.drawable.bubble_bg)
+                imageView.setImageTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#1D1B20")))
+                imageView.setPadding(dp12, dp12, dp12, dp12)
+            }
+            3 -> { // App Icon
+                imageView.setImageResource(R.mipmap.ic_launcher)
+                imageView.setBackgroundResource(android.R.color.transparent)
+            }
+            4 -> { // App Icon Monochrome Dark
+                imageView.setImageResource(R.mipmap.ic_launcher_monochrome)
+                imageView.setBackgroundResource(R.drawable.bubble_bg)
+                imageView.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#E6E1E5")))
+                imageView.setImageTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#1D1B20")))
+                imageView.setPadding(dp8, dp8, dp8, dp8)
+            }
+            5 -> { // App Icon Monochrome Light
+                imageView.setImageResource(R.mipmap.ic_launcher_monochrome)
+                imageView.setBackgroundResource(R.drawable.bubble_bg)
+                imageView.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#1D1B20")))
+                imageView.setImageTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#E6E1E5")))
+                imageView.setPadding(dp8, dp8, dp8, dp8)
+            }
         }
     }
 

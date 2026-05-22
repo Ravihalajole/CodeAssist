@@ -36,6 +36,8 @@ class MainActivity : AppCompatActivity() {
     // UI Elements
     private lateinit var tvWorkspacePath: TextView
     private lateinit var switchBubble: com.google.android.material.materialswitch.MaterialSwitch
+    private lateinit var tvBubbleIconStatus: TextView
+    private lateinit var btnEditBubbleIcon: MaterialButton
     private lateinit var switchAutoRead: com.google.android.material.materialswitch.MaterialSwitch
     private lateinit var switchQuickActions: com.google.android.material.materialswitch.MaterialSwitch
     private lateinit var switchForgivingWhitespace: com.google.android.material.materialswitch.MaterialSwitch
@@ -93,6 +95,8 @@ class MainActivity : AppCompatActivity() {
         
         tvWorkspacePath = findViewById(R.id.tvWorkspacePath)
         switchBubble = findViewById(R.id.switchBubble)
+        tvBubbleIconStatus = findViewById(R.id.tvBubbleIconStatus)
+        btnEditBubbleIcon = findViewById(R.id.btnEditBubbleIcon)
         switchAutoRead = findViewById(R.id.switchAutoRead)
         switchQuickActions = findViewById(R.id.switchQuickActions)
         switchForgivingWhitespace = findViewById(R.id.switchForgivingWhitespace)
@@ -130,6 +134,35 @@ class MainActivity : AppCompatActivity() {
         val initialName = sharedPref.getString("GIT_AUTHOR_NAME", "CodeAssist AI")
         val initialEmail = sharedPref.getString("GIT_AUTHOR_EMAIL", "ai@codeassist.local")
         tvGitIdentityStatus.text = "$initialName ($initialEmail)"
+
+        val bubbleOptions = arrayOf(
+            "Current Icon",
+            "Current Icon (Dark Background)",
+            "Current Icon (Dark Icon)",
+            "App Icon",
+            "App Icon Monochrome Dark",
+            "App Icon Monochrome Light"
+        )
+        val currentIconStyle = sharedPref.getInt("BUBBLE_ICON_STYLE", 0)
+        tvBubbleIconStatus.text = bubbleOptions.getOrElse(currentIconStyle) { "Current Icon" }
+
+        btnEditBubbleIcon.setOnClickListener {
+            val checkedItem = sharedPref.getInt("BUBBLE_ICON_STYLE", 0)
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle("Select Bubble Icon Style")
+                .setSingleChoiceItems(bubbleOptions, checkedItem) { dialog, which ->
+                    sharedPref.edit().putInt("BUBBLE_ICON_STYLE", which).apply()
+                    tvBubbleIconStatus.text = bubbleOptions[which]
+                    
+                    if (sharedPref.getBoolean("BUBBLE_ENABLED", false) && Settings.canDrawOverlays(this)) {
+                        stopService(Intent(this, FloatingBubbleService::class.java))
+                        startService(Intent(this, FloatingBubbleService::class.java))
+                    }
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
 
         switchAutoRead.setOnCheckedChangeListener { _, isChecked ->
             sharedPref.edit().putBoolean("AUTO_READ_ENABLED", isChecked).apply()
