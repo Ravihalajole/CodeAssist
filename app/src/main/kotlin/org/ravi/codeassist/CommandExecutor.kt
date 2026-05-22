@@ -38,7 +38,7 @@ object CommandExecutor {
                     } else {
                         val normalizedOriginal = targetFile.readText().replace("\r\n", "\n")
                         val normalizedSearch = command.search.replace("\r\n", "\n")
-                        val occurrences = normalizedOriginal.split(normalizedSearch).size - 1
+                        val occurrences = countOccurrences(normalizedOriginal, normalizedSearch)
                         if (occurrences != 1) {
                             "Patch block rejection: Exact matching block appears $occurrences times in ${command.path}"
                         } else null
@@ -118,18 +118,24 @@ object CommandExecutor {
             return ExecutionResult(false, "Directory not found: $relativePath")
         }
 
+        val ignoreList = listOf("build", ".gradle", ".git", ".idea", ".codeassist", "node_modules", "outputs", "tmp")
         val tree = StringBuilder()
         tree.append("[Directory Tree for $relativePath]\n")
         
-        targetDir.walkTopDown().maxDepth(3).forEach { file ->
-            val relToTarget = file.relativeTo(targetDir).path
-            if (relToTarget.isNotEmpty()) {
-                val depth = relToTarget.count { it == '/' }
-                val indent = "  ".repeat(depth)
-                val prefix = if (file.isDirectory) "📁 " else "📄 "
-                tree.append("$indent$prefix${file.name}\n")
+        targetDir.walkTopDown()
+            .maxDepth(3)
+            .onEnter { dir -> dir.name !in ignoreList }
+            .forEach { file ->
+                if (file.name !in ignoreList) {
+                    val relToTarget = file.relativeTo(targetDir).path
+                    if (relToTarget.isNotEmpty()) {
+                        val depth = relToTarget.count { it == '/' }
+                        val indent = "  ".repeat(depth)
+                        val prefix = if (file.isDirectory) "📁 " else "📄 "
+                        tree.append("$indent$prefix${file.name}\n")
+                    }
+                }
             }
-        }
         return ExecutionResult(true, "Directory listed.", tree.toString())
     }
 
@@ -160,7 +166,7 @@ object CommandExecutor {
         val normalizedSearch = search.replace("\r\n", "\n")
         val normalizedReplace = replace.replace("\r\n", "\n")
 
-        val occurrences = normalizedOriginal.split(normalizedSearch).size - 1
+        val occurrences = countOccurrences(normalizedOriginal, normalizedSearch)
         if (occurrences != 1) {
             return ExecutionResult(false, "Patch rejected: Search block appears $occurrences times. Must be uniquely identifiable.")
         }
@@ -172,6 +178,17 @@ object CommandExecutor {
         targetFile.writeText(updatedText)
         
         return ExecutionResult(true, "Successfully applied file patch modifications to: $relativePath")
+    }
+
+    private fun countOccurrences(text: String, search: String): Int {
+        if (search.isEmpty()) return 0
+        var count = 0
+        var index = 0
+        while (text.indexOf(search, index).also { index = it } != -1) {
+            count++
+            index += search.length
+        }
+        return count
     }
 
     private fun handleDeleteFile(rootDir: File, relativePath: String): ExecutionResult {

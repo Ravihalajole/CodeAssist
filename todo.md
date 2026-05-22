@@ -26,6 +26,8 @@
 - [x] Hardened overlay persistence by modernizing FloatingBubbleService into a persistent Foreground Service with low-overhead notification bounds to survive aggressive Android Low Memory Killer (LMK) cleaning sweeps.
 - [x] Extracted system latency hot-paths by modifying full-reference history parsing log traversals (`git.log().all()`) to lean active-timeline branch resolution calls (`git.log()`).
 - [x] Resolved critical target SDK 34 specific crash where background execution modules were evicted with a MissingForegroundServiceTypeException by provisioning the required dataSync manifest declarations.
+- [x] Replaced GC-heavy string splitting logic with a lightweight pointer indexing scan loop inside the patch evaluation engine to handle huge source tree streams with zero allocation footprint.
+- [x] Shielded directory structure requests from crawling heavy build directories like `build/`, `.git/`, and `node_modules/` to ensure massive payload streams never cause execution delays.
 
 ## Pending Tasks
 - [ ] Monitor user workflow performance metrics across diverse workspace trees to identify further platform optimization vectors.
