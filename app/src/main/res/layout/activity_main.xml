@@ -300,23 +300,28 @@
     </LinearLayout>
 
     <!-- === SCREEN 4: SETTINGS VIEW (Hidden by default) === -->
-    <LinearLayout
+    <ScrollView
         android:id="@+id/viewSettings"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="24dp"
         android:layout_marginBottom="80dp"
+        android:fadeScrollbars="false"
         android:visibility="gone">
 
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Settings"
-            android:textAppearance="?attr/textAppearanceHeadlineMedium"
-            android:textColor="?attr/colorPrimary"
-            android:textStyle="bold"
-            android:layout_marginBottom="16dp"/>
+            android:orientation="vertical"
+            android:padding="24dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Settings"
+                android:textAppearance="?attr/textAppearanceHeadlineMedium"
+                android:textColor="?attr/colorPrimary"
+                android:textStyle="bold"
+                android:layout_marginBottom="16dp"/>
 
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
@@ -540,7 +545,8 @@
                     android:text="Edit Git Identity" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
-    </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
 
     <!-- === BOTTOM NAVIGATION === -->
     <com.google.android.material.bottomnavigation.BottomNavigationView

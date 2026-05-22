@@ -55,6 +55,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var logsAdapter: LogsAdapter
     private lateinit var logsProgress: com.google.android.material.progressindicator.LinearProgressIndicator
 
+    private val requestNotificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+        if (!isGranted) {
+            Toast.makeText(this, "Notification permission is required for Quick-Action heads-up alerts.", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private val directoryPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
             val absolutePath = getAbsolutePathFromSafUri(uri)
@@ -111,6 +117,7 @@ class MainActivity : AppCompatActivity() {
         rvLogs.adapter = logsAdapter
 
         checkAndRequestStoragePermission()
+        checkAndRequestNotificationPermission()
         loadCurrentWorkspace()
 
         // Setup Bubble Settings
@@ -498,6 +505,16 @@ class MainActivity : AppCompatActivity() {
                 startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
             } catch (_: Exception) {
                 startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+            }
+        }
+    }
+
+    private fun checkAndRequestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    this, android.Manifest.permission.POST_NOTIFICATIONS
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestNotificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
             }
         }
     }
