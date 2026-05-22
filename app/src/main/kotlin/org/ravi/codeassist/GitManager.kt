@@ -41,7 +41,10 @@ object GitManager {
         try {
             cleanupStaleLocks(workspaceRoot)
             Git.open(workspaceRoot).use { git ->
+                // Clear storage cache completely to ignore structural locks generated mid-loop
                 git.repository.refDatabase.refresh()
+                org.eclipse.jgit.lib.RepositoryCache.clear()
+                
                 git.add().addFilepattern(".").call()
                 git.add().setUpdate(true).addFilepattern(".").call()
                 

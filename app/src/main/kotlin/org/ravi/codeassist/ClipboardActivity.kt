@@ -151,8 +151,13 @@ class ClipboardActivity : AppCompatActivity() {
                         }
                     }
                 }
-                // Pre-emptively clear any lock written to disk during the command iteration loop right before commit serialization
-                File(rootFile, ".git/index.lock").apply { if (exists()) delete() }
+                
+                // Clear index lock immediately prior to calling commit transaction to preempt race triggers from the loop
+                val lockFile = File(rootFile, ".git/index.lock")
+                if (lockFile.exists()) {
+                    lockFile.delete()
+                }
+                
                 GitManager.commitChanges(rootFile, detailedMessage.trim())
             }
 
