@@ -24,10 +24,10 @@ object CommandExecutor {
                 is CodeCommand.ListDir -> command.path
                 is CodeCommand.CreateFile -> command.path
                 is CodeCommand.DeleteFile -> command.path
-                is CodeCommand.CommitMessage -> return null // CommitMessage has no path, skip validation
+                is CodeCommand.CommitMessage -> return null
             }
             val targetFile = File(rootDir, targetPath)
-            if (!targetFile.canonicalPath.startsWith(rootDir.canonicalPath)) {
+            if (!isPathSafe(rootDir, targetFile)) {
                 return "Security Error: Path traversal blocked."
             }
 
@@ -36,8 +36,7 @@ object CommandExecutor {
                     if (!targetFile.exists() || !targetFile.isFile) {
                         "Patch failed: File does not exist -> ${command.path}"
                     } else {
-                        val originalText = targetFile.readText()
-                        val normalizedOriginal = originalText.replace("\r\n", "\n")
+                        val normalizedOriginal = targetFile.readText().replace("\r\n", "\n")
                         val normalizedSearch = command.search.replace("\r\n", "\n")
                         val occurrences = normalizedOriginal.split(normalizedSearch).size - 1
                         if (occurrences != 1) {
@@ -45,15 +44,9 @@ object CommandExecutor {
                         } else null
                     }
                 }
-                is CodeCommand.ReadFile -> {
-                    if (!targetFile.exists() || !targetFile.isFile) "File not found: ${command.path}" else null
-                }
-                is CodeCommand.GrepFile -> {
-                    if (!targetFile.exists() || !targetFile.isFile) "File not found: ${command.path}" else null
-                }
-                is CodeCommand.ListDir -> {
-                    if (!targetFile.exists() || !targetFile.isDirectory) "Directory not found: ${command.path}" else null
-                }
+                is CodeCommand.ReadFile -> if (!targetFile.exists() || !targetFile.isFile) "File not found: ${command.path}" else null
+                is CodeCommand.GrepFile -> if (!targetFile.exists() || !targetFile.isFile) "File not found: ${command.path}" else null
+                is CodeCommand.ListDir -> if (!targetFile.exists() || !targetFile.isDirectory) "Directory not found: ${command.path}" else null
                 else -> null
             }
         } catch (e: Exception) {
@@ -102,7 +95,7 @@ object CommandExecutor {
 
         val pattern = try {
             Pattern.compile(patternStr, Pattern.CASE_INSENSITIVE)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             Pattern.compile(Pattern.quote(patternStr), Pattern.CASE_INSENSITIVE)
         }
         val matchedLines = StringBuilder()
