@@ -2,14 +2,14 @@
 <resources>
 
     <!-- 1. The Main Application Theme (Material 3) -->
-    <style name="Theme.CodeAssist" parent="Theme.Material3.DynamicColors.DayNight">
+    <style name="Theme.CodeAssist" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
         <!-- Material 3 Dynamic Colors handles the primary/secondary palettes automatically -->
         <item name="android:statusBarColor">?attr/colorSurface</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
 
     <!-- 2. The Transparent Theme for the Clipboard Bridge -->
-    <style name="Theme.CodeAssist.Transparent" parent="Theme.Material3.DynamicColors.DayNight">
+    <style name="Theme.CodeAssist.Transparent" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowContentOverlay">@null</item>

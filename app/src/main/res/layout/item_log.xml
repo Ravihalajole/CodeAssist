@@ -5,10 +5,11 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="8dp"
-    app:cardCornerRadius="12dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
     app:strokeWidth="1dp"
     app:strokeColor="?attr/colorOutlineVariant"
-    app:cardBackgroundColor="?attr/colorSurface">
+    app:cardBackgroundColor="?attr/colorSurfaceContainer">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -21,9 +22,8 @@
             android:id="@+id/tvCommitHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textStyle="bold"
             android:textAppearance="?attr/textAppearanceTitleMedium"
-            android:textColor="?attr/colorPrimary"/>
+            android:textColor="?attr/colorOnSurface"/>
             
         <!-- Inline secondary layout line holding commit metadata entries -->
         <TextView
@@ -32,7 +32,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:textColor="?attr/colorOnSurfaceVariant"
-            android:textAppearance="?attr/textAppearanceLabelMedium"/>
+            android:textAppearance="?attr/textAppearanceBodySmall"/>
             
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

@@ -18,33 +18,17 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="CodeAssist Setup"
+            android:text="Workspace"
             android:textAppearance="?attr/textAppearanceHeadlineMedium"
             android:textColor="?attr/colorPrimary"
             android:textStyle="bold"
-            android:layout_marginBottom="32dp"/>
+            android:layout_marginBottom="24dp"/>
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnCopySkeleton"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Copy Project Skeleton"
-            app:icon="@drawable/ic_copy"
-            android:layout_marginBottom="16dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnRunManual"
-            style="@style/Widget.Material3.Button"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Run CodeAssist Manually"
-            app:icon="@drawable/ic_qs_tile"
-            android:layout_marginBottom="16dp" />
-
+        <!-- Active Workspace configuration prioritized at the top for foundational workflow clarity -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
             app:cardCornerRadius="16dp"
             app:cardElevation="0dp"
             app:strokeWidth="1dp"
@@ -67,7 +51,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Active Workspace"
+                        android:text="Active Target Directory"
                         android:textAppearance="?attr/textAppearanceLabelLarge"
                         android:textColor="?attr/colorOnSurfaceVariant"
                         android:layout_marginBottom="4dp"/>
@@ -92,6 +76,25 @@
                     android:layout_marginStart="16dp"/>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
+        <!-- Core system execution action elements grouped cleanly below the workspace layout block -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRunManual"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Run CodeAssist Manually"
+            app:icon="@drawable/ic_qs_tile"
+            android:layout_marginBottom="12dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCopySkeleton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Copy Project Skeleton"
+            app:icon="@drawable/ic_copy"
+            android:layout_marginBottom="16dp" />
     </LinearLayout>
 
     <!-- === SCREEN 2: PROMPT VAULT VIEW (Hidden by default) === -->
