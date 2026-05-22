@@ -130,18 +130,11 @@
             android:textStyle="bold"
             android:layout_marginBottom="16dp"/>
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnCopyPrompt"
-            style="@style/Widget.Material3.Button"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Copy Protocol &amp; Workspace Structure"
-            app:icon="@drawable/ic_copy"
-            android:layout_marginBottom="16dp" />
-
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginBottom="16dp"
             app:cardCornerRadius="16dp"
             app:cardElevation="0dp"
             app:strokeWidth="1dp"
@@ -165,6 +158,14 @@
                     android:padding="16dp"/>
             </ScrollView>
         </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCopyPrompt"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Copy Protocol &amp; Workspace Structure"
+            app:icon="@drawable/ic_copy" />
     </LinearLayout>
 
     <!-- === SCREEN 3: LOGS VIEW (Hidden by default) === -->
@@ -192,7 +193,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Execution Logs"
+                android:text="Commit History"
                 android:textAppearance="?attr/textAppearanceHeadlineMedium"
                 android:textColor="?attr/colorPrimary"
                 android:textStyle="bold" />

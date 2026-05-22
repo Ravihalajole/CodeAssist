@@ -15,8 +15,10 @@ class LogsAdapter(
 ) : RecyclerView.Adapter<LogsAdapter.LogViewHolder>() {
 
     class LogViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val tvLogSectionHeader: TextView = view.findViewById(R.id.tvLogSectionHeader)
         val tvCommitHeader: TextView = view.findViewById(R.id.tvCommitHeader)
         val tvCommitAuthor: TextView = view.findViewById(R.id.tvCommitAuthor)
+        val tvCommitHash: TextView = view.findViewById(R.id.tvCommitHash)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): LogViewHolder {
@@ -32,9 +34,28 @@ class LogsAdapter(
         val displayTitle = lines.firstOrNull()?.trim() ?: "Automated Execution"
         holder.tvCommitHeader.text = displayTitle
 
-        // Group metadata attributes (short commit hash + localized execution timestamp) vertically
-        val df = SimpleDateFormat("MMM dd, yyyy  hh:mm a", Locale.getDefault())
-        holder.tvCommitAuthor.text = "${commit.hash.take(7)}  •  ${df.format(Date(commit.time))}"
+        // Format timeline anchors to group adjacent row structures as requested by image reference 1000177372.png
+        val sectionFormatter = SimpleDateFormat("MMMM dd, yyyy", Locale.US)
+        val currentSectionDate = "Commits on ${sectionFormatter.format(Date(commit.time))}"
+        
+        if (position == 0) {
+            holder.tvLogSectionHeader.visibility = View.VISIBLE
+            holder.tvLogSectionHeader.text = currentSectionDate
+        } else {
+            val previousCommit = commits[position - 1]
+            val previousSectionDate = "Commits on ${sectionFormatter.format(Date(previousCommit.time))}"
+            if (currentSectionDate == previousSectionDate) {
+                holder.tvLogSectionHeader.visibility = View.GONE
+            } else {
+                holder.tvLogSectionHeader.visibility = View.VISIBLE
+                holder.tvLogSectionHeader.text = currentSectionDate
+            }
+        }
+
+        // Compute descriptive subtext and short hash components matching the style of 1000177372.png
+        val timeFormatter = SimpleDateFormat("hh:mm a", Locale.getDefault())
+        holder.tvCommitAuthor.text = "${commit.author} committed at ${timeFormatter.format(Date(commit.time))}"
+        holder.tvCommitHash.text = commit.hash.take(7)
 
         holder.itemView.setOnClickListener {
             onCommitClick(commit)
