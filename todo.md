@@ -15,6 +15,9 @@
 - [x] Integrate an indeterminate Material 3 LinearProgressIndicator into the pre-flight confirmation bottom sheet to display explicit visual processing indicators during deep write operations.
 - [x] Integrate high-clarity contextual confirmation alerts and linear progress indicator views to the repository Revert and Reset transactional pipelines to optimize background processing feedback loops.
 - [x] Architect a hyper-descriptive, LLM-targeted transactional diagnostic payload generator to feed crystal-clear atomic rollback error contexts back into the AI loop.
+- [x] Refactor settings screen viewports to integrate continuous scroll containers preventing clipping display bugs.
+- [x] Build automated runtime API 33+ notification permission onboarding triggers on first application startup.
+- [x] Declare mandatory interactive system notification broadcast receivers and explicit permission parameters in manifest profiles.
 
 ## Active Production Status
 - **Current Core Status**: 100% Normalized, Hardened, and Optimized.

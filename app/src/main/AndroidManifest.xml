@@ -13,6 +13,7 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- FIXED: Application theme changed to Theme.CodeAssist to support Material 3 attributes -->
     <application
@@ -64,5 +65,15 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- Quick Action Notification Receiver -->
+        <receiver 
+            android:name=".CodeAssistReceiver" 
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.ravi.codeassist.ACTION_QUICK_APPROVE" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
