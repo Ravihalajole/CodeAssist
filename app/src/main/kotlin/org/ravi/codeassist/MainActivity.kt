@@ -112,13 +112,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         val overlayPermissionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            if (Settings.canDrawOverlays(this)) {
-                switchBubble.isChecked = true
-                sharedPref.edit().putBoolean("BUBBLE_ENABLED", true).apply()
+            val enabled = Settings.canDrawOverlays(this)
+            switchBubble.isChecked = enabled
+            sharedPref.edit().putBoolean("BUBBLE_ENABLED", enabled).apply()
+            if (enabled) {
                 startService(Intent(this, FloatingBubbleService::class.java))
             } else {
-                switchBubble.isChecked = false
-                sharedPref.edit().putBoolean("BUBBLE_ENABLED", false).apply()
                 Toast.makeText(this, "Permission denied for Floating Bubble.", Toast.LENGTH_SHORT).show()
             }
         }
@@ -127,8 +126,7 @@ class MainActivity : AppCompatActivity() {
             if (isChecked) {
                 if (!Settings.canDrawOverlays(this)) {
                     switchBubble.isChecked = false
-                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-                    overlayPermissionLauncher.launch(intent)
+                    overlayPermissionLauncher.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
                 } else {
                     sharedPref.edit().putBoolean("BUBBLE_ENABLED", true).apply()
                     startService(Intent(this, FloatingBubbleService::class.java))
@@ -197,24 +195,15 @@ class MainActivity : AppCompatActivity() {
     // --- SCREEN NAVIGATION ---
 
     private fun showWorkspaceScreen() {
-        viewWorkspace.visibility = View.VISIBLE
-        viewPromptVault.visibility = View.GONE
-        viewLogs.visibility = View.GONE
-        viewSettings.visibility = View.GONE
+        updateScreenVisibilities(workspace = View.VISIBLE)
     }
 
     private fun showPromptVaultScreen() {
-        viewPromptVault.visibility = View.VISIBLE
-        viewWorkspace.visibility = View.GONE
-        viewLogs.visibility = View.GONE
-        viewSettings.visibility = View.GONE
+        updateScreenVisibilities(promptVault = View.VISIBLE)
     }
 
     private fun showLogsScreen() {
-        viewLogs.visibility = View.VISIBLE
-        viewWorkspace.visibility = View.GONE
-        viewPromptVault.visibility = View.GONE
-        viewSettings.visibility = View.GONE
+        updateScreenVisibilities(logs = View.VISIBLE)
         
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
@@ -224,9 +213,7 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     logsAdapter.updateData(commits)
                     tvEmptyLogs.visibility = if (commits.isEmpty()) View.VISIBLE else View.GONE
-                    if (commits.isNotEmpty()) {
-                        rvLogs.scrollToPosition(0)
-                    }
+                    if (commits.isNotEmpty()) rvLogs.scrollToPosition(0)
                 }
             }
         } else {
@@ -237,24 +224,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSettingsScreen() {
-        viewSettings.visibility = View.VISIBLE
-        viewWorkspace.visibility = View.GONE
-        viewPromptVault.visibility = View.GONE
-        viewLogs.visibility = View.GONE
+        updateScreenVisibilities(settings = View.VISIBLE)
+    }
+
+    private fun updateScreenVisibilities(
+        workspace: Int = View.GONE,
+        promptVault: Int = View.GONE,
+        logs: Int = View.GONE,
+        settings: Int = View.GONE
+    ) {
+        viewWorkspace.visibility = workspace
+        viewPromptVault.visibility = promptVault
+        viewLogs.visibility = logs
+        viewSettings.visibility = settings
     }
 
     // --- ACTIONS ---
 
     private fun showCommitDetailsDialog(commit: GitManager.CommitInfo) {
         val df = java.text.SimpleDateFormat("MMM dd, yyyy  hh:mm a", java.util.Locale.getDefault())
-        val messageBody = """
-            Commit: ${commit.hash}
-            Author: ${commit.author}
-            Date: ${df.format(java.util.Date(commit.time))}
-            
-            Message:
-            ${commit.message}
-        """.trimIndent()
+        val messageBody = "Commit: ${commit.hash}\nAuthor: ${commit.author}\nDate: ${df.format(java.util.Date(commit.time))}\n\nMessage:\n${commit.message}"
 
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle("Commit Details")
@@ -270,15 +259,11 @@ class MainActivity : AppCompatActivity() {
         fun walkDir(currentDir: File, depth: Int) {
             val files = currentDir.listFiles()?.sortedWith(compareBy({ !it.isDirectory }, { it.name })) ?: return
             for (file in files) {
-                if (ignoreList.contains(file.name)) continue
-                
+                if (file.name in ignoreList) continue
                 val indent = "  ".repeat(depth)
                 val prefix = if (file.isDirectory) "📁 " else "📄 "
                 sb.append("$indent$prefix${file.name}\n")
-                
-                if (file.isDirectory) {
-                    walkDir(file, depth + 1)
-                }
+                if (file.isDirectory) walkDir(file, depth + 1)
             }
         }
         walkDir(rootDir, 0)
@@ -394,18 +379,11 @@ class MainActivity : AppCompatActivity() {
 
             if ("primary".equals(type, ignoreCase = true)) {
                 return Environment.getExternalStorageDirectory().toString() + "/" + path
-            } else {
-                // Fallback for secondary storage volumes (SD cards, USB drives)
-                val storageManager = getSystemService(Context.STORAGE_SERVICE) as android.os.storage.StorageManager
-                val storageVolumes = storageManager.storageVolumes
-                for (volume in storageVolumes) {
-                    val volumeUuid = volume.uuid
-                    if (volumeUuid != null && volumeUuid.equals(type, ignoreCase = true)) {
-                        val volumeDirectory = volume.directory
-                        if (volumeDirectory != null) {
-                            return volumeDirectory.absolutePath + "/" + path
-                        }
-                    }
+            }
+            val storageManager = getSystemService(Context.STORAGE_SERVICE) as android.os.storage.StorageManager
+            for (volume in storageManager.storageVolumes) {
+                if (volume.uuid != null && volume.uuid.equals(type, ignoreCase = true)) {
+                    volume.directory?.let { return it.absolutePath + "/" + path }
                 }
             }
         } catch (e: Exception) {
@@ -430,16 +408,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkAndRequestStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!Environment.isExternalStorageManager()) {
-                try {
-                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                    intent.data = Uri.parse("package:$packageName")
-                    startActivity(intent)
-                } catch (e: Exception) {
-                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                    startActivity(intent)
-                }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+            try {
+                startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
+            } catch (_: Exception) {
+                startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
             }
         }
     }
