@@ -37,23 +37,45 @@ object GitManager {
         } catch (_: Exception) {}
     }
 
-    suspend fun commitChanges(workspaceRoot: File, message: String): String? = gitMutex.withLock {
+    suspend fun commitChanges(workspaceRoot: File, message: String, relativePaths: List<String>): String? = gitMutex.withLock {
         var git: Git? = null
         try {
             cleanupStaleLocks(workspaceRoot)
             git = Git.open(workspaceRoot)
             
-            // Force fully clear repository tracking pointers before taking action
             git.repository.refDatabase.refresh()
             org.eclipse.jgit.lib.RepositoryCache.clear()
             cleanupStaleLocks(workspaceRoot)
             
-            // Consolidate staging tasks into a single atomic operational unit
-            git.add().addFilepattern(".").setUpdate(false).call()
-            
-            // Instantly evaluate dirty state entries
-            val status = git.status().call()
-            if (!status.isClean || status.hasUncommittedChanges()) {
+            if (relativePaths.isEmpty()) return null
+
+            var hasChangesToCommit = false
+            val addCmd = git.add()
+            val rmCmd = git.rm()
+            var hasAdds = false
+            var hasRms = false
+
+            for (path in relativePaths) {
+                val file = File(workspaceRoot, path)
+                if (file.exists()) {
+                    addCmd.addFilepattern(path)
+                    hasAdds = true
+                } else {
+                    rmCmd.addFilepattern(path)
+                    hasRms = true
+                }
+            }
+
+            if (hasAdds) {
+                addCmd.call()
+                hasChangesToCommit = true
+            }
+            if (hasRms) {
+                rmCmd.call()
+                hasChangesToCommit = true
+            }
+
+            if (hasChangesToCommit) {
                 cleanupStaleLocks(workspaceRoot)
                 val commit = git.commit()
                     .setMessage(message)
@@ -63,11 +85,11 @@ object GitManager {
                 return commit.name
             }
             return null
+        } catch (_: org.eclipse.jgit.api.errors.EmptyCommitException) {
+            return null
         } catch (e: Exception) {
-            // Log error internally by rethrowing or falling back cleanly
             return null
         } finally {
-            // Force fully releasing file handles back to OS environment cleanly
             try {
                 git?.repository?.close()
                 git?.close()

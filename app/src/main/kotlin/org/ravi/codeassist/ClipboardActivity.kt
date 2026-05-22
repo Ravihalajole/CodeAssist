@@ -138,19 +138,29 @@ class ClipboardActivity : AppCompatActivity() {
             }
 
             if (hasModifications && successCount > 0) {
+                val modifiedPaths = mutableListOf<String>()
                 val detailedMessage = buildString {
                     appendLine(commitMessage)
                     appendLine("\nOperations:")
                     executableCommands.forEach { cmd ->
                         when (cmd) {
-                            is CodeCommand.PatchFile -> appendLine("- Patched: ${cmd.path}")
-                            is CodeCommand.CreateFile -> appendLine("- Created: ${cmd.path}")
-                            is CodeCommand.DeleteFile -> appendLine("- Deleted: ${cmd.path}")
+                            is CodeCommand.PatchFile -> {
+                                appendLine("- Patched: ${cmd.path}")
+                                modifiedPaths.add(cmd.path)
+                            }
+                            is CodeCommand.CreateFile -> {
+                                appendLine("- Created: ${cmd.path}")
+                                modifiedPaths.add(cmd.path)
+                            }
+                            is CodeCommand.DeleteFile -> {
+                                appendLine("- Deleted: ${cmd.path}")
+                                modifiedPaths.add(cmd.path)
+                            }
                             else -> {}
                         }
                     }
                 }
-                GitManager.commitChanges(rootFile, detailedMessage.trim())
+                GitManager.commitChanges(rootFile, detailedMessage.trim(), modifiedPaths.distinct())
             }
 
             withContext(Dispatchers.Main) {

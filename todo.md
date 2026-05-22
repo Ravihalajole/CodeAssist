@@ -17,6 +17,7 @@
 - [x] Completely purge the Source Control screen layout modules and trim redundant Git status/stash transaction pipelines from the platform engine.
 - [x] Streamline layout allocations within `MainActivity` to secure robust lifecycle switching stability and fix all unresolved resource symbols.
 - [x] Optimize runtime performance by deferring JGit initialization overhead until write-batches occur and eliminating multiple file instantiation hot-paths.
+- [x] Eliminate 30-second JGit latency bottleneck by tracking explicit file paths and removing full-tree scans (`git.status()` and `git.add(".")`).
 
 ## Pending Tasks
 - [ ] Monitor user workflow performance metrics across diverse workspace trees to identify further platform optimization vectors.
