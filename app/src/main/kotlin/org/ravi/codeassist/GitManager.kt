@@ -197,7 +197,7 @@ object GitManager {
             Git.open(workspaceRoot).use { git ->
                 flushRepositoryCaches(git)
                 
-                val logs = git.log().all().call()
+                val logs = git.log().call()
                 for (revCommit in logs) {
                     historyList.add(
                         CommitInfo(

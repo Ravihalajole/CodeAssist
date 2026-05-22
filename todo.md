@@ -24,6 +24,8 @@
 - [x] Integrated custom configurable text fields within the UI Settings interface allowing granular control over internal Git Author name/email tracking parameters.
 - [x] Resolved scope reference compilation errors in ClipboardActivity by locally initializing the SharedPreferences preference context manager.
 - [x] Hardened overlay persistence by modernizing FloatingBubbleService into a persistent Foreground Service with low-overhead notification bounds to survive aggressive Android Low Memory Killer (LMK) cleaning sweeps.
+- [x] Extracted system latency hot-paths by modifying full-reference history parsing log traversals (`git.log().all()`) to lean active-timeline branch resolution calls (`git.log()`).
+- [x] Resolved critical target SDK 34 specific crash where background execution modules were evicted with a MissingForegroundServiceTypeException by provisioning the required dataSync manifest declarations.
 
 ## Pending Tasks
 - [ ] Monitor user workflow performance metrics across diverse workspace trees to identify further platform optimization vectors.
