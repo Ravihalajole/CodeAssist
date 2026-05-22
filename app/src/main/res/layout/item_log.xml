@@ -33,16 +33,6 @@
             android:layout_marginTop="4dp"
             android:textColor="?attr/colorOnSurfaceVariant"
             android:textAppearance="?attr/textAppearanceLabelMedium"/>
-
-        <!-- Operational details section highlighting modified file entries -->
-        <TextView
-            android:id="@+id/tvCommitMessage"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:textSize="12sp"
-            android:textColor="?attr/colorSecondary"
-            android:layout_marginTop="10dp"/>
             
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

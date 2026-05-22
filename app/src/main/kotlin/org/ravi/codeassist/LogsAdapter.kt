@@ -17,7 +17,6 @@ class LogsAdapter(
     class LogViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val tvCommitHeader: TextView = view.findViewById(R.id.tvCommitHeader)
         val tvCommitAuthor: TextView = view.findViewById(R.id.tvCommitAuthor)
-        val tvCommitMessage: TextView = view.findViewById(R.id.tvCommitMessage)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): LogViewHolder {
@@ -36,15 +35,6 @@ class LogsAdapter(
         // Group metadata attributes (short commit hash + localized execution timestamp) vertically
         val df = SimpleDateFormat("MMM dd, yyyy  hh:mm a", Locale.getDefault())
         holder.tvCommitAuthor.text = "${commit.hash.take(7)}  •  ${df.format(Date(commit.time))}"
-        
-        // Display any remaining line items (such as targeted execution file lists) inside a structural body
-        val underlyingDetails = lines.drop(1).joinToString("\n").trim()
-        if (underlyingDetails.isNotEmpty()) {
-            holder.tvCommitMessage.visibility = View.VISIBLE
-            holder.tvCommitMessage.text = underlyingDetails
-        } else {
-            holder.tvCommitMessage.visibility = View.GONE
-        }
 
         holder.itemView.setOnClickListener {
             onCommitClick(commit)
