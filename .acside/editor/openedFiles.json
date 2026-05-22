@@ -1,0 +1,20 @@
+{
+  "allFiles": [
+    {
+      "file": "/storage/emulated/0/AndroidIDEProjects/CodeAssist/todo.md",
+      "selection": {
+        "end": {
+          "column": 109,
+          "index": 1774,
+          "line": 21
+        },
+        "start": {
+          "column": 109,
+          "index": 1774,
+          "line": 21
+        }
+      }
+    }
+  ],
+  "selectedFile": "/storage/emulated/0/AndroidIDEProjects/CodeAssist/todo.md"
+}

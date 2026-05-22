@@ -20,3 +20,4 @@
 
 ## Pending Tasks
 - [ ] Monitor user workflow performance metrics across diverse workspace trees to identify further platform optimization vectors.
+- [ ] Implement advanced analytics monitoring for long-running IO batch processes.
