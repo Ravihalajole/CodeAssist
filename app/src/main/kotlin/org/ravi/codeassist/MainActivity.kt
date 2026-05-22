@@ -44,6 +44,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var bottomNavigation: BottomNavigationView
     private lateinit var btnRevert: MaterialButton
     private lateinit var btnReset: MaterialButton
+    private lateinit var etGitName: com.google.android.material.textfield.TextInputEditText
+    private lateinit var etGitEmail: com.google.android.material.textfield.TextInputEditText
+    private lateinit var btnSaveGitConfig: MaterialButton
     
     // RecyclerView Components
     private lateinit var rvLogs: RecyclerView
@@ -91,6 +94,9 @@ class MainActivity : AppCompatActivity() {
         btnReset = findViewById(R.id.btnReset)
         rvLogs = findViewById(R.id.rvLogs)
         tvEmptyLogs = findViewById(R.id.tvEmptyLogs)
+        etGitName = findViewById(R.id.etGitName)
+        etGitEmail = findViewById(R.id.etGitEmail)
+        btnSaveGitConfig = findViewById(R.id.btnSaveGitConfig)
 
         // Setup RecyclerView
         rvLogs.layoutManager = LinearLayoutManager(this)
@@ -107,8 +113,25 @@ class MainActivity : AppCompatActivity() {
         switchBubble.isChecked = sharedPref.getBoolean("BUBBLE_ENABLED", false)
         switchAutoRead.isChecked = sharedPref.getBoolean("AUTO_READ_ENABLED", false)
 
+        etGitName.setText(sharedPref.getString("GIT_AUTHOR_NAME", "CodeAssist AI"))
+        etGitEmail.setText(sharedPref.getString("GIT_AUTHOR_EMAIL", "ai@codeassist.local"))
+
         switchAutoRead.setOnCheckedChangeListener { _, isChecked ->
             sharedPref.edit().putBoolean("AUTO_READ_ENABLED", isChecked).apply()
+        }
+
+        btnSaveGitConfig.setOnClickListener {
+            val name = etGitName.text?.toString()?.trim() ?: ""
+            val email = etGitEmail.text?.toString()?.trim() ?: ""
+            if (name.isNotEmpty() && email.isNotEmpty()) {
+                sharedPref.edit()
+                    .putString("GIT_AUTHOR_NAME", name)
+                    .putString("GIT_AUTHOR_EMAIL", email)
+                    .apply()
+                Toast.makeText(this, "Git identity saved successfully!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Configuration fields cannot be blank.", Toast.LENGTH_SHORT).show()
+            }
         }
 
         val overlayPermissionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {

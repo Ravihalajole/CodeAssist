@@ -46,7 +46,7 @@ object GitManager {
     /**
      * Initializes a Git repository inside the workspace if one does not already exist.
      */
-    suspend fun initGit(workspaceRoot: File) = gitMutex.withLock {
+    suspend fun initGit(workspaceRoot: File, authorName: String = AUTHOR_NAME, authorEmail: String = AUTHOR_EMAIL) = gitMutex.withLock {
         if (isGitInitialized(workspaceRoot)) return@withLock
 
         try {
@@ -60,8 +60,8 @@ object GitManager {
                 git.add().addFilepattern(".").call()
                 git.commit()
                     .setMessage("Initial commit before CodeAssist tracking")
-                    .setAuthor(AUTHOR_NAME, AUTHOR_EMAIL)
-                    .setCommitter(AUTHOR_NAME, AUTHOR_EMAIL)
+                    .setAuthor(authorName, authorEmail)
+                    .setCommitter(authorName, authorEmail)
                     .call()
             }
         } catch (_: Exception) {
@@ -73,7 +73,7 @@ object GitManager {
      * Commits designated modifications with high performance by bypassing full-tree scans.
      * Implements an O(1) targeted batch stage/removal process instead of O(N) indexing.
      */
-    suspend fun commitChanges(workspaceRoot: File, message: String, relativePaths: List<String>): String? = gitMutex.withLock {
+    suspend fun commitChanges(workspaceRoot: File, message: String, relativePaths: List<String>, authorName: String = AUTHOR_NAME, authorEmail: String = AUTHOR_EMAIL): String? = gitMutex.withLock {
         if (relativePaths.isEmpty()) return null
         cleanupStaleLocks(workspaceRoot)
 
@@ -105,8 +105,8 @@ object GitManager {
                     cleanupStaleLocks(workspaceRoot)
                     val commitResult = git.commit()
                         .setMessage(message)
-                        .setAuthor(AUTHOR_NAME, AUTHOR_EMAIL)
-                        .setCommitter(AUTHOR_NAME, AUTHOR_EMAIL)
+                        .setAuthor(authorName, authorEmail)
+                        .setCommitter(authorName, authorEmail)
                         .call()
                     return commitResult.name
                 }

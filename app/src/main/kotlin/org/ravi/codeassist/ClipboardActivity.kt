@@ -112,7 +112,10 @@ class ClipboardActivity : AppCompatActivity() {
 
             // Only run baseline checking if we actually intend to write modifications
             if (hasModifications) {
-                GitManager.initGit(rootFile)
+                val authorName = sharedPref.getString("GIT_AUTHOR_NAME", "CodeAssist AI") ?: "CodeAssist AI"
+                val authorEmail = sharedPref.getString("GIT_AUTHOR_EMAIL", "ai@codeassist.local") ?: "ai@codeassist.local"
+                GitManager.initGit(rootFile, authorName, authorEmail)
+                
                 commands.filterIsInstance<CodeCommand.CommitMessage>().firstOrNull()?.let {
                     commitMessage = it.message
                 }
@@ -160,7 +163,9 @@ class ClipboardActivity : AppCompatActivity() {
                         }
                     }
                 }
-                GitManager.commitChanges(rootFile, detailedMessage.trim(), modifiedPaths.distinct())
+                val authorName = sharedPref.getString("GIT_AUTHOR_NAME", "CodeAssist AI") ?: "CodeAssist AI"
+                val authorEmail = sharedPref.getString("GIT_AUTHOR_EMAIL", "ai@codeassist.local") ?: "ai@codeassist.local"
+                GitManager.commitChanges(rootFile, detailedMessage.trim(), modifiedPaths.distinct(), authorName, authorEmail)
             }
 
             withContext(Dispatchers.Main) {
