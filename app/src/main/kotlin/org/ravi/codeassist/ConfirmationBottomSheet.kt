@@ -50,9 +50,10 @@ class ConfirmationBottomSheet(
             
             btnCopyError.setOnClickListener {
                 val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                val clip = ClipData.newPlainText("CodeAssist Error", "Validation Errors:\n\n" + errors.joinToString("\n\n"))
+                val errorPayload = buildModelFriendlyErrorPayload(errors, workspaceRoot)
+                val clip = ClipData.newPlainText("CodeAssist Error", errorPayload)
                 clipboard.setPrimaryClip(clip)
-                Toast.makeText(requireContext(), "Errors copied to clipboard!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Structured model diagnostics copied!", Toast.LENGTH_SHORT).show()
                 requireActivity().finish()
                 dismiss()
             }
@@ -127,6 +128,43 @@ class ConfirmationBottomSheet(
         btnReject.setOnClickListener {
             onReject()
             dismiss()
+        }
+    }
+
+    private fun buildModelFriendlyErrorPayload(errors: List<String>, workspaceRoot: String): String {
+        return buildString {
+            appendLine(":::CODE_ASSIST_TRANSACTION_ERROR:::")
+            appendLine("STATUS: TRANSACTION_ABORTED_AND_ROLLED_BACK")
+            appendLine("WORKSPACE_ROOT: $workspaceRoot")
+            appendLine("TOTAL_VERIFICATION_FAILURES: ${errors.size}")
+            appendLine("\n--- CRITICAL FAILURE DETAILS ---")
+            errors.forEachIndexed { index, error ->
+                appendLine("FAILURE #${index + 1}:")
+                appendLine("  DETAILS: $error")
+                
+                when {
+                    error.contains("appears 0 times") || error.contains("0 times") -> {
+                        appendLine("  INFERRED CAUSE: The targeted SEARCH code block could not be located in the destination file. This happens if the text changed, or if there is a hidden formatting, line-ending, or trailing whitespace mismatch.")
+                        appendLine("  REQUIRED MODEL ACTION: Read the latest file state, double-check your search lines line-by-line, ensure all brackets match perfectly, and regenerate the exact block.")
+                    }
+                    error.contains("appears multiple times") || error.contains("times") -> {
+                        appendLine("  INFERRED CAUSE: The provided SEARCH block is non-unique and matches multiple code points in the source file.")
+                        appendLine("  REQUIRED MODEL ACTION: Expand your SEARCH context block by including 3-5 more lines above or below the target code block to anchor it into a completely unique signature.")
+                    }
+                    error.contains("does not exist") -> {
+                        appendLine("  INFERRED CAUSE: Attempted compilation, mutation, or execution on an unallocated file path.")
+                        appendLine("  REQUIRED MODEL ACTION: Verify the package name and directory tree. If you are creating a new component, ensure you emit a CreateFile command block prior to trying to modify it.")
+                    }
+                    else -> {
+                        appendLine("  REQUIRED MODEL ACTION: Re-verify system constraints, correct syntax errors in the modification sequence, and reconstruct the transactional envelope.")
+                    }
+                }
+                appendLine()
+            }
+            appendLine("GLOBAL ATOMICITY PROTECTION NOTICE:")
+            appendLine("  CONTEXT: CodeAssist strictly enforces absolute transactional safety boundaries. Because a single command failed validation, the entire batch operation was discarded simultaneously to protect your build tree from broken states.")
+            appendLine("  INSTRUCTION: No file adjustments were committed to the physical drive. You must correct the errors listed above and re-emit the entire modified command block from scratch.")
+            appendLine(":::END_TRANSACTION_ERROR:::")
         }
     }
 
