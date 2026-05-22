@@ -12,7 +12,10 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="24dp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="24dp"
+        android:paddingTop="36dp"
         android:layout_marginBottom="80dp"> <!-- Space for BottomNav -->
 
         <TextView
@@ -77,24 +80,32 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Core system execution action elements grouped cleanly below the workspace layout block -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnRunManual"
-            style="@style/Widget.Material3.Button"
+        <!-- Core system execution action elements arranged cleanly side-by-side -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Run CodeAssist Manually"
-            app:icon="@drawable/ic_qs_tile"
-            android:layout_marginBottom="12dp" />
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnCopySkeleton"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Copy Project Skeleton"
-            app:icon="@drawable/ic_copy"
-            android:layout_marginBottom="16dp" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnRunManual"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Run Manually"
+                app:icon="@drawable/ic_qs_tile"
+                android:layout_marginEnd="8dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCopySkeleton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Copy Skeleton"
+                app:icon="@drawable/ic_copy" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- === SCREEN 2: PROMPT VAULT VIEW (Hidden by default) === -->
@@ -103,7 +114,10 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="24dp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="24dp"
+        android:paddingTop="36dp"
         android:layout_marginBottom="80dp"
         android:visibility="gone">
 
@@ -125,23 +139,32 @@
             app:icon="@drawable/ic_copy"
             android:layout_marginBottom="16dp" />
 
-        <ScrollView
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:fadeScrollbars="false">
-            
-            <TextView
-                android:id="@+id/tvProtocolText"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="?attr/colorOutlineVariant"
+            app:cardBackgroundColor="?attr/colorSurfaceContainer">
+
+            <ScrollView
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/ai_protocol_text"
-                android:textIsSelectable="true"
-                android:textAppearance="?attr/textAppearanceBodyMedium"
-                android:fontFamily="monospace"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:background="?attr/colorSurfaceContainer"
-                android:padding="16dp"/>
-        </ScrollView>
+                android:layout_height="match_parent"
+                android:fadeScrollbars="false">
+                
+                <TextView
+                    android:id="@+id/tvProtocolText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/ai_protocol_text"
+                    android:textIsSelectable="true"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:fontFamily="monospace"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:padding="16dp"/>
+            </ScrollView>
+        </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
 
     <!-- === SCREEN 3: LOGS VIEW (Hidden by default) === -->
@@ -150,7 +173,10 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="24dp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="24dp"
+        android:paddingTop="36dp"
         android:layout_marginBottom="80dp"
         android:visibility="gone">
 
@@ -222,7 +248,10 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="24dp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="24dp"
+        android:paddingTop="36dp"
         android:layout_marginBottom="80dp"
         android:visibility="gone">
 
@@ -315,7 +344,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="24dp">
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:paddingBottom="24dp"
+            android:paddingTop="36dp">
 
             <TextView
                 android:layout_width="match_parent"

@@ -26,21 +26,32 @@
         android:layout_marginBottom="16dp"
         app:trackCornerRadius="4dp"/>
 
-    <ScrollView
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:fadeScrollbars="false"
-        android:layout_marginBottom="24dp">
+        android:layout_marginBottom="24dp"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="?attr/colorOutlineVariant"
+        app:cardBackgroundColor="?attr/colorSurfaceContainer">
 
-        <TextView
-            android:id="@+id/tvCommandSummary"
+        <ScrollView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:fontFamily="monospace"/>
-    </ScrollView>
+            android:layout_height="match_parent"
+            android:fadeScrollbars="false">
+
+            <TextView
+                android:id="@+id/tvCommandSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:fontFamily="monospace"
+                android:padding="16dp"/>
+        </ScrollView>
+    </com.google.android.material.card.MaterialCardView>
 
     <LinearLayout
         android:layout_width="match_parent"

@@ -5,7 +5,7 @@
     <style name="Theme.CodeAssist" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
         <!-- Material 3 Dynamic Colors handles the primary/secondary palettes automatically -->
         <item name="android:statusBarColor">?attr/colorSurface</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 
     <!-- 2. The Transparent Theme for the Clipboard Bridge -->
