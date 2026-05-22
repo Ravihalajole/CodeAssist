@@ -151,6 +151,8 @@ class ClipboardActivity : AppCompatActivity() {
                         }
                     }
                 }
+                // Pre-emptively clear any lock written to disk during the command iteration loop right before commit serialization
+                File(rootFile, ".git/index.lock").apply { if (exists()) delete() }
                 GitManager.commitChanges(rootFile, detailedMessage.trim())
             }
 

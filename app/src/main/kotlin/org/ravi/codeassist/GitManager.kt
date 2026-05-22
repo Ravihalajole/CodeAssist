@@ -41,6 +41,7 @@ object GitManager {
         try {
             cleanupStaleLocks(workspaceRoot)
             Git.open(workspaceRoot).use { git ->
+                git.repository.refDatabase.refresh()
                 git.add().addFilepattern(".").call()
                 git.add().setUpdate(true).addFilepattern(".").call()
                 
