@@ -63,7 +63,7 @@ class ConfirmationBottomSheet(
         val patchCommands = commands.filterIsInstance<CodeCommand.PatchFile>()
         if (patchCommands.isNotEmpty()) {
             val rootLayout = view as LinearLayout
-            val scrollView = tvSummary.parent as View
+            val cardSummary = view.findViewById<View>(R.id.cardSummary)
 
             val btnViewDiffs = MaterialButton(
                 requireContext(), 
@@ -80,7 +80,11 @@ class ConfirmationBottomSheet(
                     bottomMargin = 16
                 }
             }
-            rootLayout.addView(btnViewDiffs, rootLayout.indexOfChild(scrollView) + 1)
+            if (cardSummary != null) {
+                rootLayout.addView(btnViewDiffs, rootLayout.indexOfChild(cardSummary) + 1)
+            } else {
+                rootLayout.addView(btnViewDiffs, 1)
+            }
         }
 
         // Build a readable summary of what the LLM wants to do

@@ -4,8 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="24dp"
-    android:background="?attr/colorSurface">
+    android:padding="24dp">
 
     <TextView
         android:id="@+id/tvTitle"
@@ -27,6 +26,7 @@
         app:trackCornerRadius="4dp"/>
 
     <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardSummary"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
