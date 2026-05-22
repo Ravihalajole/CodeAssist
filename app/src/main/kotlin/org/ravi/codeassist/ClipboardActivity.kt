@@ -101,6 +101,7 @@ class ClipboardActivity : AppCompatActivity() {
     }
 
     private fun executeCommands(commands: List<CodeCommand>, workspaceRoot: String, clipboard: ClipboardManager) {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         lifecycleScope.launch(Dispatchers.IO) {
             val finalClipboardFeedback = java.lang.StringBuilder()
             var successCount = 0
