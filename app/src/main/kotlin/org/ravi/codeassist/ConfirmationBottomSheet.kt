@@ -37,6 +37,7 @@ class ConfirmationBottomSheet(
         val tvSummary = view.findViewById<TextView>(R.id.tvCommandSummary)
         val btnApprove = view.findViewById<MaterialButton>(R.id.btnApprove)
         val btnReject = view.findViewById<MaterialButton>(R.id.btnReject)
+        val executionProgress = view.findViewById<com.google.android.material.progressindicator.LinearProgressIndicator>(R.id.executionProgress)
         val btnCopyError = view.findViewById<MaterialButton>(R.id.btnCopyError)
 
         val errors = commands.mapNotNull { CommandExecutor.validate(it, workspaceRoot) }
@@ -112,6 +113,7 @@ class ConfirmationBottomSheet(
             // Lock the UI into a loading state
             btnApprove.isEnabled = false
             btnReject.isEnabled = false
+            executionProgress.visibility = View.VISIBLE
             btnApprove.text = "Executing Batch..."
             tvTitle?.text = "Applying Changes..."
             

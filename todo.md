@@ -12,6 +12,7 @@
 - [x] Relocate granular Git profile configurations from the scrollable list container into a polished Material design dialog popup interface.
 - [x] Filter out clutter from directory traversal lists by systematically ignoring heavy build artifacts (`build/`, `.git/`, `node_modules/`).
 - [x] Implement a safe, Looper-posted main thread Toast notification that fires immediately whenever a stale `index.lock` file blocking transaction streams is actively deleted.
+- [x] Integrate an indeterminate Material 3 LinearProgressIndicator into the pre-flight confirmation bottom sheet to display explicit visual processing indicators during deep write operations.
 
 ## Active Production Status
 - **Current Core Status**: 100% Normalized, Hardened, and Optimized.
