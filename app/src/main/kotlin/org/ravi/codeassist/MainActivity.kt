@@ -37,6 +37,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvWorkspacePath: TextView
     private lateinit var switchBubble: com.google.android.material.materialswitch.MaterialSwitch
     private lateinit var switchAutoRead: com.google.android.material.materialswitch.MaterialSwitch
+    private lateinit var switchQuickActions: com.google.android.material.materialswitch.MaterialSwitch
+    private lateinit var switchForgivingWhitespace: com.google.android.material.materialswitch.MaterialSwitch
     private lateinit var btnSelectWorkspace: MaterialButton
     private lateinit var btnCopyPrompt: MaterialButton
     private lateinit var btnCopySkeleton: MaterialButton
@@ -86,6 +88,8 @@ class MainActivity : AppCompatActivity() {
         tvWorkspacePath = findViewById(R.id.tvWorkspacePath)
         switchBubble = findViewById(R.id.switchBubble)
         switchAutoRead = findViewById(R.id.switchAutoRead)
+        switchQuickActions = findViewById(R.id.switchQuickActions)
+        switchForgivingWhitespace = findViewById(R.id.switchForgivingWhitespace)
         btnSelectWorkspace = findViewById(R.id.btnSelectWorkspace)
         btnCopyPrompt = findViewById(R.id.btnCopyPrompt)
         btnCopySkeleton = findViewById(R.id.btnCopySkeleton)
@@ -113,6 +117,8 @@ class MainActivity : AppCompatActivity() {
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         switchBubble.isChecked = sharedPref.getBoolean("BUBBLE_ENABLED", false)
         switchAutoRead.isChecked = sharedPref.getBoolean("AUTO_READ_ENABLED", false)
+        switchQuickActions.isChecked = sharedPref.getBoolean("QUICK_ACTIONS_ENABLED", false)
+        switchForgivingWhitespace.isChecked = sharedPref.getBoolean("FORGIVING_WHITESPACE_ENABLED", true)
 
         val initialName = sharedPref.getString("GIT_AUTHOR_NAME", "CodeAssist AI")
         val initialEmail = sharedPref.getString("GIT_AUTHOR_EMAIL", "ai@codeassist.local")
@@ -120,6 +126,14 @@ class MainActivity : AppCompatActivity() {
 
         switchAutoRead.setOnCheckedChangeListener { _, isChecked ->
             sharedPref.edit().putBoolean("AUTO_READ_ENABLED", isChecked).apply()
+        }
+
+        switchQuickActions.setOnCheckedChangeListener { _, isChecked ->
+            sharedPref.edit().putBoolean("QUICK_ACTIONS_ENABLED", isChecked).apply()
+        }
+
+        switchForgivingWhitespace.setOnCheckedChangeListener { _, isChecked ->
+            sharedPref.edit().putBoolean("FORGIVING_WHITESPACE_ENABLED", isChecked).apply()
         }
 
         btnEditGitConfig.setOnClickListener {
