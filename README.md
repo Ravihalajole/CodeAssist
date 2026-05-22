@@ -4,6 +4,8 @@ CodeAssist is an elite, Android-native developer execution engine running a loca
 
 Designed specifically for AI-augmented local engineering pipelines, CodeAssist serves as a lightweight, secure bridge that applies structural repository modifications without relying on external cloud environments or heavy desktop setups.
 
+Note: It's a vibe coded app.
+
 ## Core Features
 
 - **Clipboard Processing Loop:** Automated or manual interception of payloads safely wrapped in `:::CODE_ASSIST:::` envelopes.
