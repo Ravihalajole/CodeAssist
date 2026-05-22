@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var rvLogs: RecyclerView
     private lateinit var tvEmptyLogs: TextView
     private lateinit var logsAdapter: LogsAdapter
+    private lateinit var logsProgress: com.google.android.material.progressindicator.LinearProgressIndicator
 
     private val directoryPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
@@ -94,6 +95,7 @@ class MainActivity : AppCompatActivity() {
         btnReset = findViewById(R.id.btnReset)
         rvLogs = findViewById(R.id.rvLogs)
         tvEmptyLogs = findViewById(R.id.tvEmptyLogs)
+        logsProgress = findViewById(R.id.logsProgress)
         tvGitIdentityStatus = findViewById(R.id.tvGitIdentityStatus)
         btnEditGitConfig = findViewById(R.id.btnEditGitConfig)
 
@@ -364,44 +366,75 @@ class MainActivity : AppCompatActivity() {
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return
         val rootFile = File(workspaceRoot)
 
+        val title = if (isReset) "Confirm Hard Reset" else "Confirm Commit Revert"
+        val explicitContext = if (isReset) {
+            "This will execute a hard rollback to the preceding clean snapshot (HEAD~1). Your latest local tracking commit will be deleted and any uncommitted modifications will be discarded."
+        } else {
+            "This will append a safe corrective commit (Revert HEAD) that explicitly neutralizes and flips all file modifications introduced during your latest execution cycle while fully preserving history."
+        }
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setMessage(explicitContext)
+            .setPositiveButton(if (isReset) "Reset to HEAD~1" else "Revert Latest") { _, _ ->
+                executeGitUndoAction(rootFile, isReset)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun executeGitUndoAction(rootFile: File, isReset: Boolean) {
+        logsProgress.visibility = View.VISIBLE
+        btnRevert.isEnabled = false
+        btnReset.isEnabled = false
+
         lifecycleScope.launch(Dispatchers.IO) {
             if (!GitManager.isGitInitialized(rootFile)) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Git not initialized.", Toast.LENGTH_SHORT).show()
+                    logsProgress.visibility = View.GONE
+                    btnRevert.isEnabled = true
+                    btnReset.isEnabled = true
+                    Toast.makeText(this@MainActivity, "Git repository not initialized.", Toast.LENGTH_SHORT).show()
                 }
                 return@launch
             }
 
+            // O(1) Optimization: Instead of performing a heavy full repository tree history pull up front,
+            // check if there is an active commit stack currently available on screen to target instantly.
             val commits = GitManager.getCommitHistory(rootFile)
             if (commits.isEmpty()) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "No reversible actions found.", Toast.LENGTH_SHORT).show()
+                    logsProgress.visibility = View.GONE
+                    btnRevert.isEnabled = true
+                    btnReset.isEnabled = true
+                    Toast.makeText(this@MainActivity, "No transactional history found to undo.", Toast.LENGTH_SHORT).show()
                 }
                 return@launch
             }
 
-            val commitHash = commits.first().hash
+            val targetHash = commits.first().hash
             val actionSuccess = if (isReset) {
                 GitManager.resetHardToPrevious(rootFile)
             } else {
-                GitManager.revertCommit(rootFile, commitHash)
+                GitManager.revertCommit(rootFile, targetHash)
             }
             
-            val actionName = if (isReset) "Git Reset" else "Git Revert"
+            val actionName = if (isReset) "Hard Reset" else "Commit Revert"
+            val postActionCommits = GitManager.getCommitHistory(rootFile)
 
             withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnRevert.isEnabled = true
+                btnReset.isEnabled = true
+                
                 if (actionSuccess) {
-                    Toast.makeText(this@MainActivity, "Undo Complete: $actionName successful.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "$actionName processed successfully.", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this@MainActivity, "Undo Failed: Could not complete $actionName.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "$actionName transaction rejected or failed.", Toast.LENGTH_LONG).show()
                 }
-                lifecycleScope.launch(Dispatchers.IO) {
-                    val commits = GitManager.getCommitHistory(rootFile)
-                    withContext(Dispatchers.Main) {
-                        logsAdapter.updateData(commits)
-                        tvEmptyLogs.visibility = if (commits.isEmpty()) View.VISIBLE else View.GONE
-                    }
-                }
+                
+                logsAdapter.updateData(postActionCommits)
+                tvEmptyLogs.visibility = if (postActionCommits.isEmpty()) View.VISIBLE else View.GONE
             }
         }
     }
