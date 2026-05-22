@@ -107,28 +107,28 @@ class ClipboardActivity : AppCompatActivity() {
             var commitMessage = "Automated CodeAssist Execution"
             
             val rootFile = File(workspaceRoot)
-            GitManager.initGit(rootFile) // Ensure Git is initialized to establish a baseline
-
-            // Pre-process to extract the commit message if provided
-            commands.filterIsInstance<CodeCommand.CommitMessage>().firstOrNull()?.let {
-                commitMessage = it.message
-            }
-            
-            // Filter out CommitMessage commands before execution
             val executableCommands = commands.filter { it !is CodeCommand.CommitMessage }
+            val hasModifications = executableCommands.any { it is CodeCommand.PatchFile || it is CodeCommand.CreateFile || it is CodeCommand.DeleteFile }
+
+            // Only run baseline checking if we actually intend to write modifications
+            if (hasModifications) {
+                GitManager.initGit(rootFile)
+                commands.filterIsInstance<CodeCommand.CommitMessage>().firstOrNull()?.let {
+                    commitMessage = it.message
+                }
+            }
 
             for (command in executableCommands) {
                 val result = CommandExecutor.execute(command, workspaceRoot)
-                
                 if (result.success) {
                     successCount++
                     result.outputToClipboard?.let {
                         finalClipboardFeedback.append(it).append("\n")
                     }
                 } else {
-                    // Discard uncommitted changes via Git
-                    GitManager.discardUncommittedChanges(rootFile)
-
+                    if (hasModifications) {
+                        GitManager.discardUncommittedChanges(rootFile)
+                    }
                     withContext(Dispatchers.Main) {
                         Toast.makeText(this@ClipboardActivity, "Batch Failed, Rolled Back: ${result.logMsg}", Toast.LENGTH_LONG).show()
                         finish()
@@ -137,7 +137,6 @@ class ClipboardActivity : AppCompatActivity() {
                 }
             }
 
-            val hasModifications = executableCommands.any { it is CodeCommand.PatchFile || it is CodeCommand.CreateFile || it is CodeCommand.DeleteFile }
             if (hasModifications && successCount > 0) {
                 val detailedMessage = buildString {
                     appendLine(commitMessage)
@@ -151,13 +150,6 @@ class ClipboardActivity : AppCompatActivity() {
                         }
                     }
                 }
-                
-                // Clear index lock immediately prior to calling commit transaction to preempt race triggers from the loop
-                val lockFile = File(rootFile, ".git/index.lock")
-                if (lockFile.exists()) {
-                    lockFile.delete()
-                }
-                
                 GitManager.commitChanges(rootFile, detailedMessage.trim())
             }
 

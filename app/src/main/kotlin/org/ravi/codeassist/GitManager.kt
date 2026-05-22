@@ -43,19 +43,17 @@ object GitManager {
             cleanupStaleLocks(workspaceRoot)
             git = Git.open(workspaceRoot)
             
-            // Explicitly force close and refresh the repository index database
+            // Force fully clear repository tracking pointers before taking action
             git.repository.refDatabase.refresh()
             org.eclipse.jgit.lib.RepositoryCache.clear()
-            
-            // Clean lock right before indexing transactions
             cleanupStaleLocks(workspaceRoot)
-            git.add().addFilepattern(".").call()
             
-            cleanupStaleLocks(workspaceRoot)
-            git.add().setUpdate(true).addFilepattern(".").call()
+            // Consolidate staging tasks into a single atomic operational unit
+            git.add().addFilepattern(".").setUpdate(false).call()
             
+            // Instantly evaluate dirty state entries
             val status = git.status().call()
-            if (!status.isClean) {
+            if (!status.isClean || status.hasUncommittedChanges()) {
                 cleanupStaleLocks(workspaceRoot)
                 val commit = git.commit()
                     .setMessage(message)

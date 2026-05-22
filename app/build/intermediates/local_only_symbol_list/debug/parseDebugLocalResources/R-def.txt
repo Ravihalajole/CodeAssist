@@ -30,7 +30,6 @@ id bubbleIcon
 id nav_logs
 id nav_prompt_vault
 id nav_settings
-id nav_source_control
 id nav_workspace
 id rvLogs
 id switchAutoRead

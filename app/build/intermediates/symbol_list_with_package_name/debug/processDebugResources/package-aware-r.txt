@@ -4220,7 +4220,6 @@ id multiply
 id nav_logs
 id nav_prompt_vault
 id nav_settings
-id nav_source_control
 id nav_workspace
 id navigation_bar_item_active_indicator_view
 id navigation_bar_item_content_container
