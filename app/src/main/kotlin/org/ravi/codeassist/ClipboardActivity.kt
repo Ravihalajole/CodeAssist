@@ -19,6 +19,7 @@ class ClipboardActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        GitManager.registerContext(this)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

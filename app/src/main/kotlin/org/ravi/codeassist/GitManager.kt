@@ -12,6 +12,16 @@ object GitManager {
     private val gitMutex = Mutex()
     private const val AUTHOR_NAME = "CodeAssist AI"
     private const val AUTHOR_EMAIL = "ai@codeassist.local"
+    private var appContextRef: java.lang.ref.WeakReference<android.content.Context>? = null
+
+    /**
+     * Registers an application context safely to dispatch UI Toast notifications without leaking memory.
+     */
+    fun registerContext(context: android.content.Context) {
+        if (appContextRef?.get() == null) {
+            appContextRef = java.lang.ref.WeakReference(context.applicationContext)
+        }
+    }
 
     /**
      * Checks if a valid Git repository exists at the workspace root.
@@ -27,7 +37,15 @@ object GitManager {
         try {
             File(workspaceRoot, ".git/index.lock").apply {
                 if (exists() && delete()) {
-                    // Stale index lock successfully cleared
+                    appContextRef?.get()?.let { context ->
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            android.widget.Toast.makeText(
+                                context, 
+                                "Stale Git index.lock cleared successfully!", 
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
                 }
             }
         } catch (_: Exception) {}

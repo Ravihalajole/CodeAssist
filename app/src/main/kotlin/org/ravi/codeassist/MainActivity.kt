@@ -74,6 +74,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        GitManager.registerContext(this)
 
         // Bind Views
         viewWorkspace = findViewById(R.id.viewWorkspace)
