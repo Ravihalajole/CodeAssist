@@ -1,6 +1,5 @@
 package org.ravi.codeassist
 
-
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -28,18 +27,24 @@ class LogsAdapter(
 
     override fun onBindViewHolder(holder: LogViewHolder, position: Int) {
         val commit = commits[position]
+        val lines = commit.message.lines().filter { it.isNotBlank() }
 
-        val df = SimpleDateFormat("MMM dd, hh:mm a", Locale.getDefault())
-        holder.tvCommitHeader.text = commit.hash.take(7) + " - " + df.format(Date(commit.time))
+        // Use the first line of the commit message (the summary text) as the primary header title
+        val displayTitle = lines.firstOrNull()?.trim() ?: "Automated Execution"
+        holder.tvCommitHeader.text = displayTitle
+
+        // Group metadata attributes (short commit hash + localized execution timestamp) vertically
+        val df = SimpleDateFormat("MMM dd, yyyy  hh:mm a", Locale.getDefault())
+        holder.tvCommitAuthor.text = "${commit.hash.take(7)}  •  ${df.format(Date(commit.time))}"
         
-        // Show up to 4 lines of the commit message to include the operations summary
-        val displayMsg = commit.message.lines()
-            .filter { it.isNotBlank() }
-            .take(4)
-            .joinToString("\n")
-            
-        holder.tvCommitMessage.text = displayMsg.ifEmpty { "No message" }
-        holder.tvCommitAuthor.text = commit.author
+        // Display any remaining line items (such as targeted execution file lists) inside a structural body
+        val underlyingDetails = lines.drop(1).joinToString("\n").trim()
+        if (underlyingDetails.isNotEmpty()) {
+            holder.tvCommitMessage.visibility = View.VISIBLE
+            holder.tvCommitMessage.text = underlyingDetails
+        } else {
+            holder.tvCommitMessage.visibility = View.GONE
+        }
 
         holder.itemView.setOnClickListener {
             onCommitClick(commit)

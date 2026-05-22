@@ -16,40 +16,33 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <LinearLayout
+        <!-- Primary title slot displaying the main commit transaction message summary -->
+        <TextView
+            android:id="@+id/tvCommitHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:textStyle="bold"
+            android:textAppearance="?attr/textAppearanceTitleMedium"
+            android:textColor="?attr/colorPrimary"/>
             
-            <TextView
-                android:id="@+id/tvCommitHeader"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Commit Hash - Date"
-                android:textStyle="bold"
-                android:textAppearance="?attr/textAppearanceTitleMedium"
-                android:textColor="?attr/colorPrimary"/>
-                
-            <TextView
-                android:id="@+id/tvCommitAuthor"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Author"
-                android:textStyle="bold"
-                android:textColor="?attr/colorSecondary"
-                android:textAppearance="?attr/textAppearanceLabelMedium"/>
-        </LinearLayout>
+        <!-- Inline secondary layout line holding commit metadata entries -->
+        <TextView
+            android:id="@+id/tvCommitAuthor"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textAppearance="?attr/textAppearanceLabelMedium"/>
 
+        <!-- Operational details section highlighting modified file entries -->
         <TextView
             android:id="@+id/tvCommitMessage"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Commit Message"
             android:fontFamily="monospace"
             android:textSize="12sp"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:layout_marginTop="8dp"/>
+            android:textColor="?attr/colorSecondary"
+            android:layout_marginTop="10dp"/>
             
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
