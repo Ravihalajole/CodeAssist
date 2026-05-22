@@ -44,9 +44,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var bottomNavigation: BottomNavigationView
     private lateinit var btnRevert: MaterialButton
     private lateinit var btnReset: MaterialButton
-    private lateinit var etGitName: com.google.android.material.textfield.TextInputEditText
-    private lateinit var etGitEmail: com.google.android.material.textfield.TextInputEditText
-    private lateinit var btnSaveGitConfig: MaterialButton
+    private lateinit var tvGitIdentityStatus: TextView
+    private lateinit var btnEditGitConfig: MaterialButton
     
     // RecyclerView Components
     private lateinit var rvLogs: RecyclerView
@@ -94,9 +93,8 @@ class MainActivity : AppCompatActivity() {
         btnReset = findViewById(R.id.btnReset)
         rvLogs = findViewById(R.id.rvLogs)
         tvEmptyLogs = findViewById(R.id.tvEmptyLogs)
-        etGitName = findViewById(R.id.etGitName)
-        etGitEmail = findViewById(R.id.etGitEmail)
-        btnSaveGitConfig = findViewById(R.id.btnSaveGitConfig)
+        tvGitIdentityStatus = findViewById(R.id.tvGitIdentityStatus)
+        btnEditGitConfig = findViewById(R.id.btnEditGitConfig)
 
         // Setup RecyclerView
         rvLogs.layoutManager = LinearLayoutManager(this)
@@ -113,25 +111,41 @@ class MainActivity : AppCompatActivity() {
         switchBubble.isChecked = sharedPref.getBoolean("BUBBLE_ENABLED", false)
         switchAutoRead.isChecked = sharedPref.getBoolean("AUTO_READ_ENABLED", false)
 
-        etGitName.setText(sharedPref.getString("GIT_AUTHOR_NAME", "CodeAssist AI"))
-        etGitEmail.setText(sharedPref.getString("GIT_AUTHOR_EMAIL", "ai@codeassist.local"))
+        val initialName = sharedPref.getString("GIT_AUTHOR_NAME", "CodeAssist AI")
+        val initialEmail = sharedPref.getString("GIT_AUTHOR_EMAIL", "ai@codeassist.local")
+        tvGitIdentityStatus.text = "$initialName ($initialEmail)"
 
         switchAutoRead.setOnCheckedChangeListener { _, isChecked ->
             sharedPref.edit().putBoolean("AUTO_READ_ENABLED", isChecked).apply()
         }
 
-        btnSaveGitConfig.setOnClickListener {
-            val name = etGitName.text?.toString()?.trim() ?: ""
-            val email = etGitEmail.text?.toString()?.trim() ?: ""
-            if (name.isNotEmpty() && email.isNotEmpty()) {
-                sharedPref.edit()
-                    .putString("GIT_AUTHOR_NAME", name)
-                    .putString("GIT_AUTHOR_EMAIL", email)
-                    .apply()
-                Toast.makeText(this, "Git identity saved successfully!", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "Configuration fields cannot be blank.", Toast.LENGTH_SHORT).show()
-            }
+        btnEditGitConfig.setOnClickListener {
+            val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_config, null)
+            val etDialogGitName = dialogView.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etDialogGitName)
+            val etDialogGitEmail = dialogView.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etDialogGitEmail)
+
+            etDialogGitName.setText(sharedPref.getString("GIT_AUTHOR_NAME", "CodeAssist AI"))
+            etDialogGitEmail.setText(sharedPref.getString("GIT_AUTHOR_EMAIL", "ai@codeassist.local"))
+
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle("Edit Git Identity")
+                .setView(dialogView)
+                .setPositiveButton("Save") { _, _ ->
+                    val name = etDialogGitName.text?.toString()?.trim() ?: ""
+                    val email = etDialogGitEmail.text?.toString()?.trim() ?: ""
+                    if (name.isNotEmpty() && email.isNotEmpty()) {
+                        sharedPref.edit()
+                            .putString("GIT_AUTHOR_NAME", name)
+                            .putString("GIT_AUTHOR_EMAIL", email)
+                            .apply()
+                        tvGitIdentityStatus.text = "$name ($email)"
+                        Toast.makeText(this, "Git identity saved successfully!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this, "Configuration fields cannot be blank.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
 
         val overlayPermissionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {

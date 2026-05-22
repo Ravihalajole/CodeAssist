@@ -22,6 +22,7 @@
 - [x] Refactor the architectural log interface stack, configuring the commit execution tracking text as the primary prominent card summary title header.
 - [x] Restricted multi-line file execution operation details to the click details dialog popup exclusively, flattening the layout view cards.
 - [x] Integrated custom configurable text fields within the UI Settings interface allowing granular control over internal Git Author name/email tracking parameters.
+- [x] Refactored Git configuration fields out of the card stream view into an optimized Material UI popup dialog block to enhance visual landscape footprint.
 - [x] Resolved scope reference compilation errors in ClipboardActivity by locally initializing the SharedPreferences preference context manager.
 - [x] Hardened overlay persistence by modernizing FloatingBubbleService into a persistent Foreground Service with low-overhead notification bounds to survive aggressive Android Low Memory Killer (LMK) cleaning sweeps.
 - [x] Extracted system latency hot-paths by modifying full-reference history parsing log traversals (`git.log().all()`) to lean active-timeline branch resolution calls (`git.log()`).
