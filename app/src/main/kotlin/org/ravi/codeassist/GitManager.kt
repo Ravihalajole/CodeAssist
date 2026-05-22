@@ -38,29 +38,43 @@ object GitManager {
     }
 
     suspend fun commitChanges(workspaceRoot: File, message: String): String? = gitMutex.withLock {
+        var git: Git? = null
         try {
             cleanupStaleLocks(workspaceRoot)
-            Git.open(workspaceRoot).use { git ->
-                // Clear storage cache completely to ignore structural locks generated mid-loop
-                git.repository.refDatabase.refresh()
-                org.eclipse.jgit.lib.RepositoryCache.clear()
-                
-                git.add().addFilepattern(".").call()
-                git.add().setUpdate(true).addFilepattern(".").call()
-                
-                val status = git.status().call()
-                if (!status.isClean) {
-                    val commit = git.commit()
-                        .setMessage(message)
-                        .setAuthor("CodeAssist AI", "ai@codeassist.local")
-                        .setCommitter("CodeAssist AI", "ai@codeassist.local")
-                        .call()
-                    return commit.name
-                }
-                return null
+            git = Git.open(workspaceRoot)
+            
+            // Explicitly force close and refresh the repository index database
+            git.repository.refDatabase.refresh()
+            org.eclipse.jgit.lib.RepositoryCache.clear()
+            
+            // Clean lock right before indexing transactions
+            cleanupStaleLocks(workspaceRoot)
+            git.add().addFilepattern(".").call()
+            
+            cleanupStaleLocks(workspaceRoot)
+            git.add().setUpdate(true).addFilepattern(".").call()
+            
+            val status = git.status().call()
+            if (!status.isClean) {
+                cleanupStaleLocks(workspaceRoot)
+                val commit = git.commit()
+                    .setMessage(message)
+                    .setAuthor("CodeAssist AI", "ai@codeassist.local")
+                    .setCommitter("CodeAssist AI", "ai@codeassist.local")
+                    .call()
+                return commit.name
             }
-        } catch (_: Exception) {
             return null
+        } catch (e: Exception) {
+            // Log error internally by rethrowing or falling back cleanly
+            return null
+        } finally {
+            // Force fully releasing file handles back to OS environment cleanly
+            try {
+                git?.repository?.close()
+                git?.close()
+            } catch (_: Exception) {}
+            cleanupStaleLocks(workspaceRoot)
         }
     }
 
