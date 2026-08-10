@@ -46,16 +46,14 @@ class ClipboardActivity : AppCompatActivity() {
 
     /**
      * Human-readable provenance for the clipboard item, used to warn the user
-     * about envelopes placed by other apps. On API < 29 the clipboard gives us
-     * no package name, so the label falls back to the sensitive flag.
+     * about envelopes placed by other apps. `ClipDescription.getPackageName()`
+     * is a hidden/SystemApi method (absent from the public SDK), so the label
+     * the source app set is used instead; it falls back to the sensitive flag.
      */
     private fun clipboardSourceLabel(clipboard: ClipboardManager): String {
         val description = clipboard.primaryClip?.description ?: return "Clipboard source: Unknown"
-        val owner = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            description.packageName?.let { "Clipboard source: $it" } ?: "Clipboard source: Unknown"
-        } else {
-            "Clipboard source: Unknown"
-        }
+        val owner = description.label?.toString()?.takeIf { it.isNotBlank() }
+            ?.let { "Clipboard source: $it" } ?: "Clipboard source: Unknown"
         val sensitive = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             description.extras?.getBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE) ?: false
         } else {
