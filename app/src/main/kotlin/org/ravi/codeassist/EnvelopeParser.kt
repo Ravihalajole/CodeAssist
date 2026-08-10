@@ -19,6 +19,8 @@ object EnvelopeParser {
         var currentIgnoreDirs = emptyList<String>()
         var currentDestination = ""
         var currentContext = ""
+        var currentPlanDone = emptyList<Int>()
+        var currentPlanNote = ""
         var pendingCommandClosed = false
         
         val contentBuffer = StringBuilder()
@@ -35,7 +37,8 @@ object EnvelopeParser {
             buildPendingCommand(
                 currentCommandName, currentPath, currentPattern, currentMessage, 
                 currentReplaceAll, currentStartLine, currentEndLine, 
-                currentIgnoreDirs, currentDestination, currentContext, contentBuffer, searchBuffer, replaceBuffer
+                currentIgnoreDirs, currentDestination, currentContext,
+                currentPlanDone, currentPlanNote, contentBuffer, searchBuffer, replaceBuffer
             )?.let { commands.add(it) }
             pendingCommandClosed = false
         }
@@ -73,6 +76,8 @@ object EnvelopeParser {
                             currentIgnoreDirs = emptyList()
                             currentDestination = ""
                             currentContext = ""
+                            currentPlanDone = emptyList()
+                            currentPlanNote = ""
                             contentBuffer.setLength(0)
                             searchBuffer.setLength(0)
                             replaceBuffer.setLength(0)
@@ -90,6 +95,8 @@ object EnvelopeParser {
                         trimmedLine.startsWith("[START_LINE:") -> currentStartLine = trimmedLine.substringAfter("[START_LINE:").substringBefore("]").trim().toIntOrNull()
                         trimmedLine.startsWith("[END_LINE:") -> currentEndLine = trimmedLine.substringAfter("[END_LINE:").substringBefore("]").trim().toIntOrNull()
                         trimmedLine.startsWith("[IGNORE:") -> currentIgnoreDirs = trimmedLine.substringAfter("[IGNORE:").substringBefore("]").split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        trimmedLine.startsWith("[PLAN_DONE:") -> currentPlanDone = trimmedLine.substringAfter("[PLAN_DONE:").substringBefore("]").split(",").mapNotNull { it.trim().toIntOrNull() }
+                        trimmedLine.startsWith("[PLAN_NOTE:") -> currentPlanNote = trimmedLine.substringAfter("[PLAN_NOTE:").substringBefore("]").trim()
                         trimmedLine.startsWith("[CONTENT]") -> {
                             // CREATE body started; not closed until [END_CONTENT].
                             pendingCommandClosed = false
@@ -137,11 +144,13 @@ object EnvelopeParser {
     private fun buildPendingCommand(
         name: String, path: String, pattern: String, message: String, replaceAll: Boolean, 
         startLine: Int?, endLine: Int?, ignoreDirs: List<String>, destination: String, context: String,
+        planDone: List<Int>, planNote: String,
         content: StringBuilder, search: StringBuilder, replace: StringBuilder
     ): CodeCommand? {
         if (name.isEmpty()) return null
         if (name == "PATCH" && search.isEmpty()) return null
-        if (name != "DONE" && name != "ASK_USER" && name != "GLOB" && path.isEmpty()) {
+        if (name == "PLAN" && content.isBlank() && planDone.isEmpty() && planNote.isEmpty()) return null
+        if (name != "DONE" && name != "ASK_USER" && name != "GLOB" && name != "PLAN" && path.isEmpty()) {
             if (name == "GREP" && pattern.isNotEmpty()) {} else return null
         }
 
@@ -155,10 +164,22 @@ object EnvelopeParser {
                 "MOVE" -> CodeCommand.Move(path, destination, context)
                 "GLOB" -> CodeCommand.Glob(pattern)
                 "OUTLINE" -> CodeCommand.Outline(path)
+                "PLAN" -> CodeCommand.Plan(
+                    tasks = content.toString().removeSuffix("\n").lines().mapNotNull { cleanTaskLine(it) },
+                    doneNumbers = planDone,
+                    note = planNote
+                )
                 "ASK_USER" -> CodeCommand.AskUser(message.ifEmpty { "Need clarification." })
                 "DONE" -> CodeCommand.Done(message.ifEmpty { "Task completed autonomously." })
                 else -> null
             }
         } catch (e: Exception) { null }
+    }
+
+    /** Normalizes one checklist line: drops empty lines and leading `1.`/`- ` markers. */
+    private fun cleanTaskLine(raw: String): String? {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return null
+        return trimmed.replaceFirst(Regex("^(\\d+[.)]|[-*])\\s*"), "").trim().ifEmpty { null }
     }
 }

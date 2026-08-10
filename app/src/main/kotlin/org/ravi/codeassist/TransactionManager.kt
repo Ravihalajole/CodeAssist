@@ -20,6 +20,21 @@ object TransactionManager {
         else -> "-"
     }
 
+    /**
+     * Bounded per-batch observation: post-write verification of every
+     * successfully touched file (current line counts + top-level symbols via
+     * outline) plus the enclosing repo state, so the model can structurally
+     * confirm its own edits instead of only reading human-readable logs.
+     */
+    private suspend fun workspaceSnapshot(rootFile: File, paths: List<String>): String {
+        val out = StringBuilder()
+        val distinctPaths = paths.distinct().filter { it != "-" && it.isNotBlank() }
+        val verification = org.ravi.codeassist.utils.WorkspaceScope.outlineFor(rootFile, distinctPaths)
+        if (verification.isNotBlank()) out.appendLine(verification)
+        GitManager.repositorySnapshot(rootFile)?.let { out.appendLine(it) }
+        return out.toString().trimEnd()
+    }
+
     suspend fun executeBatch(
         context: Context,
         commands: List<CodeCommand>,
@@ -28,7 +43,7 @@ object TransactionManager {
     ): TransactionResult = withContext(Dispatchers.IO) {
         val sharedPref = context.getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val rootFile = File(workspaceRoot)
-        val executableCommands = commands.filter { it !is CodeCommand.Done && it !is CodeCommand.AskUser }
+        val executableCommands = commands.filter { it !is CodeCommand.Done && it !is CodeCommand.AskUser && it !is CodeCommand.Plan }
         val attemptedPaths = executableCommands.flatMap { 
             when (it) {
                 is CodeCommand.Patch -> listOf(it.path)
@@ -153,6 +168,7 @@ object TransactionManager {
         }
 
         if (executionFailures.isNotEmpty()) {
+            val snapshot = workspaceSnapshot(rootFile, modifiedPaths)
             val errorPayload = buildString {
                 appendLine(":::CODE_ASSIST_TRANSACTION_ERROR:::")
                 appendLine("STATUS: PARTIAL_BATCH_FAILURE")
@@ -167,6 +183,10 @@ object TransactionManager {
                     appendLine("  - [${cmd.javaClass.simpleName}]: $msg")
                 }
                 appendLine("\nBATCH SUMMARY: ${executableCommands.size} commands total ($successCount succeeded, ${executableCommands.size - successCount} failed), ${modifiedPaths.distinct().size} file(s) touched.")
+                if (snapshot.isNotBlank()) {
+                    appendLine("\n--- STATE SNAPSHOT (after partially-applied batch) ---")
+                    appendLine(snapshot)
+                }
                 appendLine("\nINSTRUCTION: Review the failed operations above, correct the parameters, and re-emit ONLY the failed commands.")
                 appendLine(":::END_TRANSACTION_ERROR:::")
             }
@@ -175,6 +195,7 @@ object TransactionManager {
         }
 
         val successLog = if (finalClipboardFeedback.isNotEmpty()) {
+            val snapshot = workspaceSnapshot(rootFile, modifiedPaths)
             buildString {
                 appendLine(finalClipboardFeedback.toString().trim())
                 appendLine()
@@ -188,9 +209,18 @@ object TransactionManager {
                 appendLine("--- BATCH SUMMARY ---")
                 appendLine("  Commands executed: ${executableCommands.size} ($successCount succeeded, ${executableCommands.size - successCount} failed)")
                 appendLine("  Files touched: ${modifiedPaths.distinct().size}")
+                if (snapshot.isNotBlank()) {
+                    appendLine()
+                    appendLine("--- STATE SNAPSHOT ---")
+                    appendLine("  " + snapshot.replace("\n", "\n  "))
+                }
             }.trim()
         } else {
-            "Successfully executed $successCount commands and committed changes."
+            if (executableCommands.isEmpty()) {
+                "No file mutations in this batch (plan/state update only)."
+            } else {
+                "Successfully executed $successCount commands and committed changes."
+            }
         }
 
         org.ravi.codeassist.database.ExecutionHistory.record(context, true, executableCommands.size, successLog, workspaceRoot)

@@ -302,6 +302,29 @@ object GitManager {
     }
 
     /**
+     * One-line repository state for prompt injection, e.g.
+     * `git <master> | clean | last commit 5c36ddd`. Null when the workspace
+     * stands outside any repository. Lightweight read intended for the
+     * per-batch state snapshot the model observes each iteration.
+     */
+    suspend fun repositorySnapshot(workspaceRoot: File): String? {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return null
+        return try {
+            Git.open(repoRoot).use { git ->
+                val branch = git.repository.branch ?: "detached"
+                val status = git.status().call()
+                val changes = status.modified.size + status.added.size +
+                    status.removed.size + status.missing.size + status.untracked.size
+                val lastCommit = git.log().setMaxCount(1).call().asSequence().firstOrNull()?.name
+                val last = if (lastCommit != null) " | last commit ${lastCommit.take(7)}" else ""
+                "git <$branch> | ${if (changes == 0) "clean" else "$changes pending change(s)"}$last"
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
      * Collects all chronological system commit logs mapped directly from the repository internals.
      */
     suspend fun getCommitHistory(workspaceRoot: File): List<CommitInfo> = gitMutex.withLock {

@@ -36,7 +36,7 @@ object CommandExecutor {
                 is CodeCommand.Delete -> command.path
                 is CodeCommand.Move -> command.oldPath
                 is CodeCommand.Outline -> command.path
-                is CodeCommand.Glob, is CodeCommand.AskUser, is CodeCommand.Done -> return null
+                is CodeCommand.Glob, is CodeCommand.AskUser, is CodeCommand.Done, is CodeCommand.Plan -> return null
             }
             val targetFile = File(rootDir, targetPath)
             
@@ -125,6 +125,7 @@ object CommandExecutor {
                 is CodeCommand.Outline -> handleOutline(rootDir, command.path)
                 is CodeCommand.AskUser -> ExecutionResult(true, "HALT_FOR_USER: ${command.message}")
                 is CodeCommand.Done -> ExecutionResult(true, "HALT_DONE: ${command.message}")
+                is CodeCommand.Plan -> ExecutionResult(true, "PLAN_RECORDED: ${command.tasks.size} tasks, ${command.doneNumbers.size} done, note=${command.note.take(80)}")
             }
         } catch (e: Exception) {
             ExecutionResult(false, "System Error: ${e.localizedMessage}")

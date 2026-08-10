@@ -17,6 +17,7 @@ object TransactionSummaryController {
                     is CodeCommand.Move -> "${command.oldPath} -> ${command.newPath}"
                     is CodeCommand.Glob -> command.pattern
                     is CodeCommand.Outline -> command.path
+                    is CodeCommand.Plan -> generatePlanSummary(command)
                     is CodeCommand.AskUser -> "Message: ${command.message}"
                     is CodeCommand.Done -> "Message: ${command.message}"
                 }
@@ -85,6 +86,13 @@ object TransactionSummaryController {
         }
 
         return htmlBuilder.toString()
+    }
+
+    fun generatePlanSummary(command: CodeCommand.Plan): String = when {
+        command.tasks.isNotEmpty() -> "Plan (${command.tasks.size} tasks, ${command.doneNumbers.size} done)"
+        command.doneNumbers.isNotEmpty() -> "Plan progress: done ${command.doneNumbers.joinToString(",")}"
+        command.note.isNotBlank() -> "Plan note: ${command.note.take(80)}"
+        else -> "Plan sync"
     }
 
     private fun escapeHtmlString(text: String): String {

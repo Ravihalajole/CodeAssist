@@ -24,6 +24,19 @@ sealed class CodeCommand {
     data class Move(val oldPath: String, val newPath: String, val context: String = "") : CodeCommand() { override val isMutating = true; override val isDestructive = true }
     data class Glob(val pattern: String) : CodeCommand() { override val isMutating = false }
     data class Outline(val path: String) : CodeCommand() { override val isMutating = false }
+
+    /**
+     * Agent-side plan/task tracking. Declaring a new checklist (via `[CONTENT]`)
+     * REPLACES the stored plan; `doneNumbers` mark 1-based items complete on the
+     * active plan; `note` records the latest progress note. Fully non-mutating:
+     * the backing store lives in [org.ravi.codeassist.agent.AgentOrchestrator]
+     * and is re-attached to every feedback round.
+     */
+    data class Plan(
+        val tasks: List<String>,
+        val doneNumbers: List<Int> = emptyList(),
+        val note: String = ""
+    ) : CodeCommand() { override val isMutating = false }
     data class AskUser(val message: String) : CodeCommand() { override val isMutating = false }
     data class Done(val message: String) : CodeCommand() { override val isMutating = false }
 }

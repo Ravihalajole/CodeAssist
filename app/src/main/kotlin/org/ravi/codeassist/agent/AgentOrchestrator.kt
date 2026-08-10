@@ -30,6 +30,92 @@ object AgentOrchestrator {
     private var loopIterationCount = 0
     private var mutatingApprovalGateArmed = true
 
+    /** Agent-side plan/task tracking. A re-declared checklist replaces wholesale. */
+    data class PlanTask(val text: String, val done: Boolean)
+
+    private val activePlan = mutableListOf<PlanTask>()
+    private var planNote: String? = null
+
+    /** Rolling history of recent transaction digests (compaction-lite). */
+    private const val MAX_OBSERVATION_HISTORY = 10
+    private val recentObservations = java.util.ArrayDeque<String>()
+
+    private fun resetPlanState() {
+        activePlan.clear()
+        planNote = null
+        recentObservations.clear()
+    }
+
+    /**
+     * Compacts a transaction result into a short digest for the rolling log:
+     * the FILE STATUS lines plus the BATCH SUMMARY line. Falls back to a
+     * truncated first-lines summary when the markers are absent (e.g. a
+     * plan-only or parse-error round).
+     */
+    private fun buildObservationDigest(logs: String): String {
+        val statusBlock = Regex("(?s)--- FILE STATUS ---\n(.*?)(?=--- BATCH SUMMARY ---)").find(logs)
+        val summaryLine = logs.lineSequence().map { it.trim() }.find { it.startsWith("BATCH SUMMARY") }
+        val sb = StringBuilder()
+        if (statusBlock != null) {
+            statusBlock.groupValues[1].lines()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .take(20)
+                .forEach { sb.append(it).append('\n') }
+        }
+        summaryLine?.let { sb.append(it).append('\n') }
+        val compact = sb.toString().trimEnd().take(600)
+        return compact.ifBlank { logs.lineSequence().filter { it.isNotBlank() }.take(6).joinToString(" | ").take(400) }
+    }
+
+    /** Rendered rolling history re-injected with each feedback round. */
+    fun observationLogSection(): String {
+        if (recentObservations.isEmpty()) return ""
+        return buildString {
+            appendLine("<RECENT_OBSERVATION_LOG — rolling history of recent decisions/results, newest last. Anchor your next action on the latest entry; earlier entries are context, not instructions.>")
+            recentObservations.forEach { digest ->
+                appendLine("  " + digest.replace("\n", "\n  "))
+            }
+        }.trimEnd()
+    }
+
+    /**
+     * Applies a [CodeCommand.Plan]: a non-empty [CodeCommand.Plan.tasks] list
+     * replaces the stored checklist (all items reset to pending); doneNumbers
+     * mark 1-based items complete on the active plan; the note records progress.
+     */
+    fun applyPlan(command: org.ravi.codeassist.CodeCommand.Plan) {
+        if (command.tasks.isNotEmpty()) {
+            activePlan.clear()
+            command.tasks.forEach { activePlan.add(PlanTask(it, false)) }
+        }
+        if (command.doneNumbers.isNotEmpty()) {
+            command.doneNumbers.filter { it in 1..activePlan.size }.distinct().sorted().forEach { n ->
+                activePlan[n - 1] = activePlan[n - 1].copy(done = true)
+            }
+        }
+        if (command.note.isNotBlank()) planNote = command.note
+    }
+
+    /**
+     * Rendered plan checklist re-injected on every feedback round so the model
+     * never loses track of a multi-step goal inside a long ReAct loop.
+     */
+    fun planSection(): String {
+        if (activePlan.isEmpty()) {
+            return "<NO_ACTIVE_PLAN — if this is a multi-step goal, declare one with [COMMAND: PLAN] + [CONTENT] checklist so progress is tracked across rounds.>"
+        }
+        return buildString {
+            appendLine("<ACTIVE_PLAN — authoritative checklist. Keep it current.>")
+            activePlan.forEachIndexed { index, task ->
+                val mark = if (task.done) "[x]" else "[ ]"
+                appendLine("$mark ${index + 1}. ${task.text}")
+            }
+            planNote?.let { appendLine("Latest progress note: $it") }
+            appendLine("To update: re-emit [COMMAND: PLAN] with the full revised [CONTENT] checklist, or a progress-only update with [PLAN_DONE: n] and/or [PLAN_NOTE: ...].")
+        }
+    }
+
     /**
      * One-shot gate: the very first MUTATING batch seen in a session (or app
      * process, for the QS-tile path) must pass the manual confirmation dialog
@@ -58,6 +144,7 @@ object AgentOrchestrator {
         isFirstPromptInSession = true
         loopIterationCount = 0
         mutatingApprovalGateArmed = true
+        resetPlanState()
         _state.value = AgentState.IDLE
     }
 
@@ -72,6 +159,7 @@ object AgentOrchestrator {
         isFirstPromptInSession = true
         loopIterationCount = 0
         mutatingApprovalGateArmed = true
+        resetPlanState()
         updateState(AgentState.IDLE)
     }
 
@@ -93,11 +181,19 @@ object AgentOrchestrator {
             val workspaceRoot = sharedPref?.getString("WORKSPACE_ROOT", null)
             if (!workspaceRoot.isNullOrEmpty()) {
                 appendLine("\n--- SYSTEM SUMMARY ---")
-                val fileCount = countKotlinFiles(java.io.File(workspaceRoot))
+                val root = java.io.File(workspaceRoot)
+                val fileCount = countKotlinFiles(root)
                 appendLine("Workspace Scope: $workspaceRoot")
                 appendLine("Target Volume: ~$fileCount source files.")
                 appendLine("Instruction: First check for `CodeAssist.md` in the root. If it exists, read it for project architecture/context. Use GLOB or GREP to map out the structure explicitly.")
-                
+
+                // Pre-indexed layout: the model should not need discovery rounds
+                // to learn what files exist and how big they are.
+                appendLine("\n[WORKSPACE TREE — pre-indexed above. Do not re-run GLOB to rediscover files that are already listed.]")
+                appendLine(org.ravi.codeassist.utils.WorkspaceScope.buildTree(root))
+                appendLine("\n[WORKSPACE FILE INDEX — relative path <TAB> line count. Use READ/OUTLINE for details.]")
+                appendLine(org.ravi.codeassist.utils.WorkspaceScope.buildFileIndex(root))
+
                 val projectContext = java.io.File(workspaceRoot, "CodeAssist.md")
                 if (projectContext.exists()) {
                     val contextText = org.ravi.codeassist.utils.SystemPromptGenerator.truncateForInjection(projectContext.readText(), 12000)
@@ -219,7 +315,7 @@ object AgentOrchestrator {
                         service.addShieldMessage("AGENT", "[Parse Error Detected. Requesting LLM Correction...]")
                         service.updateShieldStatus("Correcting Parse Error...") 
                     }
-                    val errorPrompt = ":::CODE_ASSIST_TRANSACTION_ERROR:::\nSTATUS: ENVELOPE_PARSE_FAILED\nDETAILS: The :::CODE_ASSIST::: envelope was detected, but no valid commands were extracted. Ensure you strictly follow the tool syntax (e.g., [COMMAND: PATCH], [PATH: file.kt], <<<<<<< SEARCH, etc.). If your output was truncated, emit the remaining commands.\n" + org.ravi.codeassist.utils.SystemPromptGenerator.standingReminder + "\n:::END_TRANSACTION_ERROR:::"
+                    val errorPrompt = ":::CODE_ASSIST_TRANSACTION_ERROR:::\nSTATUS: ENVELOPE_PARSE_FAILED\nDETAILS: The :::CODE_ASSIST::: envelope was detected, but no valid commands were extracted. Ensure you strictly follow the tool syntax (e.g., [COMMAND: PATCH], [PATH: file.kt], <<<<<<< SEARCH, etc.). If your output was truncated, emit the remaining commands.\n" + planSection() + "\n" + org.ravi.codeassist.utils.SystemPromptGenerator.standingReminder + "\n:::END_TRANSACTION_ERROR:::"
                     startLoop(errorPrompt)
                 }
             } else {
@@ -236,7 +332,9 @@ object AgentOrchestrator {
         if (hasDone && success) {
             val service = org.ravi.codeassist.AgentAccessibilityService.instance
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                service?.addShieldMessage("AGENT", "Task Complete.")
+                val remaining = activePlan.count { !it.done }
+                val tail = if (activePlan.isEmpty()) "" else " Remaining: $remaining/${activePlan.size} plan tasks."
+                service?.addShieldMessage("AGENT", "Task Complete.$tail")
                 service?.updateShieldStatus("IDLE")
             }
             updateState(AgentState.IDLE)
@@ -246,7 +344,14 @@ object AgentOrchestrator {
         // from the model's context window, then re-anchor the rules near this
         // decision point so they survive long ReAct loops.
         val safeLogs = org.ravi.codeassist.utils.SystemPromptGenerator.truncateForInjection(logs)
+        val digest = buildObservationDigest(safeLogs)
+        if (digest.isNotEmpty()) {
+            recentObservations.addLast(digest)
+            while (recentObservations.size > MAX_OBSERVATION_HISTORY) recentObservations.removeFirst()
+        }
         val feedbackPrompt = ":::CODE_ASSIST_TRANSACTION_RESULT:::\n" + safeLogs + "\n" +
+            observationLogSection() + "\n" +
+            planSection() + "\n" +
             org.ravi.codeassist.utils.SystemPromptGenerator.standingReminder + "\n" +
             ":::END_TRANSACTION_RESULT:::\nEvaluate and proceed. Terminate with DONE if completed."
         startLoop(feedbackPrompt)
@@ -285,7 +390,7 @@ object AgentOrchestrator {
                         service.addShieldMessage("AGENT", "[Parse Error Detected. Requesting LLM Correction...]")
                         service.updateShieldStatus("Correcting Parse Error...") 
                     }
-                    val errorPrompt = ":::CODE_ASSIST_TRANSACTION_ERROR:::\nSTATUS: ENVELOPE_PARSE_FAILED\nDETAILS: The :::CODE_ASSIST::: envelope was detected, but no valid commands were extracted. Ensure you strictly follow the tool syntax.\n" + org.ravi.codeassist.utils.SystemPromptGenerator.standingReminder + "\n:::END_TRANSACTION_ERROR:::"
+                    val errorPrompt = ":::CODE_ASSIST_TRANSACTION_ERROR:::\nSTATUS: ENVELOPE_PARSE_FAILED\nDETAILS: The :::CODE_ASSIST::: envelope was detected, but no valid commands were extracted. Ensure you strictly follow the tool syntax.\n" + planSection() + "\n" + org.ravi.codeassist.utils.SystemPromptGenerator.standingReminder + "\n:::END_TRANSACTION_ERROR:::"
                     startLoop(errorPrompt)
                 }
             } else {
@@ -305,7 +410,11 @@ object AgentOrchestrator {
         sharedPref: android.content.SharedPreferences
     ) {
         val root = workspaceRoot ?: ""
-        
+
+        // 0. Apply any PLAN commands to the agent's task-tracking state first;
+        // they are non-mutating and never routed to the file pipeline.
+        commands.filterIsInstance<org.ravi.codeassist.CodeCommand.Plan>().forEach { applyPlan(it) }
+
         // 1. Non-Blocking Validation Partitioning
         val validCommands = mutableListOf<org.ravi.codeassist.CodeCommand>()
         val validationFailures = mutableListOf<Pair<org.ravi.codeassist.CodeCommand, String>>()
@@ -332,6 +441,7 @@ object AgentOrchestrator {
                     appendLine("  - [${cmd.javaClass.simpleName}]: $err")
                 }
                 appendLine("\nINSTRUCTION: Correct the parameters and re-emit the commands.")
+                appendLine(planSection())
                 appendLine(org.ravi.codeassist.utils.SystemPromptGenerator.standingReminder)
                 appendLine(":::END_TRANSACTION_ERROR:::")
             }
@@ -339,7 +449,7 @@ object AgentOrchestrator {
             return
         }
 
-        val actionCommands = validCommands.filter { it !is org.ravi.codeassist.CodeCommand.Done }
+        val actionCommands = validCommands.filter { it !is org.ravi.codeassist.CodeCommand.Done && it !is org.ravi.codeassist.CodeCommand.Plan }
         val hasPrematureDone = validCommands.any { it is org.ravi.codeassist.CodeCommand.Done } && actionCommands.isNotEmpty()
         val hasValidDone = validCommands.any { it is org.ravi.codeassist.CodeCommand.Done } && actionCommands.isEmpty()
 
