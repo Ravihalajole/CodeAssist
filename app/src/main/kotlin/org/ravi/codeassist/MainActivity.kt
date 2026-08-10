@@ -967,7 +967,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshPermissionStatus() {
-        val colorGranted = com.google.android.material.color.MaterialColors.getColor(this, com.google.android.material.R.attr.colorPrimary, 0)
+        val colorGranted = com.google.android.material.color.MaterialColors.getColor(this, androidx.appcompat.R.attr.colorPrimary, 0)
         val colorOff = com.google.android.material.color.MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
 
         val storageEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
@@ -990,13 +990,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestAddQsTile() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            android.service.quicksettings.TileService.requestAddTileService(
-                this,
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val statusBarManager = getSystemService(android.app.StatusBarManager::class.java)
+            statusBarManager.requestAddTileService(
                 android.content.ComponentName(this, CodeAssistTileService::class.java),
-                java.util.concurrent.Executors.newSingleThreadExecutor(),
-                null
-            )
+                getString(R.string.app_name),
+                android.graphics.drawable.Icon.createWithResource(this, R.drawable.ic_qs_tile),
+                java.util.concurrent.Executors.newSingleThreadExecutor()
+            ) { /* resultCode: 0 = not added, 1 = already added, 2 = added */ }
         } else {
             Toast.makeText(this, "Open the Quick Settings tile editor and search for the CodeAssist tile.", Toast.LENGTH_LONG).show()
         }

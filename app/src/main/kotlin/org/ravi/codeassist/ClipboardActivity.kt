@@ -156,7 +156,7 @@ class ClipboardActivity : AppCompatActivity() {
 
         val tvClipboardSource = android.widget.TextView(this).apply {
             text = clipboardSourceLabel(clipboard)
-            setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.state_red))
+            setTextColor(androidx.core.content.ContextCompat.getColor(this@ClipboardActivity, R.color.state_red))
             textSize = 13f
             setPadding(0, 0, 0, dp(12))
         }
