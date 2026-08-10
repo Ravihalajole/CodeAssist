@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/calibrationRoot"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    app:cardCornerRadius="28dp"
+    app:cardElevation="16dp"
+    app:cardBackgroundColor="#E6121212"
+    app:strokeColor="#33FFFFFF"
+    app:strokeWidth="1dp"
+    android:layout_margin="16dp">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <View
+            android:id="@+id/calibrationDragHandle"
+            android:layout_width="48dp"
+            android:layout_height="4dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="12dp"
+            android:background="#33FFFFFF" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingBottom="16dp"
+            android:paddingTop="12dp">
+
+            <ImageView
+                android:id="@+id/ivDragTarget"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:src="@drawable/ic_target_crosshair"
+                android:padding="16dp"
+                android:background="@drawable/bubble_bg"
+                android:backgroundTint="#454545"
+                app:tint="#000000" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_vertical"
+                android:layout_marginHorizontal="16dp">
+
+                <TextView
+                    android:id="@+id/tvCalibrationStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Locate Element"
+                    android:textColor="#FFFFFF"
+                    android:textAppearance="?attr/textAppearanceLabelLarge"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:id="@+id/tvCalibrationSubStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Drag crosshair to select"
+                    android:textColor="#A0A0A0"
+                    android:textSize="12sp"/>
+            </LinearLayout>
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="24dp"
+                android:background="#33FFFFFF"
+                android:layout_marginHorizontal="8dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSkipCalibrationStep"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                app:icon="@android:drawable/ic_media_next"
+                app:iconTint="#2196F3" />
+                
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCancelCalibration"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                app:icon="@android:drawable/ic_menu_close_clear_cancel"
+                app:iconTint="#F44336" />
+        </LinearLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

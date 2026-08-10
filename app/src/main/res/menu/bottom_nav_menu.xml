@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_workspace"
+        android:icon="@drawable/ic_nav_workspace"
+        android:title="Workspace" />
+    <item
+        android:id="@+id/nav_agentic"
+        android:icon="@drawable/ic_nav_agent"
+        android:title="Agent Hub" />
+    <item
+        android:id="@+id/nav_settings"
+        android:icon="@drawable/ic_nav_settings"
+        android:title="Settings" />
+</menu>

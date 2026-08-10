@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CodeAssist</string>
+    <string name="accessibility_service_description">CodeAssist Agent for UI Automation</string>
+
+    <!-- Workspace screen -->
+    <string name="workspace_title">Workspace</string>
+    <string name="current_project">Current Project</string>
+    <string name="workspace_not_set">Not Set</string>
+    <string name="select_button">Select</string>
+    <string name="history_title">History</string>
+    <string name="no_commits_in_workspace">No commits found in this workspace.</string>
+
+    <!-- Agent Hub screen -->
+    <string name="agent_hub_title">Agent Hub</string>
+    <string name="no_profiles_title">No Agent Profiles Found</string>
+    <string name="no_profiles_desc">Create a profile to target an app and begin automation.</string>
+    <string name="create_profile">Create Profile</string>
+    <string name="import_profile">Import Profile</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Settings</string>
+    <string name="manual_fallback_injector">Manual Fallback Injector</string>
+    <string name="floating_bubble">Floating Bubble</string>
+    <string name="floating_bubble_desc">Use manual bubble when agent automation fails</string>
+    <string name="bubble_icon_style">Bubble Icon Style</string>
+    <string name="default_value">Default</string>
+    <string name="edit_button">Edit</string>
+    <string name="execution_rules">Execution Rules</string>
+    <string name="auto_allow_executions">Auto-Allow Executions</string>
+    <string name="auto_allow_desc">Bypass confirmation overlays</string>
+    <string name="allow_none">None</string>
+    <string name="allow_read">Read</string>
+    <string name="allow_write">Write</string>
+    <string name="direct_node_input">Direct Node Input</string>
+    <string name="direct_input_desc">Bypass clipboard to protect history</string>
+    <string name="source_control_profile">Source Control Profile</string>
+    <string name="git_identity_profile">Git Identity Profile</string>
+</resources>
