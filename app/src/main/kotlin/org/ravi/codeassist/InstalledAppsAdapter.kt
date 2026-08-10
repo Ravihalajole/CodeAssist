@@ -43,7 +43,7 @@ class InstalledAppsAdapter(
         }
 
         if (position == selectedPosition) {
-            holder.rootView.setBackgroundColor(android.graphics.Color.parseColor("#334CAF50"))
+            holder.rootView.setBackgroundColor(androidx.core.content.ContextCompat.getColor(holder.itemView.context, R.color.brand_container))
         } else {
             val attrs = intArrayOf(android.R.attr.selectableItemBackground)
             val typedArray = holder.itemView.context.obtainStyledAttributes(attrs)

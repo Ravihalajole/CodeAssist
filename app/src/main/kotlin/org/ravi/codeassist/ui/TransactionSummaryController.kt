@@ -26,6 +26,27 @@ object TransactionSummaryController {
         }
     }
 
+    fun generateImpactPreview(commands: List<CodeCommand>, workspaceRoot: String): String {
+        val root = java.io.File(workspaceRoot)
+        return buildString {
+            commands.forEachIndexed { index, command ->
+                val target = when (command) {
+                    is CodeCommand.Patch -> "${command.path}  (patch ${command.search.count { it == '\n' } + 1}→${command.replace.count { it == '\n' } + 1} lines)"
+                    is CodeCommand.Create -> "${command.path}  (new)"
+                    is CodeCommand.Delete -> "${command.path}  (${org.ravi.codeassist.utils.WorkspaceScope.targetDetail(root, command.path)}, will be deleted)"
+                    is CodeCommand.Move -> "${command.oldPath}  →  ${command.newPath}"
+                    is CodeCommand.Read -> "read ${command.path}"
+                    is CodeCommand.Grep -> "grep ${command.pattern} in ${command.path}"
+                    is CodeCommand.Glob -> "glob ${command.pattern}"
+                    is CodeCommand.Outline -> "outline ${command.path}"
+                    else -> command.javaClass.simpleName
+                }
+                val current = if (command is CodeCommand.Patch) "  [${org.ravi.codeassist.utils.WorkspaceScope.targetDetail(root, command.path)}]" else ""
+                appendLine("${index + 1}. $target$current")
+            }
+        }
+    }
+
     fun generateSmartDiffHtml(search: String, replace: String): String {
         val searchLines = search.split("\n")
         val replaceLines = replace.split("\n")
@@ -44,7 +65,7 @@ object TransactionSummaryController {
 
         if (prefixCount > 0) {
             if (prefixCount > 5) {
-                htmlBuilder.append("<font color='#777777'><i>[... Collapsed ${prefixCount - 3} identical context lines ...]</i></font><br>")
+                htmlBuilder.append("<font color='#62626C'><i>[... Collapsed ${prefixCount - 3} identical context lines ...]</i></font><br>")
                 for (i in (prefixCount - 3) until prefixCount) {
                     htmlBuilder.append(escapeHtmlString(searchLines[i])).append("<br>")
                 }
@@ -56,7 +77,7 @@ object TransactionSummaryController {
         }
 
         if (prefixCount < searchLines.size - suffixCount) {
-            htmlBuilder.append("<font color='#E57373'>")
+            htmlBuilder.append("<font color='#FF4D5A'>")
             for (i in prefixCount until (searchLines.size - suffixCount)) {
                 htmlBuilder.append("- ").append(escapeHtmlString(searchLines[i])).append("<br>")
             }
@@ -64,7 +85,7 @@ object TransactionSummaryController {
         }
 
         if (prefixCount < replaceLines.size - suffixCount) {
-            htmlBuilder.append("<font color='#81C784'>")
+            htmlBuilder.append("<font color='#34E0A1'>")
             for (i in prefixCount until (replaceLines.size - suffixCount)) {
                 htmlBuilder.append("+ ").append(escapeHtmlString(replaceLines[i])).append("<br>")
             }
@@ -77,7 +98,7 @@ object TransactionSummaryController {
                 for (i in suffixStart until (suffixStart + 3)) {
                     htmlBuilder.append(escapeHtmlString(searchLines[i])).append("<br>")
                 }
-                htmlBuilder.append("<font color='#777777'><i>[... Collapsed ${suffixCount - 3} identical context lines ...]</i></font><br>")
+                htmlBuilder.append("<font color='#62626C'><i>[... Collapsed ${suffixCount - 3} identical context lines ...]</i></font><br>")
             } else {
                 for (i in suffixStart until searchLines.size) {
                     htmlBuilder.append(escapeHtmlString(searchLines[i])).append("<br>")

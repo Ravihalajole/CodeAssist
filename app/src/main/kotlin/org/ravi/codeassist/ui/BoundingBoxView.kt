@@ -29,7 +29,7 @@ class BoundingBoxView @JvmOverloads constructor(
     }
 
     private val strokePaint = Paint().apply {
-        color = Color.parseColor("#AEEA00") // Neon green spotlight stroke
+        color = Color.parseColor("#34E0A1") // Brand mint spotlight stroke
         style = Paint.Style.STROKE
         strokeWidth = 6f
         isAntiAlias = true

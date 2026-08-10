@@ -51,8 +51,13 @@ class OverlayConfirmationManager(private val context: Context) {
         val btnReject = confirmationView?.findViewById<MaterialButton>(R.id.btnOverlayReject)
         val progress = confirmationView?.findViewById<View>(R.id.overlayProgress)
 
-        val summaryText = TransactionSummaryController.generateSummaryText(commands)
-        tvSummary?.text = summaryText.trim()
+        val summaryText = TransactionSummaryController.generateSummaryText(commands).trim()
+        val impactText = TransactionSummaryController.generateImpactPreview(commands, workspaceRoot).trim()
+        tvSummary?.text = if (impactText.isEmpty()) {
+            summaryText
+        } else {
+            "$summaryText\n\n── IMPACT ──\n$impactText"
+        }
 
         val patchCommands = commands.filterIsInstance<CodeCommand.Patch>()
 
@@ -153,7 +158,7 @@ class OverlayConfirmationManager(private val context: Context) {
     private fun showDiffsDialog(patchCommands: List<CodeCommand.Patch>, workspaceRoot: String) {
         val sb = java.lang.StringBuilder()
         patchCommands.forEach { cmd ->
-            sb.append("<b><font color='#FFFFFF'>File: ${cmd.path}</font></b><br><br>")
+            sb.append("<b><font color='#ECECEF'>File: ${cmd.path}</font></b><br><br>")
             val preview = org.ravi.codeassist.CommandExecutor.previewPatch(workspaceRoot, cmd)
             sb.append(if (preview != null) {
                 TransactionSummaryController.generateSmartDiffHtml(preview.first, preview.second)
@@ -165,10 +170,10 @@ class OverlayConfirmationManager(private val context: Context) {
 
         val themedContext = ContextThemeWrapper(context, R.style.Theme_CodeAssist)
 
-        val bgColor = resolveColorAttr(com.google.android.material.R.attr.colorSurfaceContainer, 0xFF1A1A1A.toInt())
-        val strokeColor = resolveColorAttr(com.google.android.material.R.attr.colorOutlineVariant, 0xFF2C2C2C.toInt())
-        val onSurfaceColor = resolveColorAttr(com.google.android.material.R.attr.colorOnSurface, 0xFFD4D4D4.toInt())
-        val innerBgColor = resolveColorAttr(com.google.android.material.R.attr.colorSurfaceContainerHigh, 0xFF121212.toInt())
+        val bgColor = resolveColorAttr(com.google.android.material.R.attr.colorSurfaceContainer, 0xFF0D0D10.toInt())
+        val strokeColor = resolveColorAttr(com.google.android.material.R.attr.colorOutlineVariant, 0xFF2C2C33.toInt())
+        val onSurfaceColor = resolveColorAttr(com.google.android.material.R.attr.colorOnSurface, 0xFFECECEF.toInt())
+        val innerBgColor = resolveColorAttr(com.google.android.material.R.attr.colorSurfaceContainerHigh, 0xFF131318.toInt())
 
         val bgDrawable = android.graphics.drawable.GradientDrawable().apply {
             setColor(bgColor)

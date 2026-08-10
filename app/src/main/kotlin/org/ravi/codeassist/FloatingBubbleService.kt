@@ -99,27 +99,27 @@ class FloatingBubbleService : Service() {
                         is org.ravi.codeassist.agent.AgentState.WAITING_FOR_MUTATION -> {
                             // Pulsing/thinking effect
                             alpha = 0.5f
-                            setColorFilter(android.graphics.Color.parseColor("#FFA500"), android.graphics.PorterDuff.Mode.SRC_ATOP)
+                            setColorFilter(androidx.core.content.ContextCompat.getColor(this@FloatingBubbleService, R.color.state_amber), android.graphics.PorterDuff.Mode.SRC_ATOP)
                         }
                         is org.ravi.codeassist.agent.AgentState.EXECUTING_ACTION -> {
                             alpha = 1.0f
-                            setColorFilter(android.graphics.Color.parseColor("#4CAF50"), android.graphics.PorterDuff.Mode.SRC_ATOP)
+                            setColorFilter(androidx.core.content.ContextCompat.getColor(this@FloatingBubbleService, R.color.brand_mint), android.graphics.PorterDuff.Mode.SRC_ATOP)
                         }
                         is org.ravi.codeassist.agent.AgentState.WAITING_FOR_USER -> {
                             alpha = 1.0f
-                            setColorFilter(android.graphics.Color.parseColor("#2196F3"), android.graphics.PorterDuff.Mode.SRC_ATOP)
+                            setColorFilter(androidx.core.content.ContextCompat.getColor(this@FloatingBubbleService, R.color.state_blue), android.graphics.PorterDuff.Mode.SRC_ATOP)
                         }
                         is org.ravi.codeassist.agent.AgentState.ERROR -> {
                             alpha = 1.0f
-                            setColorFilter(android.graphics.Color.parseColor("#F44336"), android.graphics.PorterDuff.Mode.SRC_ATOP)
+                            setColorFilter(androidx.core.content.ContextCompat.getColor(this@FloatingBubbleService, R.color.state_red), android.graphics.PorterDuff.Mode.SRC_ATOP)
                         }
                         is org.ravi.codeassist.agent.AgentState.TOOLBOX_OPEN -> {
                             alpha = 1.0f
-                            setColorFilter(android.graphics.Color.parseColor("#9C27B0"), android.graphics.PorterDuff.Mode.SRC_ATOP)
+                            setColorFilter(androidx.core.content.ContextCompat.getColor(this@FloatingBubbleService, R.color.state_violet), android.graphics.PorterDuff.Mode.SRC_ATOP)
                         }
                         is org.ravi.codeassist.agent.AgentState.SCROLL_CONFIG_ACTIVE -> {
                             alpha = 1.0f
-                            setColorFilter(android.graphics.Color.parseColor("#00E5FF"), android.graphics.PorterDuff.Mode.SRC_ATOP)
+                            setColorFilter(androidx.core.content.ContextCompat.getColor(this@FloatingBubbleService, R.color.state_cyan), android.graphics.PorterDuff.Mode.SRC_ATOP)
                         }
                     }
                 }
@@ -230,14 +230,14 @@ class FloatingBubbleService : Service() {
             1 -> { // Current Icon (Dark Background)
                 imageView.setImageResource(R.drawable.ic_qs_tile)
                 imageView.setBackgroundResource(R.drawable.bubble_bg)
-                imageView.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#1D1B20")))
-                imageView.setImageTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE))
+                imageView.setBackgroundTintList(android.content.res.ColorStateList.valueOf(androidx.core.content.ContextCompat.getColor(this, R.color.surf_high)))
+                imageView.setImageTintList(android.content.res.ColorStateList.valueOf(androidx.core.content.ContextCompat.getColor(this, R.color.text_hi)))
                 imageView.setPadding(dp12, dp12, dp12, dp12)
             }
             2 -> { // Current Icon (Dark Icon)
                 imageView.setImageResource(R.drawable.ic_qs_tile)
                 imageView.setBackgroundResource(R.drawable.bubble_bg)
-                imageView.setImageTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#1D1B20")))
+                imageView.setImageTintList(android.content.res.ColorStateList.valueOf(androidx.core.content.ContextCompat.getColor(this, R.color.surf_high)))
                 imageView.setPadding(dp12, dp12, dp12, dp12)
             }
             3 -> { // App Icon
@@ -247,15 +247,15 @@ class FloatingBubbleService : Service() {
             4 -> { // App Icon Monochrome Dark
                 imageView.setImageResource(R.mipmap.ic_launcher_monochrome)
                 imageView.setBackgroundResource(R.drawable.bubble_bg)
-                imageView.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#E6E1E5")))
-                imageView.setImageTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#1D1B20")))
+                imageView.setBackgroundTintList(android.content.res.ColorStateList.valueOf(androidx.core.content.ContextCompat.getColor(this, R.color.text_hi)))
+                imageView.setImageTintList(android.content.res.ColorStateList.valueOf(androidx.core.content.ContextCompat.getColor(this, R.color.surf_high)))
                 imageView.setPadding(dp8, dp8, dp8, dp8)
             }
             5 -> { // App Icon Monochrome Light
                 imageView.setImageResource(R.mipmap.ic_launcher_monochrome)
                 imageView.setBackgroundResource(R.drawable.bubble_bg)
-                imageView.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#1D1B20")))
-                imageView.setImageTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#E6E1E5")))
+                imageView.setBackgroundTintList(android.content.res.ColorStateList.valueOf(androidx.core.content.ContextCompat.getColor(this, R.color.surf_high)))
+                imageView.setImageTintList(android.content.res.ColorStateList.valueOf(androidx.core.content.ContextCompat.getColor(this, R.color.text_hi)))
                 imageView.setPadding(dp8, dp8, dp8, dp8)
             }
         }

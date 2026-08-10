@@ -16,10 +16,10 @@
         android:layout_gravity="center_horizontal"
         android:visibility="gone"
         android:layout_marginBottom="8dp"
-        app:cardBackgroundColor="#F214141A"
+        app:cardBackgroundColor="@color/ovl_raised"
         app:cardCornerRadius="18dp"
         app:cardElevation="6dp"
-        app:strokeColor="#2200E5FF"
+        app:strokeColor="@color/ovl_stroke_cyan"
         app:strokeWidth="1dp">
 
         <LinearLayout
@@ -43,7 +43,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Agent Tools"
-                android:textColor="#FFFFFF"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -58,7 +58,7 @@
                 android:insetRight="0dp"
                 android:insetBottom="0dp"
                 app:icon="@drawable/ic_close"
-                app:iconTint="#90A4AE"
+                app:iconTint="?attr/colorOnSurfaceVariant"
                 app:iconSize="16dp"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
@@ -81,17 +81,17 @@
                 android:layout_columnWeight="1"
                 android:layout_margin="4dp"
                 android:text="Init"
-                android:textColor="#E0E0E0"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="12sp"
                 android:paddingTop="12dp"
                 android:paddingBottom="8dp"
                 android:paddingHorizontal="4dp"
                 app:icon="@drawable/ic_play"
-                app:iconTint="#00E676"
+                app:iconTint="@color/brand_mint"
                 app:iconGravity="top"
                 app:iconSize="24dp"
                 app:iconPadding="4dp"
-                app:strokeColor="#3300E676"
+                app:strokeColor="@color/ovl_stroke_mint"
                 app:cornerRadius="16dp" />
 
             <!-- Bounds Picker -->
@@ -103,17 +103,17 @@
                 android:layout_columnWeight="1"
                 android:layout_margin="4dp"
                 android:text="Bounds"
-                android:textColor="#E0E0E0"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="12sp"
                 android:paddingTop="12dp"
                 android:paddingBottom="8dp"
                 android:paddingHorizontal="4dp"
                 app:icon="@drawable/ic_target_crosshair"
-                app:iconTint="#AB47BC"
+                app:iconTint="@color/state_violet"
                 app:iconGravity="top"
                 app:iconSize="24dp"
                 app:iconPadding="4dp"
-                app:strokeColor="#33AB47BC"
+                app:strokeColor="@color/ovl_stroke_violet"
                 app:cornerRadius="16dp" />
 
             <!-- New Session -->
@@ -125,17 +125,17 @@
                 android:layout_columnWeight="1"
                 android:layout_margin="4dp"
                 android:text="Reset"
-                android:textColor="#E0E0E0"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="12sp"
                 android:paddingTop="12dp"
                 android:paddingBottom="8dp"
                 android:paddingHorizontal="4dp"
                 app:icon="@android:drawable/ic_menu_rotate"
-                app:iconTint="#FFA726"
+                app:iconTint="@color/state_amber"
                 app:iconGravity="top"
                 app:iconSize="24dp"
                 app:iconPadding="4dp"
-                app:strokeColor="#33FFA726"
+                app:strokeColor="@color/ovl_stroke_amber"
                 app:cornerRadius="16dp" />
 
             <!-- Settings (Main App) -->
@@ -147,17 +147,17 @@
                 android:layout_columnWeight="1"
                 android:layout_margin="4dp"
                 android:text="App"
-                android:textColor="#E0E0E0"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="12sp"
                 android:paddingTop="12dp"
                 android:paddingBottom="8dp"
                 android:paddingHorizontal="4dp"
                 app:icon="@drawable/ic_nav_settings"
-                app:iconTint="#78909C"
+                app:iconTint="?attr/colorOnSurfaceVariant"
                 app:iconGravity="top"
                 app:iconSize="24dp"
                 app:iconPadding="4dp"
-                app:strokeColor="#3378909C"
+                app:strokeColor="@color/ovl_stroke"
                 app:cornerRadius="16dp" />
 
             <!-- Exit Mode -->
@@ -169,17 +169,17 @@
                 android:layout_columnWeight="1"
                 android:layout_margin="4dp"
                 android:text="Exit"
-                android:textColor="#FF5252"
+                android:textColor="@color/state_red"
                 android:textSize="12sp"
                 android:paddingTop="12dp"
                 android:paddingBottom="8dp"
                 android:paddingHorizontal="4dp"
                 app:icon="@drawable/ic_close"
-                app:iconTint="#FF5252"
+                app:iconTint="@color/state_red"
                 app:iconGravity="top"
                 app:iconSize="24dp"
                 app:iconPadding="4dp"
-                app:strokeColor="#44FF5252"
+                app:strokeColor="@color/ovl_stroke_red"
                 app:cornerRadius="16dp" />
         </GridLayout>
 
@@ -190,9 +190,9 @@
             android:layout_height="wrap_content"
             android:visibility="gone"
             android:layout_marginTop="8dp"
-            app:cardBackgroundColor="#22FF1744"
+            app:cardBackgroundColor="@color/ovl_card_red"
             app:cardCornerRadius="12dp"
-            app:strokeColor="#55FF1744"
+            app:strokeColor="@color/ovl_stroke_red_soft"
             app:strokeWidth="1dp"
             app:cardElevation="0dp">
 
@@ -208,7 +208,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="Terminate agent mode?"
-                    android:textColor="#FF8A80"
+                    android:textColor="@color/state_red"
                     android:textSize="12sp"
                     android:textStyle="bold" />
 
@@ -221,8 +221,8 @@
                     android:padding="0dp"
                     android:insetTop="0dp"
                     android:insetBottom="0dp"
-                    android:backgroundTint="#FF1744"
-                    android:textColor="#FFFFFF"
+                    android:backgroundTint="@color/state_red"
+                    android:textColor="@color/brand_on_accent"
                     app:cornerRadius="8dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -246,7 +246,7 @@
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:background="@drawable/bg_dynamic_pill_gradient"
-            android:backgroundTint="#F2121216"
+            android:backgroundTint="@color/ovl_card"
             android:paddingStart="16dp"
             android:paddingEnd="4dp"
             android:paddingVertical="5dp">
@@ -257,7 +257,7 @@
                 android:layout_width="8dp"
                 android:layout_height="8dp"
                 android:background="@drawable/bubble_bg"
-                android:backgroundTint="#00E5FF" />
+                android:backgroundTint="@color/state_cyan" />
 
             <!-- Status Column (headline + detail) -->
             <LinearLayout
@@ -273,7 +273,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Idle"
-                    android:textColor="#FFFFFF"
+                    android:textColor="?attr/colorOnSurface"
                     android:textSize="12sp"
                     android:textStyle="bold"
                     android:fontFamily="monospace"
@@ -285,7 +285,7 @@
                     android:layout_width="160dp"
                     android:layout_height="wrap_content"
                     android:visibility="gone"
-                    android:textColor="#9E9E9E"
+                    android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="10sp"
                     android:maxLines="1"
                     android:ellipsize="end" />
@@ -303,7 +303,7 @@
                 android:insetRight="0dp"
                 android:insetBottom="0dp"
                 app:icon="@drawable/ic_nav_settings"
-                app:iconTint="#B0BEC5"
+                app:iconTint="?attr/colorOnSurfaceVariant"
                 app:iconSize="18dp"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
@@ -324,10 +324,10 @@
                 android:insetBottom="0dp"
                 app:icon="@drawable/ic_stroke_play"
                 app:iconSize="18dp"
-                app:iconTint="#121212"
+                app:iconTint="@color/brand_on_accent"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
-                app:backgroundTint="#FFFFFF"
+                app:backgroundTint="@color/brand_mint"
                 android:contentDescription="Play or stop" />
         </LinearLayout>
     </FrameLayout>

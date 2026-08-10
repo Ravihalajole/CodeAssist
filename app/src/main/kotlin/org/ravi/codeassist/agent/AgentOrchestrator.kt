@@ -29,6 +29,20 @@ object AgentOrchestrator {
     private var isFirstPromptInSession: Boolean = true
     private var loopIterationCount = 0
     private var mutatingApprovalGateArmed = true
+    private var consecutiveParseFailures = 0
+
+    /** Live status exposed to the shield overlay for a "running agent" feel. */
+    data class Telemetry(val round: Int, val elapsedSeconds: Long, val lastAction: String, val planPending: Int)
+
+    @Volatile private var sessionStartMillis = System.currentTimeMillis()
+    @Volatile var lastActionLabel: String = "Idle"
+
+    fun noteActivity(action: String) { lastActionLabel = action }
+
+    fun telemetry(): Telemetry {
+        val elapsed = (System.currentTimeMillis() - sessionStartMillis) / 1000
+        return Telemetry(loopIterationCount, elapsed, lastActionLabel, activePlan.count { !it.done })
+    }
 
     /** Agent-side plan/task tracking. A re-declared checklist replaces wholesale. */
     data class PlanTask(val text: String, val done: Boolean)
@@ -143,6 +157,9 @@ object AgentOrchestrator {
         isSessionAutoAllowActive = false
         isFirstPromptInSession = true
         loopIterationCount = 0
+        consecutiveParseFailures = 0
+        sessionStartMillis = System.currentTimeMillis()
+        lastActionLabel = "Idle"
         mutatingApprovalGateArmed = true
         resetPlanState()
         _state.value = AgentState.IDLE
@@ -158,6 +175,9 @@ object AgentOrchestrator {
         isSessionAutoAllowActive = false
         isFirstPromptInSession = true
         loopIterationCount = 0
+        consecutiveParseFailures = 0
+        sessionStartMillis = System.currentTimeMillis()
+        lastActionLabel = "Idle"
         mutatingApprovalGateArmed = true
         resetPlanState()
         updateState(AgentState.IDLE)
@@ -232,6 +252,7 @@ object AgentOrchestrator {
             agentScope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
             agentJob = null
             loopIterationCount = 0
+            lastActionLabel = "Idle"
         }
         _state.value = newState
     }
@@ -276,12 +297,14 @@ object AgentOrchestrator {
             if (!isActive) return@launch
             updateState(AgentState.EXECUTING_ACTION("type_text"))
             withContext(Dispatchers.Main) { service.updateShieldStatus("Typing prompt...") }
+            noteActivity("typing prompt")
             service.executeToolCall("type_text", promptToInject)
             kotlinx.coroutines.delay(1000)
 
             if (!isActive) return@launch
             updateState(AgentState.EXECUTING_ACTION("click_send"))
             withContext(Dispatchers.Main) { service.updateShieldStatus("Sending prompt...") }
+            noteActivity("sent prompt — awaiting response")
             service.executeToolCall("click_send")
 
             if (!isActive) return@launch
@@ -299,6 +322,8 @@ object AgentOrchestrator {
                 val commands = org.ravi.codeassist.EnvelopeParser.parse(aiResponse)
                 
                 if (commands.isNotEmpty()) {
+                    consecutiveParseFailures = 0
+                    noteActivity("executing ${commands.size} command(s)")
                     if (commands.any { it is org.ravi.codeassist.CodeCommand.AskUser }) {
                         val askMsg = (commands.first { it is org.ravi.codeassist.CodeCommand.AskUser } as org.ravi.codeassist.CodeCommand.AskUser).message
                         withContext(Dispatchers.Main) { 
@@ -311,14 +336,22 @@ object AgentOrchestrator {
 
                     handleCommandRouting(commands, workspaceRoot, service, sharedPref)
                 } else {
+                    noteActivity("correcting malformed envelope")
                     withContext(Dispatchers.Main) { 
                         service.addShieldMessage("AGENT", "[Parse Error Detected. Requesting LLM Correction...]")
                         service.updateShieldStatus("Correcting Parse Error...") 
                     }
-                    val errorPrompt = ":::CODE_ASSIST_TRANSACTION_ERROR:::\nSTATUS: ENVELOPE_PARSE_FAILED\nDETAILS: The :::CODE_ASSIST::: envelope was detected, but no valid commands were extracted. Ensure you strictly follow the tool syntax (e.g., [COMMAND: PATCH], [PATH: file.kt], <<<<<<< SEARCH, etc.). If your output was truncated, emit the remaining commands.\n" + planSection() + "\n" + org.ravi.codeassist.utils.SystemPromptGenerator.standingReminder + "\n:::END_TRANSACTION_ERROR:::"
+                    val errorPrompt = buildParseErrorPrompt() ?: run {
+                        haltLoop(
+                            service,
+                            "Repeatedly malformed envelopes. Check the [COMMAND]/[PATH]/[CONTENT] envelope syntax and start a new session."
+                        )
+                        return@launch
+                    }
                     startLoop(errorPrompt)
                 }
             } else {
+                consecutiveParseFailures = 0
                 withContext(Dispatchers.Main) { 
                     service.addShieldMessage("AGENT", aiResponse)
                     service.updateShieldStatus("Waiting for user input...") 
@@ -326,6 +359,27 @@ object AgentOrchestrator {
                 updateState(AgentState.WAITING_FOR_USER)
             }
         }
+    }
+    
+    /** Escalates guidance after repeated malformed envelopes and returns null once
+     *  a limit is hit so the caller can halt the loop instead of burning rounds. */
+    private fun buildParseErrorPrompt(): String? {
+        consecutiveParseFailures++
+        val guidance = when (consecutiveParseFailures) {
+            1 -> "Emit the failing command(s) again. Ensure you strictly follow the tool syntax (e.g., [COMMAND: PATCH], [PATH: file.kt], <<<<<<< SEARCH, etc.). If your output was truncated, just emit the remaining commands."
+            else -> "Your last ${consecutiveParseFailures} envelope(s) were malformed. Do NOT write any commentary. Emit EXACTLY ONE command as a single ```text block with a complete :::CODE_ASSIST::: ... :::END_CODE_ASSIST::: pair."
+        }
+        if (consecutiveParseFailures >= 3) return null
+        return ":::CODE_ASSIST_TRANSACTION_ERROR:::\nSTATUS: ENVELOPE_PARSE_FAILED\nDETAILS: $guidance\n" + planSection() + "\n" + org.ravi.codeassist.utils.SystemPromptGenerator.standingReminder + "\n:::END_TRANSACTION_ERROR:::"
+    }
+
+    private fun haltLoop(service: org.ravi.codeassist.AgentAccessibilityService, reason: String) {
+        val msg = "[Loop halted: $reason]"
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            service.addShieldMessage("AGENT", msg)
+            service.updateShieldStatus("IDLE")
+        }
+        updateState(AgentState.IDLE)
     }
     
     fun processExecutionResults(success: Boolean, logs: String, hasDone: Boolean = false) {
@@ -390,10 +444,14 @@ object AgentOrchestrator {
                         service.addShieldMessage("AGENT", "[Parse Error Detected. Requesting LLM Correction...]")
                         service.updateShieldStatus("Correcting Parse Error...") 
                     }
-                    val errorPrompt = ":::CODE_ASSIST_TRANSACTION_ERROR:::\nSTATUS: ENVELOPE_PARSE_FAILED\nDETAILS: The :::CODE_ASSIST::: envelope was detected, but no valid commands were extracted. Ensure you strictly follow the tool syntax.\n" + planSection() + "\n" + org.ravi.codeassist.utils.SystemPromptGenerator.standingReminder + "\n:::END_TRANSACTION_ERROR:::"
+                    val errorPrompt = buildParseErrorPrompt() ?: run {
+                        haltLoop(service, "Repeatedly malformed envelopes. Check the [COMMAND]/[PATH]/[CONTENT] envelope syntax and start a new session.")
+                        return@launch
+                    }
                     startLoop(errorPrompt)
                 }
             } else {
+                consecutiveParseFailures = 0
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
                     service.addShieldMessage("AGENT", "Resumed. No envelope found.")
                     service.updateShieldStatus("Waiting for user input...") 

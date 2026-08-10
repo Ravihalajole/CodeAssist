@@ -36,12 +36,20 @@ class AgentOverlayManager(private val context: Context) {
 
         if (isGenerating) {
             btnMorphingAction.setIconResource(R.drawable.ic_stroke_stop)
-            btnMorphingAction.backgroundTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#121212"))
-            btnMorphingAction.iconTint = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+            btnMorphingAction.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                androidx.core.content.ContextCompat.getColor(context, R.color.surf_raised)
+            )
+            btnMorphingAction.iconTint = android.content.res.ColorStateList.valueOf(
+                androidx.core.content.ContextCompat.getColor(context, R.color.text_hi)
+            )
         } else {
             btnMorphingAction.setIconResource(R.drawable.ic_stroke_play)
-            btnMorphingAction.backgroundTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
-            btnMorphingAction.iconTint = android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#121212"))
+            btnMorphingAction.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                androidx.core.content.ContextCompat.getColor(context, R.color.brand_mint)
+            )
+            btnMorphingAction.iconTint = android.content.res.ColorStateList.valueOf(
+                androidx.core.content.ContextCompat.getColor(context, R.color.brand_on_accent)
+            )
         }
     }
 
@@ -184,12 +192,12 @@ class AgentOverlayManager(private val context: Context) {
     )
 
     private fun shieldUiFor(state: org.ravi.codeassist.agent.AgentState): ShieldUi {
-        val executing = Triple(0xFF00E676.toInt(), 0xFF1DE9B6.toInt(), 0xFF00E676.toInt())
-        val working = Triple(0xFFFF9800.toInt(), 0xFFFF5722.toInt(), 0xFFFF9800.toInt())
-        val failed = Triple(0xFFFF1744.toInt(), 0xFFD50000.toInt(), 0xFFFF1744.toInt())
-        val user = Triple(0xFF2196F3.toInt(), 0xFF1976D2.toInt(), 0xFF2196F3.toInt())
-        val tools = Triple(0xFF9C27B0.toInt(), 0xFF7B1FA2.toInt(), 0xFF9C27B0.toInt())
-        val scroll = Triple(0xFF00E5FF.toInt(), 0xFF2196F3.toInt(), 0xFF00E5FF.toInt())
+        val executing = Triple(0xFF34E0A1.toInt(), 0xFF17CFC0.toInt(), 0xFF34E0A1.toInt())
+        val working = Triple(0xFFFFAD3F.toInt(), 0xFFFF8A3C.toInt(), 0xFFFFAD3F.toInt())
+        val failed = Triple(0xFFFF4D5A.toInt(), 0xFFD50000.toInt(), 0xFFFF4D5A.toInt())
+        val user = Triple(0xFF4C8DFF.toInt(), 0xFF3568C8.toInt(), 0xFF4C8DFF.toInt())
+        val tools = Triple(0xFFA06BF5.toInt(), 0xFF7B3FBF.toInt(), 0xFFA06BF5.toInt())
+        val scroll = Triple(0xFF4DD8E7.toInt(), 0xFF2BB3C2.toInt(), 0xFF4DD8E7.toInt())
 
         return when (state) {
             is org.ravi.codeassist.agent.AgentState.IDLE ->
@@ -220,6 +228,14 @@ class AgentOverlayManager(private val context: Context) {
         }
     }
 
+    private fun buildTelemetryLine(): String {
+        val t = org.ravi.codeassist.agent.AgentOrchestrator.telemetry()
+        val mm = t.elapsedSeconds / 60
+        val ss = t.elapsedSeconds % 60
+        val plan = if (t.planPending > 0) "  ·  ${t.planPending} plan open" else ""
+        return "round ${t.round}  ·  %d:%02d  ·  ${t.lastAction}$plan".format(mm, ss)
+    }
+
     fun updateStatus(status: String) {
         if (overlayView == null) return
         scope.launch {
@@ -237,10 +253,12 @@ class AgentOverlayManager(private val context: Context) {
         tvStatus.text = ui.label
 
         if (tvDetail != null) {
-            if (ui.detail.isNullOrEmpty()) {
+            val telemetry = if (ui.generating) buildTelemetryLine() else null
+            val text = ui.detail ?: telemetry
+            if (text.isNullOrEmpty()) {
                 tvDetail.visibility = View.GONE
             } else {
-                tvDetail.text = ui.detail
+                tvDetail.text = text
                 tvDetail.visibility = View.VISIBLE
             }
         }
@@ -250,10 +268,13 @@ class AgentOverlayManager(private val context: Context) {
         if (isGenerating && dotJob == null) {
             dotJob = scope.launch {
                 var dim = true
+                var tick = 0
                 while (isActive) {
                     vIndicator?.animate()?.alpha(if (dim) 0.3f else 1.0f)?.setDuration(500)?.start()
                     flGradientBorder?.animate()?.alpha(if (dim) 0.7f else 1.0f)?.setDuration(500)?.start()
                     dim = !dim
+                    tick++
+                    if (tick % 2 == 0) refreshTelemetryDetail()
                     kotlinx.coroutines.delay(500)
                 }
             }
@@ -277,6 +298,14 @@ class AgentOverlayManager(private val context: Context) {
         }
 
         vIndicator?.backgroundTintList = android.content.res.ColorStateList.valueOf(ui.dot)
+    }
+
+    private fun refreshTelemetryDetail() {
+        val detail = overlayView?.findViewById<TextView>(R.id.tvShieldDetail) ?: return
+        if (!isGenerating) return
+        if (detail.visibility == View.VISIBLE) {
+            detail.text = buildTelemetryLine()
+        }
     }
 
     fun addMessage(role: String, text: String) {
@@ -353,14 +382,14 @@ class AgentOverlayManager(private val context: Context) {
         val buttonContainer = android.widget.LinearLayout(themedContext).apply {
             orientation = android.widget.LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setBackgroundColor(android.graphics.Color.parseColor("#1E1E1E"))
+            setBackgroundColor(androidx.core.content.ContextCompat.getColor(context, R.color.surf_raised))
             setPadding(32, 16, 32, 16)
         }
 
         val btnSave = MaterialButton(themedContext).apply {
             text = "Save Bounds"
-            setBackgroundColor(android.graphics.Color.parseColor("#00E5FF"))
-            setTextColor(android.graphics.Color.BLACK)
+            setBackgroundColor(androidx.core.content.ContextCompat.getColor(context, R.color.brand_mint))
+            setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.brand_on_accent))
             setOnClickListener {
                 onSave(currentLeft, currentTop, currentRight, currentBottom)
                 hideScrollZonePicker()
@@ -369,8 +398,10 @@ class AgentOverlayManager(private val context: Context) {
 
         val btnCancel = MaterialButton(themedContext, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
             text = "Cancel"
-            setTextColor(android.graphics.Color.WHITE)
-            strokeColor = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+            setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.text_hi))
+            strokeColor = android.content.res.ColorStateList.valueOf(
+                androidx.core.content.ContextCompat.getColor(context, R.color.text_mid)
+            )
             val layoutParams = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT

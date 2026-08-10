@@ -10,8 +10,8 @@
         android:layout_height="wrap_content"
         app:cardCornerRadius="28dp"
         app:cardElevation="24dp"
-        app:cardBackgroundColor="#CC121212"
-        app:strokeColor="#33FFFFFF"
+        app:cardBackgroundColor="@color/ovl_raised"
+        app:strokeColor="@color/ovl_stroke"
         app:strokeWidth="1dp">
 
         <LinearLayout
@@ -26,7 +26,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Confirm Target"
-                android:textColor="#FFFFFF"
+                android:textColor="?attr/colorOnSurface"
                 android:textAppearance="?attr/textAppearanceTitleLarge"
                 android:textStyle="bold"
                 android:layout_marginBottom="16dp"/>
@@ -35,7 +35,7 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardBackgroundColor="#801A1A1A"
+                app:cardBackgroundColor="@color/ovl_card"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="0dp"
                 android:layout_marginBottom="20dp">
@@ -46,7 +46,7 @@
                     android:layout_height="wrap_content"
                     android:fontFamily="sans-serif-condensed"
                     android:padding="16dp"
-                    android:textColor="#E0E0E0"
+                    android:textColor="?attr/colorOnSurface"
                     android:textSize="13sp"
                     android:lineSpacingExtra="4dp" />
             </com.google.android.material.card.MaterialCardView>
@@ -57,7 +57,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Navigate Hierarchy"
-                android:textColor="#9E9E9E"
+                android:textColor="?attr/colorOnSurfaceVariant"
                 android:textAppearance="?attr/textAppearanceLabelMedium"
                 android:textAllCaps="true"
                 android:layout_marginBottom="12dp"
@@ -90,7 +90,7 @@
                     android:layout_width="48dp"
                     android:layout_height="48dp"
                     app:icon="@android:drawable/ic_menu_revert"
-                    app:iconTint="#EF5350" />
+                    app:iconTint="@color/state_red" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnSelectParent"
@@ -99,8 +99,8 @@
                     android:layout_height="48dp"
                     android:layout_marginStart="8dp"
                     android:text="Parent"
-                    android:textColor="#FFFFFF"
-                    app:strokeColor="#55FFFFFF" />
+                    android:textColor="?attr/colorOnSurface"
+                    app:strokeColor="@color/ovl_handle" />
 
                 <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />
 
@@ -110,8 +110,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="48dp"
                     android:text="Save &amp; Next"
-                    app:backgroundTint="#8BC34A"
-                    android:textColor="#000000"
+                    app:backgroundTint="@color/brand_mint"
+                    android:textColor="@color/brand_on_accent"
                     android:textStyle="bold" />
             </LinearLayout>
         </LinearLayout>

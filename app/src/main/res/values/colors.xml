@@ -1,4 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!-- Brand: mint accent on pitch black -->
+    <color name="brand_mint">#34E0A1</color>
+    <color name="brand_teal">#17CFC0</color>
+    <color name="brand_on_accent">#04120C</color>
+    <color name="brand_container">#0E3B2C</color>
+    <color name="brand_on_container">#A7F3D5</color>
+    <color name="brand_ring">#1E4D3C</color>
+
+    <!-- Surfaces: pitch black throughout -->
+    <color name="surf_pitch">#050506</color>
+    <color name="surf_base">#09090B</color>
+    <color name="surf_card">#0D0D10</color>
+    <color name="surf_raised">#131318</color>
+    <color name="surf_high">#191920</color>
+
+    <!-- Borders -->
+    <color name="line_subtle">#1F1F24</color>
+    <color name="line_strong">#2C2C33</color>
+
+    <!-- Text -->
+    <color name="text_hi">#ECECEF</color>
+    <color name="text_mid">#A0A0AB</color>
+    <color name="text_low">#62626C</color>
+
+    <!-- Status + phase colors (kept from the shield palette) -->
+    <color name="state_cyan">#4DD8E7</color>
+    <color name="state_violet">#A06BF5</color>
+    <color name="state_blue">#4C8DFF</color>
+    <color name="state_red">#FF4D5A</color>
+    <color name="state_red_dark">#D50000</color>
+    <color name="state_amber">#FFAD3F</color>
+
+    <!-- Overlay surfaces (alpha variants of the surfaces above, for the
+         floating shield / confirmation / calibration windows) -->
+    <color name="ovl_surface">#F209090B</color>
+    <color name="ovl_card">#F20D0D10</color>
+    <color name="ovl_raised">#F2131318</color>
+    <color name="ovl_high">#F2191920</color>
+    <color name="ovl_scrim">#A6050506</color>
+    <color name="ovl_stroke">#332C2C33</color>
+    <color name="ovl_handle">#33FFFFFF</color>
+
+    <!-- Translucent accent strokes for the shield tool drawer + confirm bars -->
+    <color name="ovl_stroke_mint">#3334E0A1</color>
+    <color name="ovl_stroke_cyan">#224DD8E7</color>
+    <color name="ovl_stroke_violet">#33A06BF5</color>
+    <color name="ovl_stroke_amber">#33FFAD3F</color>
+    <color name="ovl_stroke_red">#44FF4D5A</color>
+    <color name="ovl_stroke_red_soft">#55FF4D5A</color>
+    <color name="ovl_card_red">#22FF4D5A</color>
+
 </resources>

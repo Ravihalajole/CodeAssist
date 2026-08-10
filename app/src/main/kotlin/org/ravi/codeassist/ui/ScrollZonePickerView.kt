@@ -44,14 +44,14 @@ class ScrollZonePickerView @JvmOverloads constructor(
     }
 
     private val strokePaint = Paint().apply {
-        color = Color.parseColor("#00E5FF") // High-contrast neon cyan
+        color = Color.parseColor("#4DD8E7") // High-contrast state cyan
         style = Paint.Style.STROKE
         strokeWidth = 6f
         isAntiAlias = true
     }
 
     private val handlePaint = Paint().apply {
-        color = Color.parseColor("#00E5FF")
+        color = Color.parseColor("#4DD8E7")
         style = Paint.Style.FILL
         isAntiAlias = true
     }

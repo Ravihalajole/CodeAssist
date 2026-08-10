@@ -1,6 +1,5 @@
 package org.ravi.codeassist.ui
 
-import android.graphics.Color
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -33,10 +32,12 @@ class ShieldChatAdapter(private val messages: MutableList<ShieldMessage> = mutab
 
         if (message.role == "USER") {
             holder.rootLayout.gravity = Gravity.END
-            holder.cardMessage.setCardBackgroundColor(Color.parseColor("#4CAF50"))
+            holder.cardMessage.setCardBackgroundColor(androidx.core.content.ContextCompat.getColor(holder.rootLayout.context, R.color.brand_container))
+            holder.tvMessageText.setTextColor(androidx.core.content.ContextCompat.getColor(holder.rootLayout.context, R.color.brand_on_container))
         } else {
             holder.rootLayout.gravity = Gravity.START
-            holder.cardMessage.setCardBackgroundColor(Color.parseColor("#424242"))
+            holder.cardMessage.setCardBackgroundColor(androidx.core.content.ContextCompat.getColor(holder.rootLayout.context, R.color.surf_raised))
+            holder.tvMessageText.setTextColor(androidx.core.content.ContextCompat.getColor(holder.rootLayout.context, R.color.text_hi))
         }
     }
 

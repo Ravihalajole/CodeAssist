@@ -6,8 +6,8 @@
     android:layout_height="wrap_content"
     app:cardCornerRadius="28dp"
     app:cardElevation="16dp"
-    app:cardBackgroundColor="#E6121212"
-    app:strokeColor="#33FFFFFF"
+    app:cardBackgroundColor="@color/ovl_raised"
+    app:strokeColor="@color/ovl_stroke"
     app:strokeWidth="1dp"
     android:layout_margin="16dp">
 
@@ -22,7 +22,7 @@
             android:layout_height="4dp"
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="12dp"
-            android:background="#33FFFFFF" />
+            android:background="@color/ovl_handle" />
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -40,8 +40,8 @@
                 android:src="@drawable/ic_target_crosshair"
                 android:padding="16dp"
                 android:background="@drawable/bubble_bg"
-                android:backgroundTint="#454545"
-                app:tint="#000000" />
+                android:backgroundTint="@color/ovl_high"
+                app:tint="@color/brand_on_accent" />
 
             <LinearLayout
                 android:layout_width="wrap_content"
@@ -55,7 +55,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Locate Element"
-                    android:textColor="#FFFFFF"
+                    android:textColor="?attr/colorOnSurface"
                     android:textAppearance="?attr/textAppearanceLabelLarge"
                     android:textStyle="bold"/>
 
@@ -64,14 +64,14 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Drag crosshair to select"
-                    android:textColor="#A0A0A0"
+                    android:textColor="?attr/colorOnSurfaceVariant"
                     android:textSize="12sp"/>
             </LinearLayout>
 
             <View
                 android:layout_width="1dp"
                 android:layout_height="24dp"
-                android:background="#33FFFFFF"
+                android:background="@color/ovl_handle"
                 android:layout_marginHorizontal="8dp"/>
 
             <com.google.android.material.button.MaterialButton
@@ -80,7 +80,7 @@
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 app:icon="@android:drawable/ic_media_next"
-                app:iconTint="#2196F3" />
+                app:iconTint="@color/state_blue" />
                 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnCancelCalibration"
@@ -88,7 +88,7 @@
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 app:icon="@android:drawable/ic_menu_close_clear_cancel"
-                app:iconTint="#F44336" />
+                app:iconTint="@color/state_red" />
         </LinearLayout>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

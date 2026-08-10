@@ -1,21 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- 1. The Main Application Theme (Material 3) -->
-    <style name="Theme.CodeAssist" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
-        <!-- Material 3 Dynamic Colors handles the primary/secondary palettes automatically -->
-        <item name="android:statusBarColor">?attr/colorSurface</item>
+    <!-- 1. The Main Application Theme
+         Pitch-black surfaces with a single mint brand accent, replacing the
+         wallpaper-derived dynamic palette so the product reads identically on
+         every device. -->
+    <style name="Theme.CodeAssist" parent="Theme.Material3.Dark.NoActionBar">
+        <!-- Brand accent -->
+        <item name="colorPrimary">@color/brand_mint</item>
+        <item name="colorOnPrimary">@color/brand_on_accent</item>
+        <item name="colorPrimaryContainer">@color/brand_container</item>
+        <item name="colorOnPrimaryContainer">@color/brand_on_container</item>
+        <item name="colorSecondary">@color/brand_teal</item>
+        <item name="colorOnSecondary">@color/brand_on_accent</item>
+        <item name="colorSecondaryContainer">@color/brand_container</item>
+        <item name="colorOnSecondaryContainer">@color/brand_on_container</item>
+        <item name="colorTertiary">@color/state_blue</item>
+        <item name="colorOnTertiary">@color/brand_on_accent</item>
+        <item name="colorTertiaryContainer">@color/state_blue</item>
+        <item name="colorOnTertiaryContainer">@color/brand_on_accent</item>
+
+        <!-- Surfaces -->
+        <item name="android:colorBackground">@color/surf_pitch</item>
+        <item name="android:windowBackground">@color/surf_pitch</item>
+        <item name="colorSurface">@color/surf_pitch</item>
+        <item name="colorOnSurface">@color/text_hi</item>
+        <item name="colorSurfaceVariant">@color/surf_card</item>
+        <item name="colorOnSurfaceVariant">@color/text_mid</item>
+        <item name="colorSurfaceContainer">@color/surf_card</item>
+        <item name="colorSurfaceContainerLow">@color/surf_base</item>
+        <item name="colorSurfaceContainerLowest">@color/surf_pitch</item>
+        <item name="colorSurfaceContainerHigh">@color/surf_raised</item>
+        <item name="colorSurfaceContainerHighest">@color/surf_high</item>
+
+        <!-- Outlines -->
+        <item name="colorOutline">@color/line_strong</item>
+        <item name="colorOutlineVariant">@color/line_subtle</item>
+
+        <!-- Error -->
+        <item name="colorError">@color/state_red</item>
+        <item name="colorOnError">@color/surf_pitch</item>
+        <item name="colorErrorContainer">#331013</item>
+        <item name="colorOnErrorContainer">@color/state_red</item>
+
+        <!-- System bars -->
+        <item name="android:statusBarColor">@color/surf_pitch</item>
+        <item name="android:navigationBarColor">@color/surf_pitch</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:forceDarkAllowed">false</item>
         <item name="bottomSheetDialogTheme">@style/CustomBottomSheetDialog</item>
     </style>
 
-    <style name="CustomBottomSheetDialog" parent="Theme.Material3.DayNight.BottomSheetDialog">
+    <style name="CustomBottomSheetDialog" parent="Theme.Material3.Dark.BottomSheetDialog">
         <item name="bottomSheetStyle">@style/CustomBottomSheetStyle</item>
     </style>
 
     <style name="CustomBottomSheetStyle" parent="Widget.Material3.BottomSheet.Modal">
         <item name="shapeAppearance">@style/CustomBottomSheetShape</item>
-        <item name="backgroundTint">?attr/colorSurface</item>
+        <item name="backgroundTint">?attr/colorSurfaceContainer</item>
     </style>
 
     <style name="CustomBottomSheetShape" parent="ShapeAppearance.Material3.LargeComponent">
@@ -26,7 +68,7 @@
     </style>
 
     <!-- 2. The Transparent Theme for the Clipboard Bridge -->
-    <style name="Theme.CodeAssist.Transparent" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
+    <style name="Theme.CodeAssist.Transparent" parent="Theme.Material3.Dark.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowContentOverlay">@null</item>

@@ -47,6 +47,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnExecutionHistory: MaterialButton
     private lateinit var tvGitIdentityStatus: TextView
     private lateinit var btnEditGitConfig: MaterialButton
+    private lateinit var rowPermAllFiles: View
+    private lateinit var permStatusAllFiles: TextView
+    private lateinit var rowPermAccessibility: View
+    private lateinit var permStatusAccessibility: TextView
+    private lateinit var rowPermNotifications: View
+    private lateinit var permStatusNotifications: TextView
+    private lateinit var rowPermOverlay: View
+    private lateinit var permStatusOverlay: TextView
+    private lateinit var rowPermQsTile: View
+    private lateinit var permStatusQsTile: TextView
     
     // RecyclerView Components
     private lateinit var rvLogs: RecyclerView
@@ -179,6 +189,9 @@ class MainActivity : AppCompatActivity() {
         if (this::viewAgentic.isInitialized && viewAgentic.visibility == View.VISIBLE) {
             agenticViewModel.refreshProfiles()
         }
+        if (this::permStatusAllFiles.isInitialized) {
+            refreshPermissionStatus()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -228,6 +241,16 @@ class MainActivity : AppCompatActivity() {
         logsProgress = findViewById(R.id.logsProgress)
         tvGitIdentityStatus = findViewById(R.id.tvGitIdentityStatus)
         btnEditGitConfig = findViewById(R.id.btnEditGitConfig)
+        rowPermAllFiles = findViewById(R.id.rowPermAllFiles)
+        permStatusAllFiles = findViewById(R.id.permStatusAllFiles)
+        rowPermAccessibility = findViewById(R.id.rowPermAccessibility)
+        permStatusAccessibility = findViewById(R.id.permStatusAccessibility)
+        rowPermNotifications = findViewById(R.id.rowPermNotifications)
+        permStatusNotifications = findViewById(R.id.permStatusNotifications)
+        rowPermOverlay = findViewById(R.id.rowPermOverlay)
+        permStatusOverlay = findViewById(R.id.permStatusOverlay)
+        rowPermQsTile = findViewById(R.id.rowPermQsTile)
+        permStatusQsTile = findViewById(R.id.permStatusQsTile)
 
         // Setup RecyclerView
         rvLogs.layoutManager = LinearLayoutManager(this)
@@ -431,6 +454,15 @@ class MainActivity : AppCompatActivity() {
                 .setNegativeButton("Cancel", null)
                 .show()
         }
+
+        rowPermAllFiles.setOnClickListener { launchStorageSettingsIntent() }
+        rowPermAccessibility.setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        rowPermNotifications.setOnClickListener { checkAndRequestNotificationPermission() }
+        rowPermOverlay.setOnClickListener {
+            overlayPermissionLauncher.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+        }
+        rowPermQsTile.setOnClickListener { requestAddQsTile() }
+        refreshPermissionStatus()
 
         var isProgrammaticChange = false
         switchBubble.setOnCheckedChangeListener { _, isChecked ->
@@ -931,6 +963,42 @@ class MainActivity : AppCompatActivity() {
                 ) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 requestNotificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
             }
+        }
+    }
+
+    private fun refreshPermissionStatus() {
+        val colorGranted = com.google.android.material.color.MaterialColors.getColor(this, com.google.android.material.R.attr.colorPrimary, 0)
+        val colorOff = com.google.android.material.color.MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
+
+        val storageEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
+        permStatusAllFiles.text = getString(if (storageEnabled) R.string.perm_granted else R.string.perm_off)
+        permStatusAllFiles.setTextColor(if (storageEnabled) colorGranted else colorOff)
+
+        val a11yEnabled = AgentAccessibilityService.instance != null
+        permStatusAccessibility.text = getString(if (a11yEnabled) R.string.perm_granted else R.string.perm_off)
+        permStatusAccessibility.setTextColor(if (a11yEnabled) colorGranted else colorOff)
+
+        val notifEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        permStatusNotifications.text = getString(if (notifEnabled) R.string.perm_granted else R.string.perm_off)
+        permStatusNotifications.setTextColor(if (notifEnabled) colorGranted else colorOff)
+
+        val overlayEnabled = Settings.canDrawOverlays(this)
+        permStatusOverlay.text = getString(if (overlayEnabled) R.string.perm_granted else R.string.perm_off)
+        permStatusOverlay.setTextColor(if (overlayEnabled) colorGranted else colorOff)
+    }
+
+    private fun requestAddQsTile() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            android.service.quicksettings.TileService.requestAddTileService(
+                this,
+                android.content.ComponentName(this, CodeAssistTileService::class.java),
+                java.util.concurrent.Executors.newSingleThreadExecutor(),
+                null
+            )
+        } else {
+            Toast.makeText(this, "Open the Quick Settings tile editor and search for the CodeAssist tile.", Toast.LENGTH_LONG).show()
         }
     }
 }

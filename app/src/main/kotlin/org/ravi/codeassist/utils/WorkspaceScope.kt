@@ -96,6 +96,16 @@ object WorkspaceScope {
         return out.toString().trimEnd()
     }
 
+    /** Cheap per-file detail for the confirmation overlay: "N lines" / "large" /
+     *  or "new file" when the target does not exist yet. */
+    fun targetDetail(root: File, rel: String): String {
+        if (rel.isEmpty()) return ""
+        val file = File(root, rel)
+        if (!file.exists() || !file.isFile) return "new file"
+        return if (file.length() > MAX_SNIFF_BYTES) "large file" else
+            try { "${file.useLines { it.count() }} lines" } catch (_: Exception) { "n lines" }
+    }
+
     fun relativePath(root: File, file: File): String {
         val rootPath = root.absolutePath.trimEnd(File.separatorChar) + File.separatorChar
         val abs = file.absolutePath
