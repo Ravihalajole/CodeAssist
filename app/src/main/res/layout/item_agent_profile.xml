@@ -22,11 +22,18 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <ImageView
-                android:id="@+id/ivAppIcon"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:scaleType="centerCrop"/>
+            <FrameLayout
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:background="@drawable/bg_icon_box">
+
+                <ImageView
+                    android:id="@+id/ivAppIcon"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_gravity="center"
+                    android:scaleType="fitCenter"/>
+            </FrameLayout>
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -39,6 +46,8 @@
                     android:id="@+id/tvProfileName"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
                     android:textAppearance="?attr/textAppearanceTitleMedium"
                     android:textColor="?attr/colorOnSurface"
                     android:textStyle="bold"/>
@@ -47,6 +56,8 @@
                     android:id="@+id/tvPackageName"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:ellipsize="middle"
+                    android:maxLines="1"
                     android:textAppearance="?attr/textAppearanceBodySmall"
                     android:textColor="?attr/colorOnSurfaceVariant"/>
             </LinearLayout>
@@ -54,9 +65,12 @@
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_status_chip"
                 android:gravity="center_vertical"
-                android:layout_marginStart="8dp">
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="6dp">
 
                 <View
                     android:id="@+id/vStatusDot"
@@ -69,7 +83,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="6dp"
-                    android:textAppearance="?attr/textAppearanceLabelMedium"
+                    android:textAppearance="?attr/textAppearanceLabelSmall"
                     android:textColor="?attr/colorOnSurfaceVariant" />
             </LinearLayout>
         </LinearLayout>
@@ -77,26 +91,36 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
             android:layout_marginTop="16dp"
-            android:gravity="center_vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnExportProfile"
-                style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginEnd="4dp"
+                style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_marginEnd="8dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
                 app:icon="@drawable/ic_export_share"
-                app:iconTint="?attr/colorOnSurfaceVariant" />
+                app:iconSize="20dp"
+                app:iconTint="?attr/colorOnSurfaceVariant"
+                app:cornerRadius="12dp"
+                android:contentDescription="@string/export_profile_desc" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnDeleteProfile"
-                style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
                 app:icon="@drawable/ic_delete"
-                app:iconTint="?attr/colorError" />
+                app:iconSize="20dp"
+                app:iconTint="@color/state_red"
+                app:cornerRadius="12dp"
+                android:contentDescription="@string/delete_profile_desc" />
 
             <View
                 android:layout_width="0dp"
@@ -107,8 +131,14 @@
                 android:id="@+id/btnAction"
                 style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Calibrate" />
+                android:layout_height="44dp"
+                android:minHeight="44dp"
+                android:paddingHorizontal="20dp"
+                android:textColor="?attr/colorOnSecondaryContainer"
+                android:textStyle="bold"
+                app:cornerRadius="14dp"
+                app:iconSize="18dp"
+                app:iconPadding="6dp" />
         </LinearLayout>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

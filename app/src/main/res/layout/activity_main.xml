@@ -113,23 +113,33 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnExecutionHistory"
-                style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_marginEnd="8dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
                 app:icon="@drawable/ic_history"
+                app:iconSize="20dp"
                 app:iconTint="?attr/colorOnSurfaceVariant"
+                app:cornerRadius="12dp"
+                android:contentDescription="Execution history"
                 app:layout_constraintEnd_toStartOf="@id/btnGitOptions"
                 app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent"
-                android:layout_marginEnd="8dp" />
+                app:layout_constraintBottom_toBottomOf="parent" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnGitOptions"
-                style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                app:icon="@drawable/ic_menu_more"
-                app:iconTint="?attr/colorOnSurfaceVariant"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                app:icon="@drawable/ic_commit"
+                app:iconSize="20dp"
+                app:iconTint="@color/brand_mint"
+                app:cornerRadius="12dp"
+                android:contentDescription="Git actions"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
                 app:layout_constraintBottom_toBottomOf="parent" />
@@ -200,23 +210,27 @@
                 android:layout_width="42dp"
                 android:layout_height="42dp"
                 android:layout_marginEnd="8dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
                 app:icon="@drawable/ic_folder"
+                app:iconSize="20dp"
                 app:iconTint="?attr/colorOnSurfaceVariant"
                 app:cornerRadius="12dp"
-                android:insetLeft="-8dp" android:insetTop="-8dp"
-                android:insetRight="-8dp" android:insetBottom="-8dp"
+                android:contentDescription="Import profile"
                 android:visibility="gone"/>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnHeaderAddProfile"
-                style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="42dp"
                 android:layout_height="42dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
                 app:icon="@drawable/ic_add_modern"
-                app:iconTint="@color/brand_mint"
+                app:iconSize="20dp"
+                app:iconTint="@color/brand_on_accent"
+                app:backgroundTint="@color/brand_mint"
                 app:cornerRadius="12dp"
-                android:insetLeft="-8dp" android:insetTop="-8dp"
-                android:insetRight="-8dp" android:insetBottom="-8dp"
+                android:contentDescription="Create profile"
                 android:visibility="gone"/>
         </LinearLayout>
 
@@ -268,12 +282,15 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnEmptyAddProfile"
-                style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="wrap_content"
                 android:layout_height="52dp"
                 android:paddingHorizontal="28dp"
                 android:text="@string/create_profile"
+                android:textColor="@color/brand_on_accent"
+                android:textStyle="bold"
                 app:icon="@drawable/ic_add_modern"
+                app:iconTint="@color/brand_on_accent"
+                app:backgroundTint="@color/brand_mint"
                 app:cornerRadius="14dp"
                 android:layout_marginBottom="12dp" />
 
@@ -382,8 +399,7 @@
                         <com.google.android.material.materialswitch.MaterialSwitch
                             android:id="@+id/switchBubble"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            app:thumbTint="?attr/colorOnSurface" />
+                            android:layout_height="wrap_content" />
                     </LinearLayout>
 
                     <LinearLayout
@@ -567,8 +583,7 @@
                         <com.google.android.material.materialswitch.MaterialSwitch
                             android:id="@+id/switchInputMode"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            app:thumbTint="?attr/colorOnSurface" />
+                            android:layout_height="wrap_content" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -689,10 +704,15 @@
                             android:id="@+id/permStatusAllFiles"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:background="@drawable/bg_status_chip"
+                            android:fontFamily="monospace"
+                            android:gravity="center"
+                            android:paddingHorizontal="10dp"
+                            android:paddingVertical="4dp"
                             android:text="@string/perm_granted"
                             android:textAppearance="?attr/textAppearanceLabelSmall"
-                            android:textColor="?attr/colorPrimary"
-                            android:fontFamily="monospace"/>
+                            android:textColor="?attr/colorPrimary"/>
                     </LinearLayout>
 
                     <LinearLayout
@@ -720,10 +740,15 @@
                             android:id="@+id/permStatusAccessibility"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:background="@drawable/bg_status_chip"
+                            android:fontFamily="monospace"
+                            android:gravity="center"
+                            android:paddingHorizontal="10dp"
+                            android:paddingVertical="4dp"
                             android:text="@string/perm_off"
                             android:textAppearance="?attr/textAppearanceLabelSmall"
-                            android:textColor="?attr/colorOnSurfaceVariant"
-                            android:fontFamily="monospace"/>
+                            android:textColor="?attr/colorOnSurfaceVariant"/>
                     </LinearLayout>
 
                     <LinearLayout
@@ -751,10 +776,15 @@
                             android:id="@+id/permStatusNotifications"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:background="@drawable/bg_status_chip"
+                            android:fontFamily="monospace"
+                            android:gravity="center"
+                            android:paddingHorizontal="10dp"
+                            android:paddingVertical="4dp"
                             android:text="@string/perm_off"
                             android:textAppearance="?attr/textAppearanceLabelSmall"
-                            android:textColor="?attr/colorOnSurfaceVariant"
-                            android:fontFamily="monospace"/>
+                            android:textColor="?attr/colorOnSurfaceVariant"/>
                     </LinearLayout>
 
                     <LinearLayout
@@ -782,10 +812,15 @@
                             android:id="@+id/permStatusOverlay"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:background="@drawable/bg_status_chip"
+                            android:fontFamily="monospace"
+                            android:gravity="center"
+                            android:paddingHorizontal="10dp"
+                            android:paddingVertical="4dp"
                             android:text="@string/perm_off"
                             android:textAppearance="?attr/textAppearanceLabelSmall"
-                            android:textColor="?attr/colorOnSurfaceVariant"
-                            android:fontFamily="monospace"/>
+                            android:textColor="?attr/colorOnSurfaceVariant"/>
                     </LinearLayout>
 
                     <LinearLayout
@@ -813,10 +848,15 @@
                             android:id="@+id/permStatusQsTile"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:background="@drawable/bg_status_chip"
+                            android:fontFamily="monospace"
+                            android:gravity="center"
+                            android:paddingHorizontal="10dp"
+                            android:paddingVertical="4dp"
                             android:text="@string/perm_add_qs"
                             android:textAppearance="?attr/textAppearanceLabelSmall"
-                            android:textColor="?attr/colorOnSurfaceVariant"
-                            android:fontFamily="monospace"/>
+                            android:textColor="?attr/colorOnSurfaceVariant"/>
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

@@ -11,6 +11,24 @@
     <string name="history_title">History</string>
     <string name="no_commits_in_workspace">No commits found in this workspace.</string>
 
+    <!-- Git actions sheet -->
+    <string name="git_actions_title">Git Actions</string>
+    <string name="git_actions_workspace_desc">Workspace: %1$s</string>
+    <string name="git_action_commit">Commit Changes</string>
+    <string name="git_action_commit_desc">Stage and commit all workspace changes</string>
+    <string name="git_action_revert">Revert Commit</string>
+    <string name="git_action_revert_desc">Neutralize the changes introduced by a commit</string>
+    <string name="git_action_reset">Hard Reset</string>
+    <string name="git_action_reset_desc">Discard all commits up to the target hash</string>
+
+    <!-- Execution history sheet -->
+    <string name="execution_history_title">Execution History</string>
+    <string name="clear_history">Clear</string>
+
+    <!-- Commit details dialog -->
+    <string name="dialog_close">Close</string>
+    <string name="git_copy_hash">Copy commit hash</string>
+
     <!-- Agent Hub screen -->
     <string name="agent_hub_title">Agent Hub</string>
     <string name="agent_hub_kicker">Profiles</string>
@@ -18,6 +36,8 @@
     <string name="no_profiles_desc">Create a profile to target an app and begin automation.</string>
     <string name="create_profile">Create Profile</string>
     <string name="import_profile">Import Profile</string>
+    <string name="export_profile_desc">Export profile</string>
+    <string name="delete_profile_desc">Delete profile</string>
 
     <!-- Settings screen -->
     <string name="settings_title">Settings</string>

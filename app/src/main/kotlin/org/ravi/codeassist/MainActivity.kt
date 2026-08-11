@@ -518,21 +518,7 @@ class MainActivity : AppCompatActivity() {
             showExecutionHistoryDialog()
         }
 
-        btnGitOptions.setOnClickListener { view ->
-            val popup = android.widget.PopupMenu(this@MainActivity, view)
-            popup.menu.add(0, 0, 0, "Manual Commit")
-            popup.menu.add(0, 1, 1, "Revert Commit")
-            popup.menu.add(0, 2, 2, "Hard Reset")
-            popup.setOnMenuItemClickListener { item ->
-                when (item.itemId) {
-                    0 -> { showManualCommitDialog(); true }
-                    1 -> { handleGitUndoAction(); true }
-                    2 -> { showResetDialog(); true }
-                    else -> false
-                }
-            }
-            popup.show()
-        }
+        btnGitOptions.setOnClickListener { showGitActionsSheet() }
 
         // Setup Bottom Navigation Logic
         bottomNavigation.setOnItemSelectedListener { item ->
@@ -605,6 +591,34 @@ class MainActivity : AppCompatActivity() {
 
     // --- ACTIONS ---
 
+    private fun showGitActionsSheet() {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
+        val sheet = com.google.android.material.bottomsheet.BottomSheetDialog(this)
+        val sheetView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_actions, null)
+
+        val wsLabel = sheetView.findViewById<TextView>(R.id.tvGitSheetWorkspace)
+        wsLabel.text = workspaceRoot?.let { getString(R.string.git_actions_workspace_desc, it) }
+            ?: getString(R.string.workspace_not_set)
+
+        sheetView.findViewById<View>(R.id.rowGitCommit).setOnClickListener {
+            sheet.dismiss()
+            showManualCommitDialog()
+        }
+        sheetView.findViewById<View>(R.id.rowGitRevert).setOnClickListener {
+            sheet.dismiss()
+            handleGitUndoAction()
+        }
+        sheetView.findViewById<View>(R.id.rowGitReset).setOnClickListener {
+            sheet.dismiss()
+            showResetDialog()
+        }
+        sheetView.findViewById<MaterialButton>(R.id.btnGitSheetClose).setOnClickListener { sheet.dismiss() }
+
+        sheet.setContentView(sheetView)
+        sheet.show()
+    }
+
     private fun showExecutionHistoryDialog() {
         lifecycleScope.launch(Dispatchers.IO) {
             val records = org.ravi.codeassist.database.ExecutionHistory.recent(this@MainActivity)
@@ -613,34 +627,19 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this@MainActivity, "No execution history yet.", Toast.LENGTH_SHORT).show()
                     return@withContext
                 }
-                val formatter = java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault())
-                val sb = java.lang.StringBuilder()
-                records.forEach { r ->
-                    val status = if (r.success) "SUCCESS" else "FAILED"
-                    sb.append("[${formatter.format(java.util.Date(r.timestamp))}] $status (${r.commandCount} cmds)")
-                    sb.append("\n").append(r.logs.take(700)).append("\n\n--------------------------------------\n\n")
+                val sheet = com.google.android.material.bottomsheet.BottomSheetDialog(this@MainActivity)
+                val sheetView = android.view.LayoutInflater.from(this@MainActivity)
+                    .inflate(R.layout.bottom_sheet_execution_history, null)
+                val rv = sheetView.findViewById<RecyclerView>(R.id.rvExecutionHistory)
+                rv.layoutManager = LinearLayoutManager(this@MainActivity)
+                rv.adapter = ExecutionHistoryAdapter(records)
+                sheetView.findViewById<MaterialButton>(R.id.btnClearHistory).setOnClickListener {
+                    org.ravi.codeassist.database.ExecutionHistory.clear(this@MainActivity)
+                    Toast.makeText(this@MainActivity, "Execution history cleared.", Toast.LENGTH_SHORT).show()
+                    sheet.dismiss()
                 }
-                val tv = TextView(this@MainActivity).apply {
-                    text = sb.toString()
-                    typeface = android.graphics.Typeface.MONOSPACE
-                    setTextIsSelectable(true)
-                    textSize = 12f
-                }
-                val scrollView = android.widget.ScrollView(this@MainActivity).apply {
-                    addView(tv, android.widget.FrameLayout.LayoutParams(
-                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-                    ))
-                }
-                com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
-                    .setTitle("Execution History (${records.size})")
-                    .setView(scrollView)
-                    .setPositiveButton("Clear", { _, _ ->
-                        org.ravi.codeassist.database.ExecutionHistory.clear(this@MainActivity)
-                        Toast.makeText(this@MainActivity, "Execution history cleared.", Toast.LENGTH_SHORT).show()
-                    })
-                    .setNegativeButton("Close", null)
-                    .show()
+                sheet.setContentView(sheetView)
+                sheet.show()
             }
         }
     }
@@ -650,12 +649,14 @@ class MainActivity : AppCompatActivity() {
         val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_commit_details, null)
 
         val tvMessage = dialogView.findViewById<TextView>(R.id.tvDialogCommitMessage)
-        val tvMeta = dialogView.findViewById<TextView>(R.id.tvDialogCommitMeta)
+        val tvAuthor = dialogView.findViewById<TextView>(R.id.tvDialogCommitAuthor)
+        val tvDate = dialogView.findViewById<TextView>(R.id.tvDialogCommitDate)
         val tvHash = dialogView.findViewById<TextView>(R.id.tvDialogCommitHash)
         val btnCopy = dialogView.findViewById<MaterialButton>(R.id.btnDialogCopyHash)
 
         tvMessage.text = commit.message
-        tvMeta.text = "Author: ${commit.author}\nDate: ${df.format(java.util.Date(commit.time))}"
+        tvAuthor.text = commit.author
+        tvDate.text = df.format(java.util.Date(commit.time))
         tvHash.text = commit.hash.take(12)
 
         btnCopy.setOnClickListener {
