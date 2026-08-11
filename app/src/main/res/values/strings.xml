@@ -38,6 +38,8 @@
     <string name="import_profile">Import Profile</string>
     <string name="export_profile_desc">Export profile</string>
     <string name="delete_profile_desc">Delete profile</string>
+    <string name="export_profile_action">Export</string>
+    <string name="delete_profile_action">Delete</string>
 
     <!-- Settings screen -->
     <string name="settings_title">Settings</string>

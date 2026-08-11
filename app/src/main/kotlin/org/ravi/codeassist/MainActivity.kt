@@ -65,6 +65,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var logsProgress: com.google.android.material.progressindicator.LinearProgressIndicator
 
     // Agentic Mode UI Elements
+    private lateinit var cardHeaderActions: View
     private lateinit var btnHeaderAddProfile: MaterialButton
     private lateinit var btnHeaderImportProfile: MaterialButton
     private lateinit var layoutEmptyProfiles: View
@@ -216,6 +217,7 @@ class MainActivity : AppCompatActivity() {
         viewAgentic = findViewById(R.id.viewAgentic)
         viewSettings = findViewById(R.id.viewSettings)
         
+        cardHeaderActions = findViewById(R.id.cardHeaderActions)
         btnHeaderAddProfile = findViewById(R.id.btnHeaderAddProfile)
         btnHeaderImportProfile = findViewById(R.id.btnHeaderImportProfile)
         layoutEmptyProfiles = findViewById(R.id.layoutEmptyProfiles)
@@ -344,8 +346,7 @@ class MainActivity : AppCompatActivity() {
                 val isEmpty = profiles.isEmpty()
                 layoutEmptyProfiles.visibility = if (isEmpty) View.VISIBLE else View.GONE
                 rvAgentProfiles.visibility = if (isEmpty) View.GONE else View.VISIBLE
-                btnHeaderAddProfile.visibility = if (isEmpty) View.GONE else View.VISIBLE
-                btnHeaderImportProfile.visibility = if (isEmpty) View.GONE else View.VISIBLE
+                cardHeaderActions.visibility = if (isEmpty) View.GONE else View.VISIBLE
             }
         }
 

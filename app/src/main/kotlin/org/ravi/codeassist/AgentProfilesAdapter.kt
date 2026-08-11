@@ -56,7 +56,7 @@ class AgentProfilesAdapter(
             holder.btnAction.setOnClickListener { onRun(profile) }
         } else {
             holder.btnAction.text = "Calibrate"
-            holder.btnAction.setIconResource(R.drawable.ic_edit)
+            holder.btnAction.setIconResource(R.drawable.ic_target_crosshair)
             holder.btnAction.setOnClickListener { onCalibrate(profile) }
         }
 

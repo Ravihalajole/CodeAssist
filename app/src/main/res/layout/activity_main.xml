@@ -28,14 +28,10 @@
             android:layout_marginBottom="18dp"/>
 
         <com.google.android.material.card.MaterialCardView
+            style="@style/CardV2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="28dp"
-            app:cardCornerRadius="18dp"
-            app:cardElevation="0dp"
-            app:strokeWidth="1dp"
-            app:strokeColor="?attr/colorOutlineVariant"
-            app:cardBackgroundColor="?attr/colorSurfaceContainer">
+            android:layout_marginBottom="28dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -107,42 +103,66 @@
                 android:textColor="?attr/colorOnSurface"
                 android:textStyle="bold"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintEnd_toStartOf="@id/btnExecutionHistory"
+                app:layout_constraintEnd_toStartOf="@id/cardHistoryActions"
                 app:layout_constraintTop_toTopOf="parent"
                 app:layout_constraintBottom_toBottomOf="parent" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnExecutionHistory"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="42dp"
-                android:layout_height="42dp"
-                android:layout_marginEnd="8dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                app:icon="@drawable/ic_history"
-                app:iconSize="20dp"
-                app:iconTint="?attr/colorOnSurfaceVariant"
-                app:cornerRadius="12dp"
-                android:contentDescription="Execution history"
-                app:layout_constraintEnd_toStartOf="@id/btnGitOptions"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnGitOptions"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="42dp"
-                android:layout_height="42dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                app:icon="@drawable/ic_commit"
-                app:iconSize="20dp"
-                app:iconTint="@color/brand_mint"
-                app:cornerRadius="12dp"
-                android:contentDescription="Git actions"
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardHistoryActions"
+                style="@style/CardV2.SurfaceHigh"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="14dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent" />
+                app:layout_constraintBottom_toBottomOf="parent">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnExecutionHistory"
+                        style="@style/Widget.Material3.Button.IconButton"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:insetLeft="0dp"
+                        android:insetTop="0dp"
+                        android:insetRight="0dp"
+                        android:insetBottom="0dp"
+                        app:icon="@drawable/ic_history"
+                        app:iconSize="20dp"
+                        app:iconTint="?attr/colorOnSurfaceVariant"
+                        app:backgroundTint="@android:color/transparent"
+                        android:contentDescription="Execution history" />
+
+                    <View
+                        android:layout_width="1dp"
+                        android:layout_height="22dp"
+                        android:background="?attr/colorOutlineVariant" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnGitOptions"
+                        style="@style/Widget.Material3.Button.IconButton"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:insetLeft="0dp"
+                        android:insetTop="0dp"
+                        android:insetRight="0dp"
+                        android:insetBottom="0dp"
+                        app:icon="@drawable/ic_commit"
+                        app:iconSize="20dp"
+                        app:iconTint="@color/brand_mint"
+                        app:backgroundTint="@android:color/transparent"
+                        android:contentDescription="Git actions" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
         </androidx.constraintlayout.widget.ConstraintLayout>
 
         <com.google.android.material.progressindicator.LinearProgressIndicator
@@ -204,34 +224,60 @@
                 android:textStyle="bold"
                 android:letterSpacing="-0.02" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnHeaderImportProfile"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="42dp"
-                android:layout_height="42dp"
-                android:layout_marginEnd="8dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                app:icon="@drawable/ic_folder"
-                app:iconSize="20dp"
-                app:iconTint="?attr/colorOnSurfaceVariant"
-                app:cornerRadius="12dp"
-                android:contentDescription="Import profile"
-                android:visibility="gone"/>
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardHeaderActions"
+                style="@style/CardV2.SurfaceHigh"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="14dp">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnHeaderAddProfile"
-                android:layout_width="42dp"
-                android:layout_height="42dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                app:icon="@drawable/ic_add_modern"
-                app:iconSize="20dp"
-                app:iconTint="@color/brand_on_accent"
-                app:backgroundTint="@color/brand_mint"
-                app:cornerRadius="12dp"
-                android:contentDescription="Create profile"
-                android:visibility="gone"/>
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnHeaderImportProfile"
+                        style="@style/Widget.Material3.Button.IconButton"
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:layout_marginEnd="2dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:insetLeft="0dp"
+                        android:insetTop="0dp"
+                        android:insetRight="0dp"
+                        android:insetBottom="0dp"
+                        app:icon="@drawable/ic_folder"
+                        app:iconSize="20dp"
+                        app:iconTint="?attr/colorOnSurfaceVariant"
+                        app:backgroundTint="@android:color/transparent"
+                        android:contentDescription="Import profile" />
+
+                    <View
+                        android:layout_width="1dp"
+                        android:layout_height="22dp"
+                        android:background="?attr/colorOutlineVariant" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnHeaderAddProfile"
+                        style="@style/Widget.Material3.Button.IconButton"
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:insetLeft="0dp"
+                        android:insetTop="0dp"
+                        android:insetRight="0dp"
+                        android:insetBottom="0dp"
+                        app:icon="@drawable/ic_add_modern"
+                        app:iconSize="20dp"
+                        app:iconTint="@color/brand_on_accent"
+                        app:backgroundTint="@color/brand_mint"
+                        android:contentDescription="Create profile" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
 
         <TextView
@@ -352,13 +398,9 @@
                 android:layout_marginBottom="8dp" />
 
             <com.google.android.material.card.MaterialCardView
+                style="@style/CardV2"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeWidth="1dp"
-                app:strokeColor="?attr/colorOutlineVariant"
-                app:cardBackgroundColor="?attr/colorSurfaceContainer">
+                android:layout_height="wrap_content">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -460,13 +502,9 @@
                 android:layout_marginBottom="8dp" />
 
             <com.google.android.material.card.MaterialCardView
+                style="@style/CardV2"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeWidth="1dp"
-                app:strokeColor="?attr/colorOutlineVariant"
-                app:cardBackgroundColor="?attr/colorSurfaceContainer">
+                android:layout_height="wrap_content">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -602,13 +640,9 @@
                 android:layout_marginBottom="8dp" />
 
             <com.google.android.material.card.MaterialCardView
+                style="@style/CardV2"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeWidth="1dp"
-                app:strokeColor="?attr/colorOutlineVariant"
-                app:cardBackgroundColor="?attr/colorSurfaceContainer">
+                android:layout_height="wrap_content">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -666,13 +700,9 @@
                 android:layout_marginBottom="8dp" />
 
             <com.google.android.material.card.MaterialCardView
+                style="@style/CardV2"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeWidth="1dp"
-                app:strokeColor="?attr/colorOutlineVariant"
-                app:cardBackgroundColor="?attr/colorSurfaceContainer">
+                android:layout_height="wrap_content">
 
                 <LinearLayout
                     android:layout_width="match_parent"
