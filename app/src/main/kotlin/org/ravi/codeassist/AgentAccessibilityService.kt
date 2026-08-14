@@ -56,7 +56,7 @@ class AgentAccessibilityService : AccessibilityService() {
 
     private val repository by lazy { AgentRepository(CodeAssistDatabase.getDatabase(this)) }
     private val serviceScope = CoroutineScope(Dispatchers.IO)
-    private val shieldManager by lazy { org.ravi.codeassist.ui.AgentOverlayManager(this) }
+    private val overlayManager by lazy { org.ravi.codeassist.ui.AgentOverlayManager(this) }
 
     // Calibration State Machine
     private val calibrationSteps = listOf(ElementRole.INPUT_FIELD, ElementRole.SEND_BUTTON, ElementRole.RESPONSE_CONTAINER, ElementRole.STOP_BUTTON)
@@ -71,13 +71,10 @@ class AgentAccessibilityService : AccessibilityService() {
     }
 
     fun startAgentSession() {
-        shieldManager.showShield(
-            onSend = { prompt ->
-                org.ravi.codeassist.agent.AgentOrchestrator.startLoop(prompt)
-            },
+        overlayManager.showOverlay(
             onStop = {
                 org.ravi.codeassist.agent.AgentOrchestrator.updateState(org.ravi.codeassist.agent.AgentState.IDLE)
-                shieldManager.updateStatus("IDLE")
+                overlayManager.updateStatus("Stopped")
             }
         )
     }
@@ -101,7 +98,7 @@ class AgentAccessibilityService : AccessibilityService() {
     }
 
     fun openScrollZonePickerOverlay(profile: AgentProfile, onSaveCompleted: (Float, Float, Float, Float) -> Unit) {
-        shieldManager.showScrollZonePicker(
+        overlayManager.showScrollZonePicker(
             profileId = profile.id,
             initialLeft = profile.scrollLeftPct,
             initialTop = profile.scrollTopPct,
@@ -127,16 +124,12 @@ class AgentAccessibilityService : AccessibilityService() {
     }
 
     fun stopAgentSession() {
-        shieldManager.hideShield()
+        overlayManager.hideOverlay()
         org.ravi.codeassist.agent.AgentOrchestrator.updateState(org.ravi.codeassist.agent.AgentState.IDLE)
     }
 
-    fun updateShieldStatus(status: String) {
-        shieldManager.updateStatus(status)
-    }
-
-    fun addShieldMessage(role: String, text: String) {
-        shieldManager.addMessage(role, text)
+    fun updateOverlayStatus(status: String) {
+        overlayManager.updateStatus(status)
     }
 
     fun showConfirmationOverlay(commands: List<org.ravi.codeassist.CodeCommand>, workspaceRoot: String) {
@@ -154,7 +147,7 @@ class AgentAccessibilityService : AccessibilityService() {
         stopCalibration()
         activeOverlayConfirmation?.destroy()
         activeOverlayConfirmation = null
-        shieldManager.destroy()
+        overlayManager.destroy()
         instance = null
         return super.onUnbind(intent)
     }
@@ -257,8 +250,8 @@ class AgentAccessibilityService : AccessibilityService() {
         
         serviceScope.launch {
             withContext(Dispatchers.Main) { 
-                updateShieldStatus("Auto-Resume: Waiting for LLM...") 
-                shieldManager.setShieldVisibility(true)
+                updateOverlayStatus("Auto-Resume: Waiting for LLM...") 
+                overlayManager.setOverlayVisibility(true)
             }
 
             val containerSig = signatures.find { it.role == ElementRole.RESPONSE_CONTAINER }
@@ -396,7 +389,7 @@ class AgentAccessibilityService : AccessibilityService() {
 
     /**
      * Scans all valid windows for a node matching the provided ID.
-     * Prevents the Glass Shield overlay or System UI from blocking the search.
+     * Prevents the Glass Overlay or System UI from blocking the search.
      */
     /**
      * Pillar 1: Multi-Modal Node Fingerprinting
@@ -623,7 +616,7 @@ class AgentAccessibilityService : AccessibilityService() {
                 
                 Log.d(TAG, "executeToolCall(click_send): Captured baseline length = ${preSendBaselineText.length}, Pre-Envelopes = $preSendEnvelopeCount")
 
-                withContext(Dispatchers.Main) { shieldManager.setShieldVisibility(false) }
+                withContext(Dispatchers.Main) { overlayManager.setOverlayVisibility(false) }
                 kotlinx.coroutines.delay(350) 
                         
                 val node = findNodeBySignature(sig)
@@ -644,8 +637,8 @@ class AgentAccessibilityService : AccessibilityService() {
                     // Pillar 5: Co-Pilot HUD Override (Human-in-the-Loop Fallback)
                     Log.w(TAG, "executeToolCall(click_send): SEND_BUTTON not found. Triggering Co-Pilot Override.")
                     withContext(Dispatchers.Main) { 
-                        shieldManager.setShieldVisibility(true)
-                        shieldManager.updateStatus("Co-Pilot Override: Please tap Send manually to resume.")
+                        overlayManager.setOverlayVisibility(true)
+                        overlayManager.updateStatus("Co-Pilot Override: Please tap Send manually to resume.")
                     }
                         
                     val inputSig = signatures.find { it.role == ElementRole.INPUT_FIELD }
@@ -669,7 +662,7 @@ class AgentAccessibilityService : AccessibilityService() {
                     }
                 }
 
-                withContext(Dispatchers.Main) { shieldManager.setShieldVisibility(true) }
+                withContext(Dispatchers.Main) { overlayManager.setOverlayVisibility(true) }
                 result
             }
             "read_latest_response" -> {
@@ -1384,7 +1377,7 @@ override fun onInterrupt() {
             val stopNode = stopSig?.let { findNodeBySignature(it) }
             if (stopNode != null && stopNode.isVisibleToUser) {
                 try { stopNode.recycle() } catch (e: Exception) {}
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { updateShieldStatus("Resume: Waiting for LLM generation...") }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { updateOverlayStatus("Resume: Waiting for LLM generation...") }
                 val containerSig = signatures.find { it.role == org.ravi.codeassist.database.ElementRole.RESPONSE_CONTAINER }
                 if (containerSig != null) {
                     val text = waitForMutationAndScrape(containerSig)
@@ -1392,7 +1385,7 @@ override fun onInterrupt() {
                 }
             } else {
                 try { stopNode?.recycle() } catch (e: Exception) {}
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { updateShieldStatus("Resume: Syncing screen...") }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { updateOverlayStatus("Resume: Syncing screen...") }
                 val containerSig = signatures.find { it.role == org.ravi.codeassist.database.ElementRole.RESPONSE_CONTAINER }
                 var scrapedText = ""
                 if (containerSig != null) {

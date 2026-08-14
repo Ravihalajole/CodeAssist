@@ -31,7 +31,7 @@ object AgentOrchestrator {
     private var mutatingApprovalGateArmed = true
     private var consecutiveParseFailures = 0
 
-    /** Live status exposed to the shield overlay for a "running agent" feel. */
+    /** Live status exposed to the agent overlay for a "running agent" feel. */
     data class Telemetry(val round: Int, val elapsedSeconds: Long, val lastAction: String, val planPending: Int)
 
     @Volatile private var sessionStartMillis = System.currentTimeMillis()
@@ -265,13 +265,11 @@ object AgentOrchestrator {
             loopIterationCount = 0
             val service = org.ravi.codeassist.AgentAccessibilityService.instance
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                service?.addShieldMessage(
-                    "AGENT",
+                service?.updateOverlayStatus(
                     "[Loop halted: exceeded $MAX_LOOP_ITERATIONS automated iterations without reaching DONE. " +
                         "The safety guard stopped the loop to avoid runaway resource usage. " +
                         "Start a new session or send a fresh prompt to continue.]"
                 )
-                service?.updateShieldStatus("IDLE")
             }
             updateState(AgentState.IDLE)
             return
@@ -290,34 +288,29 @@ object AgentOrchestrator {
                 }
             }
 
-            withContext(Dispatchers.Main) { 
-                service.addShieldMessage("USER", userPrompt) 
-            }
-
             if (!isActive) return@launch
             updateState(AgentState.EXECUTING_ACTION("type_text"))
-            withContext(Dispatchers.Main) { service.updateShieldStatus("Typing prompt...") }
+            withContext(Dispatchers.Main) { service.updateOverlayStatus("Typing prompt...") }
             noteActivity("typing prompt")
             service.executeToolCall("type_text", promptToInject)
             kotlinx.coroutines.delay(1000)
 
             if (!isActive) return@launch
             updateState(AgentState.EXECUTING_ACTION("click_send"))
-            withContext(Dispatchers.Main) { service.updateShieldStatus("Sending prompt...") }
+            withContext(Dispatchers.Main) { service.updateOverlayStatus("Sending prompt...") }
             noteActivity("sent prompt — awaiting response")
             service.executeToolCall("click_send")
 
             if (!isActive) return@launch
             updateState(AgentState.WAITING_FOR_MUTATION)
-            withContext(Dispatchers.Main) { service.updateShieldStatus("Waiting for AI completion...") }
+            withContext(Dispatchers.Main) { service.updateOverlayStatus("Waiting for AI completion...") }
             val scrapeResult = service.executeToolCall("read_latest_response")
             val aiResponse = scrapeResult.substringAfter("-> ")
 
             if (!isActive) return@launch
             if (aiResponse.contains(":::CODE_ASSIST:::")) {
                 withContext(Dispatchers.Main) { 
-                    service.addShieldMessage("AGENT", "[Executing Automated Code Modifications...]")
-                    service.updateShieldStatus("Envelope Detected. Parsing...") 
+                    service.updateOverlayStatus("Envelope Detected. Parsing...") 
                 }
                 val commands = org.ravi.codeassist.EnvelopeParser.parse(aiResponse)
                 
@@ -327,8 +320,7 @@ object AgentOrchestrator {
                     if (commands.any { it is org.ravi.codeassist.CodeCommand.AskUser }) {
                         val askMsg = (commands.first { it is org.ravi.codeassist.CodeCommand.AskUser } as org.ravi.codeassist.CodeCommand.AskUser).message
                         withContext(Dispatchers.Main) { 
-                            service.addShieldMessage("AGENT", askMsg)
-                            service.updateShieldStatus("Waiting for user input...") 
+                            service.updateOverlayStatus(askMsg)
                         }
                         updateState(AgentState.WAITING_FOR_USER)
                         return@launch
@@ -338,8 +330,7 @@ object AgentOrchestrator {
                 } else {
                     noteActivity("correcting malformed envelope")
                     withContext(Dispatchers.Main) { 
-                        service.addShieldMessage("AGENT", "[Parse Error Detected. Requesting LLM Correction...]")
-                        service.updateShieldStatus("Correcting Parse Error...") 
+                        service.updateOverlayStatus("Correcting Parse Error...") 
                     }
                     val errorPrompt = buildParseErrorPrompt() ?: run {
                         haltLoop(
@@ -353,8 +344,7 @@ object AgentOrchestrator {
             } else {
                 consecutiveParseFailures = 0
                 withContext(Dispatchers.Main) { 
-                    service.addShieldMessage("AGENT", aiResponse)
-                    service.updateShieldStatus("Waiting for user input...") 
+                    service.updateOverlayStatus(aiResponse)
                 }
                 updateState(AgentState.WAITING_FOR_USER)
             }
@@ -376,8 +366,7 @@ object AgentOrchestrator {
     private fun haltLoop(service: org.ravi.codeassist.AgentAccessibilityService, reason: String) {
         val msg = "[Loop halted: $reason]"
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-            service.addShieldMessage("AGENT", msg)
-            service.updateShieldStatus("IDLE")
+            service.updateOverlayStatus(msg)
         }
         updateState(AgentState.IDLE)
     }
@@ -388,8 +377,7 @@ object AgentOrchestrator {
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
                 val remaining = activePlan.count { !it.done }
                 val tail = if (activePlan.isEmpty()) "" else " Remaining: $remaining/${activePlan.size} plan tasks."
-                service?.addShieldMessage("AGENT", "Task Complete.$tail")
-                service?.updateShieldStatus("IDLE")
+                service?.updateOverlayStatus("Task Complete.$tail")
             }
             updateState(AgentState.IDLE)
             return
@@ -422,8 +410,7 @@ object AgentOrchestrator {
 
             if (aiResponse.contains(":::CODE" + "_ASSIST:::")) {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
-                    service.addShieldMessage("AGENT", "[Resuming: Executing Automated Code Modifications...]")
-                    service.updateShieldStatus("Envelope Detected. Parsing...") 
+                    service.updateOverlayStatus("Envelope Detected. Parsing...") 
                 }
                 val commands = org.ravi.codeassist.EnvelopeParser.parse(aiResponse)
                 
@@ -431,8 +418,7 @@ object AgentOrchestrator {
                     if (commands.any { it is org.ravi.codeassist.CodeCommand.AskUser }) {
                         val askMsg = (commands.first { it is org.ravi.codeassist.CodeCommand.AskUser } as org.ravi.codeassist.CodeCommand.AskUser).message
                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
-                            service.addShieldMessage("AGENT", askMsg)
-                            service.updateShieldStatus("Waiting for user input...") 
+                            service.updateOverlayStatus(askMsg)
                         }
                         updateState(AgentState.WAITING_FOR_USER)
                         return@launch
@@ -441,8 +427,7 @@ object AgentOrchestrator {
                     handleCommandRouting(commands, workspaceRoot, service, sharedPref)
                 } else {
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
-                        service.addShieldMessage("AGENT", "[Parse Error Detected. Requesting LLM Correction...]")
-                        service.updateShieldStatus("Correcting Parse Error...") 
+                        service.updateOverlayStatus("Correcting Parse Error...") 
                     }
                     val errorPrompt = buildParseErrorPrompt() ?: run {
                         haltLoop(service, "Repeatedly malformed envelopes. Check the [COMMAND]/[PATH]/[CONTENT] envelope syntax and start a new session.")
@@ -453,8 +438,7 @@ object AgentOrchestrator {
             } else {
                 consecutiveParseFailures = 0
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
-                    service.addShieldMessage("AGENT", "Resumed. No envelope found.")
-                    service.updateShieldStatus("Waiting for user input...") 
+                    service.updateOverlayStatus("Resumed. No envelope found.")
                 }
                 updateState(AgentState.WAITING_FOR_USER)
             }
@@ -488,8 +472,7 @@ object AgentOrchestrator {
 
         if (validCommands.isEmpty() && validationFailures.isNotEmpty()) {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                service.addShieldMessage("AGENT", "[Validation Error: No valid commands in batch]")
-                service.updateShieldStatus("Validation Failed...")
+                service.updateOverlayStatus("Validation Failed...")
             }
             val errorPrompt = buildString {
                 appendLine(":::CODE_ASSIST_TRANSACTION_ERROR:::")
@@ -535,12 +518,12 @@ object AgentOrchestrator {
 
         if (requiresConfirmation) {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                service.updateShieldStatus("Awaiting User Confirmation...")
+                service.updateOverlayStatus("Awaiting User Confirmation...")
                 service.showConfirmationOverlay(actionCommands, root)
             }
         } else {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                service.updateShieldStatus("Auto-Executing Commands...")
+                service.updateOverlayStatus("Auto-Executing Commands...")
             }
             val result = org.ravi.codeassist.TransactionManager.executeBatch(service, actionCommands, root)
             

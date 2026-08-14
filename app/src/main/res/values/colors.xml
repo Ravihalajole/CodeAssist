@@ -25,7 +25,7 @@
     <color name="text_mid">#A0A0AB</color>
     <color name="text_low">#62626C</color>
 
-    <!-- Status + phase colors (kept from the shield palette) -->
+    <!-- Status + phase colors -->
     <color name="state_cyan">#4DD8E7</color>
     <color name="state_violet">#A06BF5</color>
     <color name="state_blue">#4C8DFF</color>
@@ -34,7 +34,7 @@
     <color name="state_amber">#FFAD3F</color>
 
     <!-- Overlay surfaces (alpha variants of the surfaces above, for the
-         floating shield / confirmation / calibration windows) -->
+         floating agent overlay / confirmation / calibration windows) -->
     <color name="ovl_surface">#F209090B</color>
     <color name="ovl_card">#F20D0D10</color>
     <color name="ovl_raised">#F2131318</color>
@@ -43,7 +43,7 @@
     <color name="ovl_stroke">#332C2C33</color>
     <color name="ovl_handle">#33FFFFFF</color>
 
-    <!-- Translucent accent strokes for the shield tool drawer + confirm bars -->
+    <!-- Translucent accent strokes for the overlay tool drawer + confirm bars -->
     <color name="ovl_stroke_mint">#3334E0A1</color>
     <color name="ovl_stroke_cyan">#224DD8E7</color>
     <color name="ovl_stroke_violet">#33A06BF5</color>

@@ -85,13 +85,13 @@ object ToolboxManager {
                     val currentProfile = org.ravi.codeassist.agent.AgentOrchestrator.getActiveProfile()
                     if (service != null && currentProfile != null) {
                         org.ravi.codeassist.agent.AgentOrchestrator.updateState(org.ravi.codeassist.agent.AgentState.SCROLL_CONFIG_ACTIVE)
-                        service.updateShieldStatus("SCROLL_CONFIG_ACTIVE")
+                        service.updateOverlayStatus("Setting scroll zone...")
                         
                         service.openScrollZonePickerOverlay(
                             profile = currentProfile,
                             onSaveCompleted = { left, top, right, bottom ->
                                 org.ravi.codeassist.agent.AgentOrchestrator.updateState(org.ravi.codeassist.agent.AgentState.IDLE)
-                                service.updateShieldStatus("IDLE")
+                                service.updateOverlayStatus("Scroll zone saved")
                                 android.widget.Toast.makeText(service, "Scroll boundaries applied!", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         )

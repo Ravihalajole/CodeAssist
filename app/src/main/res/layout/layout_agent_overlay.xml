@@ -269,7 +269,7 @@
 
                 <!-- Status Label -->
                 <TextView
-                    android:id="@+id/tvShieldStatus"
+                    android:id="@+id/tvOverlayStatus"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Idle"
@@ -281,7 +281,7 @@
 
                 <!-- Status Detail (optional secondary line) -->
                 <TextView
-                    android:id="@+id/tvShieldDetail"
+                    android:id="@+id/tvOverlayDetail"
                     android:layout_width="160dp"
                     android:layout_height="wrap_content"
                     android:visibility="gone"

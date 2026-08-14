@@ -8,8 +8,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,9 +21,9 @@ import org.ravi.codeassist.R
 class AgentOverlayManager(private val context: Context) {
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var overlayView: View? = null
-    private val chatAdapter = ShieldChatAdapter()
     private var isGenerating = false
     private var dotJob: Job? = null
+    private var statusOverride: String? = null
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -53,12 +51,12 @@ class AgentOverlayManager(private val context: Context) {
         }
     }
 
-    fun showOverlay(onSend: (String) -> Unit, onStop: () -> Unit) {
+    fun showOverlay(onStop: () -> Unit) {
         if (overlayView != null) return
 
         val themedContext = ContextThemeWrapper(context, R.style.Theme_CodeAssist)
         val inflater = LayoutInflater.from(themedContext)
-        overlayView = inflater.inflate(R.layout.layout_agent_shield, null)
+        overlayView = inflater.inflate(R.layout.layout_agent_overlay, null)
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -180,9 +178,7 @@ class AgentOverlayManager(private val context: Context) {
         updateMorphingButton()
     }
 
-    fun showShield(onSend: (String) -> Unit, onStop: () -> Unit) = showOverlay(onSend, onStop)
-
-    private data class ShieldUi(
+    private data class OverlayUi(
         val label: String,
         val detail: String?,
         val start: Int,
@@ -191,7 +187,7 @@ class AgentOverlayManager(private val context: Context) {
         val generating: Boolean
     )
 
-    private fun shieldUiFor(state: org.ravi.codeassist.agent.AgentState): ShieldUi {
+    private fun overlayUiFor(state: org.ravi.codeassist.agent.AgentState): OverlayUi {
         val executing = Triple(0xFF34E0A1.toInt(), 0xFF17CFC0.toInt(), 0xFF34E0A1.toInt())
         val working = Triple(0xFFFFAD3F.toInt(), 0xFFFF8A3C.toInt(), 0xFFFFAD3F.toInt())
         val failed = Triple(0xFFFF4D5A.toInt(), 0xFFD50000.toInt(), 0xFFFF4D5A.toInt())
@@ -201,11 +197,11 @@ class AgentOverlayManager(private val context: Context) {
 
         return when (state) {
             is org.ravi.codeassist.agent.AgentState.IDLE ->
-                ShieldUi("Idle", null, scroll.first, scroll.second, scroll.third, false)
+                OverlayUi("Idle", null, scroll.first, scroll.second, scroll.third, false)
             is org.ravi.codeassist.agent.AgentState.ANALYZING_SCREEN ->
-                ShieldUi("Reading screen", null, working.first, working.second, working.third, true)
+                OverlayUi("Reading screen", null, working.first, working.second, working.third, true)
             is org.ravi.codeassist.agent.AgentState.AWAITING_LLM ->
-                ShieldUi("Thinking", null, working.first, working.second, working.third, true)
+                OverlayUi("Thinking", null, working.first, working.second, working.third, true)
             is org.ravi.codeassist.agent.AgentState.EXECUTING_ACTION -> {
                 val label = when {
                     state.actionName.contains("type_") -> "Typing"
@@ -213,18 +209,18 @@ class AgentOverlayManager(private val context: Context) {
                     state.actionName.contains("scroll") -> "Scrolling"
                     else -> "Working"
                 }
-                ShieldUi(label, null, executing.first, executing.second, executing.third, true)
+                OverlayUi(label, null, executing.first, executing.second, executing.third, true)
             }
             is org.ravi.codeassist.agent.AgentState.WAITING_FOR_MUTATION ->
-                ShieldUi("Waiting for AI", null, working.first, working.second, working.third, true)
+                OverlayUi("Waiting for AI", null, working.first, working.second, working.third, true)
             is org.ravi.codeassist.agent.AgentState.WAITING_FOR_USER ->
-                ShieldUi("Needs your input", null, user.first, user.second, user.third, false)
+                OverlayUi("Needs your input", null, user.first, user.second, user.third, false)
             is org.ravi.codeassist.agent.AgentState.ERROR ->
-                ShieldUi("Stopped", state.message, failed.first, failed.second, failed.third, false)
+                OverlayUi("Stopped", state.message, failed.first, failed.second, failed.third, false)
             is org.ravi.codeassist.agent.AgentState.TOOLBOX_OPEN ->
-                ShieldUi("Tools", null, tools.first, tools.second, tools.third, false)
+                OverlayUi("Tools", null, tools.first, tools.second, tools.third, false)
             is org.ravi.codeassist.agent.AgentState.SCROLL_CONFIG_ACTIVE ->
-                ShieldUi("Scroll zone", null, scroll.first, scroll.second, scroll.third, false)
+                OverlayUi("Scroll zone", null, scroll.first, scroll.second, scroll.third, false)
         }
     }
 
@@ -239,22 +235,24 @@ class AgentOverlayManager(private val context: Context) {
     fun updateStatus(status: String) {
         if (overlayView == null) return
         scope.launch {
-            updateStatusInternal()
+            updateStatusInternal(status)
         }
     }
 
-    private suspend fun updateStatusInternal() {
-        val tvStatus = overlayView?.findViewById<TextView>(R.id.tvShieldStatus) ?: return
-        val tvDetail = overlayView?.findViewById<TextView>(R.id.tvShieldDetail)
+    private suspend fun updateStatusInternal(statusOverride: String? = null) {
+        val tvStatus = overlayView?.findViewById<TextView>(R.id.tvOverlayStatus) ?: return
+        val tvDetail = overlayView?.findViewById<TextView>(R.id.tvOverlayDetail)
         val vIndicator = overlayView?.findViewById<View>(R.id.vAgentStatusIndicator)
         val flGradientBorder = overlayView?.findViewById<View>(R.id.flPillGradientBorder)
 
-        val ui = shieldUiFor(org.ravi.codeassist.agent.AgentOrchestrator.state.value)
+        this.statusOverride = statusOverride
+
+        val ui = overlayUiFor(org.ravi.codeassist.agent.AgentOrchestrator.state.value)
         tvStatus.text = ui.label
 
         if (tvDetail != null) {
             val telemetry = if (ui.generating) buildTelemetryLine() else null
-            val text = ui.detail ?: telemetry
+            val text = statusOverride ?: ui.detail ?: telemetry
             if (text.isNullOrEmpty()) {
                 tvDetail.visibility = View.GONE
             } else {
@@ -301,20 +299,12 @@ class AgentOverlayManager(private val context: Context) {
     }
 
     private fun refreshTelemetryDetail() {
-        val detail = overlayView?.findViewById<TextView>(R.id.tvShieldDetail) ?: return
+        val detail = overlayView?.findViewById<TextView>(R.id.tvOverlayDetail) ?: return
         if (!isGenerating) return
+        if (statusOverride != null) return
         if (detail.visibility == View.VISIBLE) {
             detail.text = buildTelemetryLine()
         }
-    }
-
-    fun addMessage(role: String, text: String) {
-        chatAdapter.addMessage(ShieldMessage(role, text))
-    }
-
-    fun bindChat(recyclerView: RecyclerView) {
-        recyclerView.layoutManager = LinearLayoutManager(recyclerView.context)
-        recyclerView.adapter = chatAdapter
     }
 
     fun setOverlayVisibility(isVisible: Boolean) {
@@ -339,8 +329,6 @@ class AgentOverlayManager(private val context: Context) {
                 .start()
         }
     }
-
-    fun setShieldVisibility(isVisible: Boolean) = setOverlayVisibility(isVisible)
 
     private var scrollPickerView: ScrollZonePickerView? = null
     private var scrollPickerContainer: View? = null
@@ -451,8 +439,6 @@ class AgentOverlayManager(private val context: Context) {
         }
         overlayView = null
     }
-
-    fun hideShield() = hideOverlay()
 
     fun destroy() {
         hideOverlay()
