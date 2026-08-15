@@ -131,6 +131,7 @@ object TransactionManager {
 
             val result = CommandExecutor.execute(command, workspaceRoot)
             if (result.success) {
+                org.ravi.codeassist.agent.AgentOrchestrator.recordExecutedCommand(command)
                 successCount++
                 fileStatuses.add("[SUCCESS] ${command.javaClass.simpleName} ${commandPathSummary(command)}")
                 if (result.outputToClipboard != null) {

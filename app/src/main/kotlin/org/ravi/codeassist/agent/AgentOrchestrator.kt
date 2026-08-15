@@ -36,6 +36,16 @@ object AgentOrchestrator {
     private var budgetExhausted = false
     private var lastPromptInjected: String? = null
 
+    /**
+     * Fingerprints of mutating commands that actually landed, in execution
+     * order (newest last). The execution gate drops any scraped envelope whose
+     * mutating commands all appear here — a stale re-scrape (full-container
+     * resume sync, baseline fallback after chat virtualization) or a model
+     * re-emission must not apply the same write twice.
+     */
+    private val recentExecutedFingerprints = mutableListOf<String>()
+    private const val MAX_EXECUTED_FINGERPRINTS = 6
+
     /** Live status exposed to the agent overlay for a "running agent" feel. */
     data class Telemetry(val round: Int, val elapsedSeconds: Long, val lastAction: String, val planPending: Int)
 
@@ -97,6 +107,72 @@ object AgentOrchestrator {
     fun applyPlan(command: org.ravi.codeassist.CodeCommand.Plan) = transcript.applyPlan(command)
 
     /**
+     * Records a successfully-applied mutating command (called by
+     * TransactionManager on per-command success) so an identical re-emission or
+     * a stale re-scrape of the same envelope is dropped at the execution gate.
+     */
+    fun recordExecutedCommand(command: org.ravi.codeassist.CodeCommand) {
+        val fp = commandFingerprint(command) ?: return
+        recentExecutedFingerprints.remove(fp)
+        recentExecutedFingerprints.add(fp)
+        while (recentExecutedFingerprints.size > MAX_EXECUTED_FINGERPRINTS) recentExecutedFingerprints.removeAt(0)
+    }
+
+    private fun commandFingerprint(command: org.ravi.codeassist.CodeCommand): String? = when (command) {
+        is org.ravi.codeassist.CodeCommand.Patch -> "PATCH|${command.path}|${command.replaceAll}|${command.search}|${command.replace}"
+        is org.ravi.codeassist.CodeCommand.Create -> "CREATE|${command.path}|${command.content}"
+        is org.ravi.codeassist.CodeCommand.Delete -> "DELETE|${command.path}"
+        is org.ravi.codeassist.CodeCommand.Move -> "MOVE|${command.oldPath}|${command.newPath}"
+        else -> null
+    }
+
+    /**
+     * Splits a scraped payload into its individual `:::CODE_ASSIST:::` envelopes
+     * (markers preserved so each can be re-parsed) so stale already-executed
+     * envelopes can be identified per-envelope instead of being re-executed as
+     * part of a composite full-container parse.
+     */
+    private fun splitEnvelopes(text: String): List<String> {
+        val envelopes = mutableListOf<String>()
+        val lines = text.lines()
+        var i = 0
+        while (i < lines.size) {
+            if (org.ravi.codeassist.CommandExecutorUtils.normalizeForMatch(lines[i].trim()) == ":::CODE_ASSIST:::") {
+                val body = StringBuilder()
+                var closed = false
+                i++
+                while (i < lines.size) {
+                    if (org.ravi.codeassist.CommandExecutorUtils.normalizeForMatch(lines[i].trim()) == ":::END_CODE_ASSIST:::") {
+                        closed = true
+                        break
+                    }
+                    body.append(lines[i]).append("\n")
+                    i++
+                }
+                if (closed) envelopes.add(":::CODE_ASSIST:::\n$body:::END_CODE_ASSIST:::\n")
+            }
+            i++
+        }
+        return envelopes
+    }
+
+    /**
+     * Drops the already-executed commands from one envelope. Returns the kept
+     * commands, or null when the whole envelope was a duplicate. Read-only-only
+     * envelopes never dedup — re-reading is harmless.
+     */
+    private fun filterReexecuted(envelopeText: String): List<org.ravi.codeassist.CodeCommand>? {
+        val commands = org.ravi.codeassist.EnvelopeParser.parse(envelopeText)
+        if (commands.none { it.isMutating }) return commands
+        val kept = commands.filter { cmd ->
+            if (!cmd.isMutating) return@filter true
+            val fp = commandFingerprint(cmd)
+            fp == null || fp !in recentExecutedFingerprints
+        }
+        return if (kept.isEmpty()) null else kept
+    }
+
+    /**
      * One-shot gate: the very first MUTATING batch seen in a session (or app
      * process, for the QS-tile path) must pass the manual confirmation dialog
      * even under READ_WRITE / session auto-allow. This stops a poisoned
@@ -138,6 +214,7 @@ object AgentOrchestrator {
         consecutiveIdenticalRounds = 0
         budgetExhausted = false
         lastPromptInjected = null
+        recentExecutedFingerprints.clear()
         sessionStartMillis = System.currentTimeMillis()
         lastActionLabel = "Idle"
         mutatingApprovalGateArmed = true
@@ -162,6 +239,7 @@ object AgentOrchestrator {
         consecutiveIdenticalRounds = 0
         budgetExhausted = false
         lastPromptInjected = null
+        recentExecutedFingerprints.clear()
         sessionStartMillis = System.currentTimeMillis()
         lastActionLabel = "Idle"
         mutatingApprovalGateArmed = true
@@ -304,13 +382,28 @@ object AgentOrchestrator {
                 withContext(Dispatchers.Main) { 
                     service.updateOverlayStatus("Envelope Detected. Parsing...") 
                 }
-                val commands = org.ravi.codeassist.EnvelopeParser.parse(aiResponse)
-                
-                if (commands.isNotEmpty()) {
+                val freshCommands = mutableListOf<org.ravi.codeassist.CodeCommand>()
+                var duplicateEnvelopes = 0
+                splitEnvelopes(aiResponse).forEach { env ->
+                    val cmdList = filterReexecuted(env)
+                    if (cmdList == null) duplicateEnvelopes++ else freshCommands.addAll(cmdList)
+                }
+
+                if (freshCommands.isNotEmpty()) {
                     consecutiveParseFailures = 0
                     consecutiveDriftRounds = 0
-                    noteActivity("executing ${commands.size} command(s)")
-                    handleCommandRouting(commands, workspaceRoot, service, sharedPref)
+                    noteActivity("executing ${freshCommands.size} command(s)")
+                    handleCommandRouting(freshCommands, workspaceRoot, service, sharedPref)
+                } else if (duplicateEnvelopes > 0) {
+                    // Every envelope in this scrape was already executed — a
+                    // stale baseline re-scrape or a model re-emission. Do NOT
+                    // re-apply the writes; park so the user can steer instead of
+                    // silently duplicating mutations.
+                    consecutiveParseFailures = 0
+                    withContext(Dispatchers.Main) {
+                        service.updateOverlayStatus("Duplicate envelope skipped — already executed.")
+                    }
+                    updateState(AgentState.WAITING_FOR_USER)
                 } else {
                     noteActivity("correcting malformed envelope")
                     withContext(Dispatchers.Main) { 
@@ -528,12 +621,22 @@ object AgentOrchestrator {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
                     service.updateOverlayStatus("Envelope Detected. Parsing...") 
                 }
-                val commands = org.ravi.codeassist.EnvelopeParser.parse(aiResponse)
-                
-                if (commands.isNotEmpty()) {
+                val freshCommands = mutableListOf<org.ravi.codeassist.CodeCommand>()
+                var duplicateEnvelopes = 0
+                splitEnvelopes(aiResponse).forEach { env ->
+                    val cmdList = filterReexecuted(env)
+                    if (cmdList == null) duplicateEnvelopes++ else freshCommands.addAll(cmdList)
+                }
+
+                if (freshCommands.isNotEmpty()) {
                     consecutiveParseFailures = 0
                     consecutiveDriftRounds = 0
-                    handleCommandRouting(commands, workspaceRoot, service, sharedPref)
+                    handleCommandRouting(freshCommands, workspaceRoot, service, sharedPref)
+                } else if (duplicateEnvelopes > 0) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
+                        service.updateOverlayStatus("Duplicate envelope skipped — already executed.")
+                    }
+                    updateState(AgentState.WAITING_FOR_USER)
                 } else {
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
                         service.updateOverlayStatus("Correcting Parse Error...") 

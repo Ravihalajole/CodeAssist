@@ -1360,6 +1360,17 @@ override fun onInterrupt() {
     }
 
     fun resumeOrSync() {
+        // Resume is only valid from a parked state. If a loop or another resume
+        // path (sentinel auto-resume) is already in flight, a second one would
+        // race the same scrape and re-execute the same envelope.
+        val resumeState = org.ravi.codeassist.agent.AgentOrchestrator.state.value
+        if (resumeState !is org.ravi.codeassist.agent.AgentState.IDLE && resumeState !is org.ravi.codeassist.agent.AgentState.WAITING_FOR_USER) {
+            return
+        }
+        // Lock the state immediately (mirroring autoResumeFromSentinel) so a
+        // concurrent sentinel trigger cannot also resume and race the same
+        // scrape into the execution gate.
+        org.ravi.codeassist.agent.AgentOrchestrator.updateState(org.ravi.codeassist.agent.AgentState.WAITING_FOR_MUTATION)
         // Budget exhaustion parks the loop in a resumable state; a Resume tap
         // grants a fresh budget and re-asserts the last prompt instead of the
         // normal screen-scrape resume.
