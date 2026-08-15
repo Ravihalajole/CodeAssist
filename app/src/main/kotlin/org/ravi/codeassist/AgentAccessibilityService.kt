@@ -1360,6 +1360,13 @@ override fun onInterrupt() {
     }
 
     fun resumeOrSync() {
+        // Budget exhaustion parks the loop in a resumable state; a Resume tap
+        // grants a fresh budget and re-asserts the last prompt instead of the
+        // normal screen-scrape resume.
+        if (org.ravi.codeassist.agent.AgentOrchestrator.isBudgetExhausted()) {
+            org.ravi.codeassist.agent.AgentOrchestrator.resumeAfterBudgetExhaustion()
+            return
+        }
         // Explicit user intent to resume: clear any prior stop so the scrub
         // below is allowed to hand control back to the loop.
         org.ravi.codeassist.agent.AgentOrchestrator.clearStopRequest()

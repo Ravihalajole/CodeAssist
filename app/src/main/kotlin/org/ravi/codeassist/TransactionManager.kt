@@ -32,6 +32,9 @@ object TransactionManager {
         val verification = org.ravi.codeassist.utils.WorkspaceScope.outlineFor(rootFile, distinctPaths)
         if (verification.isNotBlank()) out.appendLine(verification)
         GitManager.repositorySnapshot(rootFile)?.let { out.appendLine(it) }
+        if (distinctPaths.isNotEmpty()) {
+            GitManager.lastCommitDiffStat(rootFile)?.let { out.appendLine(it) }
+        }
         return out.toString().trimEnd()
     }
 
@@ -196,7 +199,6 @@ object TransactionManager {
                 if (successCount > 0) {
                     appendLine("\n--- SUCCESSFUL OPERATIONS (Already Committed) ---")
                     modifiedPaths.forEach { appendLine("  - $it") }
-                    appendLine("INSTRUCTION: Do NOT regenerate the successful commands above.")
                 }
                 appendLine("\n--- FAILED OPERATIONS ---")
                 executionFailures.forEach { (cmd, msg) ->

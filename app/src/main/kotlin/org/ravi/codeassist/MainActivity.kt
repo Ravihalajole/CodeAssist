@@ -521,7 +521,7 @@ class MainActivity : AppCompatActivity() {
             showExecutionHistoryDialog()
         }
 
-        btnGitOptions.setOnClickListener { showGitActionsSheet() }
+        btnGitOptions.setOnClickListener { showGitActionsDialog() }
 
         // Setup Bottom Navigation Logic
         bottomNavigation.setOnItemSelectedListener { item ->
@@ -631,32 +631,35 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun showGitActionsSheet() {
+    private fun showGitActionsDialog() {
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
-        val sheet = com.google.android.material.bottomsheet.BottomSheetDialog(this)
-        val sheetView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_actions, null)
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_actions, null)
 
-        val wsLabel = sheetView.findViewById<TextView>(R.id.tvGitSheetWorkspace)
+        val wsLabel = dialogView.findViewById<TextView>(R.id.tvGitDialogWorkspace)
         wsLabel.text = workspaceRoot?.let { getString(R.string.git_actions_workspace_desc, it) }
             ?: getString(R.string.workspace_not_set)
 
-        sheetView.findViewById<View>(R.id.rowGitCommit).setOnClickListener {
-            sheet.dismiss()
+        lateinit var dialog: android.app.Dialog
+        dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setView(dialogView)
+            .create()
+
+        dialogView.findViewById<View>(R.id.rowGitCommit).setOnClickListener {
+            dialog.dismiss()
             showManualCommitDialog()
         }
-        sheetView.findViewById<View>(R.id.rowGitRevert).setOnClickListener {
-            sheet.dismiss()
+        dialogView.findViewById<View>(R.id.rowGitRevert).setOnClickListener {
+            dialog.dismiss()
             handleGitUndoAction()
         }
-        sheetView.findViewById<View>(R.id.rowGitReset).setOnClickListener {
-            sheet.dismiss()
+        dialogView.findViewById<View>(R.id.rowGitReset).setOnClickListener {
+            dialog.dismiss()
             showResetDialog()
         }
-        sheetView.findViewById<MaterialButton>(R.id.btnGitSheetClose).setOnClickListener { sheet.dismiss() }
+        dialogView.findViewById<MaterialButton>(R.id.btnGitDialogClose).setOnClickListener { dialog.dismiss() }
 
-        sheet.setContentView(sheetView)
-        sheet.show()
+        dialog.show()
     }
 
     private fun showExecutionHistoryDialog() {

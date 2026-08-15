@@ -84,8 +84,40 @@ class AgentOverlayManager(private val context: Context) {
         val btnToolClose = overlayView?.findViewById<View>(R.id.btnToolClose)
 
         fun closeDrawer() {
-            llToolDrawer?.visibility = View.GONE
+            val drawer = llToolDrawer ?: return
+            if (drawer.visibility == View.VISIBLE) {
+                animateDrawer(drawer, false)
+            }
             llCloseConfirmBar?.visibility = View.GONE
+        }
+
+        fun animateDrawer(drawer: View, show: Boolean) {
+            drawer.animate().cancel()
+            if (show) {
+                drawer.visibility = View.VISIBLE
+                drawer.alpha = 0f
+                drawer.scaleX = 0.97f
+                drawer.scaleY = 0.97f
+                drawer.post {
+                    drawer.pivotX = drawer.width / 2f
+                    drawer.pivotY = drawer.height.toFloat()
+                    drawer.animate()
+                        .alpha(1f)
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(180)
+                        .setInterpolator(android.view.animation.DecelerateInterpolator())
+                        .start()
+                }
+            } else {
+                drawer.animate()
+                    .alpha(0f)
+                    .scaleX(0.97f)
+                    .scaleY(0.97f)
+                    .setDuration(140)
+                    .withEndAction { drawer.visibility = View.GONE }
+                    .start()
+            }
         }
 
         btnToolClose?.setOnClickListener {
@@ -95,10 +127,11 @@ class AgentOverlayManager(private val context: Context) {
         btnToolbox?.setOnClickListener {
             val drawer = llToolDrawer
             if (drawer != null) {
-                val isVisible = drawer.visibility == View.VISIBLE
-                drawer.visibility = if (isVisible) View.GONE else View.VISIBLE
-                if (isVisible) {
+                if (drawer.visibility == View.VISIBLE) {
                     llCloseConfirmBar?.visibility = View.GONE
+                    animateDrawer(drawer, false)
+                } else {
+                    animateDrawer(drawer, true)
                 }
             }
         }
@@ -267,8 +300,9 @@ class AgentOverlayManager(private val context: Context) {
 
     fun updateStatus(status: String) {
         if (overlayView == null) return
+        val clipped = if (status.length > 96) status.take(96) + "…" else status
         scope.launch {
-            updateStatusInternal(status)
+            updateStatusInternal(clipped)
         }
     }
 

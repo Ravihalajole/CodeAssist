@@ -1,9 +1,11 @@
 package org.ravi.codeassist
 
+import android.content.res.ColorStateList
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.chip.Chip
@@ -47,8 +49,25 @@ class AgentProfilesAdapter(
             holder.ivAppIcon.setImageResource(android.R.mipmap.sym_def_app_icon)
         }
 
-        holder.tvStatusText.visibility = View.GONE
-        holder.vStatusDot.visibility = View.GONE
+        holder.tvStatusText.visibility = View.VISIBLE
+        holder.vStatusDot.visibility = View.VISIBLE
+        if (profile.isCalibrated) {
+            holder.vStatusDot.backgroundTintList = ColorStateList.valueOf(
+                ContextCompat.getColor(holder.itemView.context, R.color.brand_mint)
+            )
+            holder.tvStatusText.setTextColor(
+                ContextCompat.getColor(holder.itemView.context, R.color.brand_on_container)
+            )
+            holder.tvStatusText.text = holder.itemView.context.getString(R.string.profile_status_ready)
+        } else {
+            holder.vStatusDot.backgroundTintList = ColorStateList.valueOf(
+                ContextCompat.getColor(holder.itemView.context, R.color.state_amber)
+            )
+            holder.tvStatusText.setTextColor(
+                ContextCompat.getColor(holder.itemView.context, R.color.state_amber)
+            )
+            holder.tvStatusText.text = holder.itemView.context.getString(R.string.profile_status_setup)
+        }
 
         if (profile.isCalibrated) {
             holder.btnAction.text = "Start Agent"

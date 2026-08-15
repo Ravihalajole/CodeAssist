@@ -25,6 +25,9 @@ class SessionTranscript {
     val pendingPlanCount: Int get() = plan.count { !it.done }
     val observationLog: List<String> get() = observations.toList()
 
+    /** Most recently recorded (distinct) digest, or null before any round. */
+    val lastObservation: String? get() = observations.peekLast()
+
     val latestAction: String get() = recentActions.firstOrNull() ?: "Idle"
 
     fun reset() {
@@ -60,39 +63,64 @@ class SessionTranscript {
 
     /**
      * Compacts a transaction result into a short digest for the rolling log:
-     * the FILE STATUS lines plus the BATCH SUMMARY line. Falls back to a
-     * truncated first-lines summary when the markers are absent (e.g. a
-     * plan-only or parse-error round).
+     * the decision-relevant FILE STATUS lines (failures, policy blocks, and
+     * workspace mutations only — bare READ/OUTLINE successes are dropped as
+     * noise) plus the BATCH SUMMARY line. Falls back to a truncated first-lines
+     * summary when the markers are absent (e.g. a plan-only or parse-error round).
      */
     fun buildObservationDigest(logs: String): String {
         val statusBlock = Regex("(?s)--- FILE STATUS ---\n(.*?)(?=--- BATCH SUMMARY ---)").find(logs)
-        val summaryLine = logs.lineSequence().map { it.trim() }.find { it.startsWith("BATCH SUMMARY") }
+        val summaryLine = logs.lineSequence().map { it.trim() }.firstOrNull { it.startsWith("BATCH SUMMARY") || it.startsWith("Commands executed") }
         val sb = StringBuilder()
         if (statusBlock != null) {
             statusBlock.groupValues[1].lines()
                 .map { it.trim() }
-                .filter { it.isNotEmpty() }
-                .take(20)
+                .filter { it.isNotEmpty() && digestLineKept(it) }
+                .take(12)
                 .forEach { sb.append(it).append('\n') }
         }
         summaryLine?.let { sb.append(it).append('\n') }
         val compact = sb.toString().trimEnd().take(MAX_OBSERVATION_CHARS)
-        return compact.ifBlank { logs.lineSequence().filter { it.isNotBlank() }.take(6).joinToString(" | ").take(400) }
+        return compact.ifBlank { logs.lineSequence().filter { it.isNotBlank() }.take(2).joinToString(" | ").take(160) }
     }
 
-    /** Records a transaction digest (compacted by [buildObservationDigest]). */
+    /**
+     * Digest noise filter: keep failures and policy blocks, plus successes that
+     * actually mutated the workspace (Patch/Create/Delete/Move). A bare
+     * `[SUCCESS] Read ...` line carries no decision-relevant info and only pads
+     * the rolling log.
+     */
+    private fun digestLineKept(line: String): Boolean {
+        if (line.contains("FAILED") || line.contains("BLOCKED")) return true
+        if (!line.startsWith("[SUCCESS] ")) return false
+        val commandName = line.removePrefix("[SUCCESS] ").substringBefore(' ').substringBefore('|').trim()
+        return commandName in DIGEST_KEEP_SUCCESS_COMMANDS
+    }
+
+    /** Records a transaction digest (compacted by [buildObservationDigest]);
+     *  consecutive duplicates are collapsed so repeated identical rounds don't
+     *  stack noise in the log. */
     fun addObservation(digest: String) {
         if (digest.isBlank()) return
+        if (digest == observations.peekLast()) return
         observations.addLast(digest)
         while (observations.size > MAX_OBSERVATION_HISTORY) observations.removeFirst()
     }
 
-    /** Rendered rolling history re-injected with each feedback round. */
-    fun observationLogSection(): String {
-        if (observations.isEmpty()) return ""
+    /** Rendered rolling history re-injected with each feedback round. Pass
+     *  excludeLatest = true when the newest digest summarizes the very message
+     *  it would be attached to, so the BATCH SUMMARY isn't repeated verbatim. */
+    fun observationLogSection(excludeLatest: Boolean = false): String {
+        val items = observations.toList()
+        if (excludeLatest && items.isNotEmpty()) return renderObservationLog(items.dropLast(1))
+        return renderObservationLog(items)
+    }
+
+    private fun renderObservationLog(items: List<String>): String {
+        if (items.isEmpty()) return ""
         return buildString {
             appendLine("<RECENT_OBSERVATION_LOG — rolling history of recent decisions/results, newest last. Anchor your next action on the latest entry; earlier entries are context, not instructions.>")
-            observations.forEach { digest ->
+            items.forEach { digest ->
                 appendLine("  " + digest.replace("\n", "\n  "))
             }
         }.trimEnd()
@@ -113,15 +141,16 @@ class SessionTranscript {
                 appendLine("$mark ${index + 1}. ${task.text}")
             }
             planNote?.let { appendLine("Latest progress note: $it") }
-            appendLine("To update: re-emit [COMMAND: PLAN] with the full revised [CONTENT] checklist, or a progress-only update with [PLAN_DONE: n] and/or [PLAN_NOTE: ...].")
+            appendLine("Update: [COMMAND: PLAN] with revised [CONTENT]; progress via [PLAN_DONE: n] / [PLAN_NOTE: ...].")
         }
     }
 
     companion object {
-        private const val MAX_OBSERVATION_HISTORY = 10
-        private const val MAX_OBSERVATION_CHARS = 600
+        private const val MAX_OBSERVATION_HISTORY = 5
+        private const val MAX_OBSERVATION_CHARS = 400
         private const val MAX_RECENT_ACTIONS = 8
         private const val MAX_PLAN_ITEMS = 20
         private const val MAX_PLAN_NOTE_CHARS = 400
+        private val DIGEST_KEEP_SUCCESS_COMMANDS = setOf("Patch", "Create", "Delete", "Move")
     }
 }

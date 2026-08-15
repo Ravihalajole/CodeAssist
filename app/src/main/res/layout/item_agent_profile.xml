@@ -10,23 +10,23 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:padding="16dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <FrameLayout
-                android:layout_width="46dp"
-                android:layout_height="46dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:background="@drawable/bg_icon_box">
 
                 <ImageView
                     android:id="@+id/ivAppIcon"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                     android:layout_gravity="center"
                     android:scaleType="fitCenter"/>
             </FrameLayout>
@@ -34,9 +34,9 @@
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
                 android:layout_weight="1"
-                android:orientation="vertical"
-                android:layout_marginStart="12dp">
+                android:orientation="vertical">
 
                 <TextView
                     android:id="@+id/tvProfileName"
@@ -52,6 +52,7 @@
                     android:id="@+id/tvPackageName"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
                     android:ellipsize="middle"
                     android:maxLines="1"
                     android:textAppearance="?attr/textAppearanceBodySmall"
@@ -86,12 +87,11 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAction"
-            style="@style/Widget.Material3.Button.TonalButton"
+            style="@style/Widget.Material3.Button.FilledButton"
             android:layout_width="match_parent"
             android:layout_height="50dp"
-            android:layout_marginTop="18dp"
+            android:layout_marginTop="16dp"
             android:minHeight="50dp"
-            android:textColor="?attr/colorOnSecondaryContainer"
             android:textStyle="bold"
             app:cornerRadius="14dp"
             app:iconSize="18dp"
@@ -100,22 +100,24 @@
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="12dp"
             android:alpha="0.5"
             android:background="?attr/colorOutlineVariant" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="4dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnExportProfile"
                 style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="40dp"
+                android:layout_weight="1"
+                android:gravity="center"
                 android:minHeight="40dp"
                 android:text="@string/export_profile_action"
                 android:textColor="?attr/colorOnSurfaceVariant"
@@ -128,8 +130,10 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnDeleteProfile"
                 style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="40dp"
+                android:layout_weight="1"
+                android:gravity="center"
                 android:minHeight="40dp"
                 android:text="@string/delete_profile_action"
                 android:textColor="@color/state_red"

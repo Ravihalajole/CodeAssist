@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.ravi.codeassist.database.AgentProfile
 import org.ravi.codeassist.database.ElementSignature
 
@@ -30,6 +31,9 @@ object AgentOrchestrator {
     private var loopIterationCount = 0
     private var mutatingApprovalGateArmed = true
     private var consecutiveParseFailures = 0
+    private var consecutiveIdenticalRounds = 0
+    private var budgetExhausted = false
+    private var lastPromptInjected: String? = null
 
     /** Live status exposed to the agent overlay for a "running agent" feel. */
     data class Telemetry(val round: Int, val elapsedSeconds: Long, val lastAction: String, val planPending: Int)
@@ -59,6 +63,7 @@ object AgentOrchestrator {
 
     fun requestStop() {
         sessionStopRequested = true
+        budgetExhausted = false
         updateState(AgentState.IDLE)
     }
 
@@ -85,7 +90,7 @@ object AgentOrchestrator {
     fun planSection(): String = transcript.planSection()
 
     /** Rendered rolling history re-injected with each feedback round. */
-    fun observationLogSection(): String = transcript.observationLogSection()
+    fun observationLogSection(excludeLatest: Boolean = false): String = transcript.observationLogSection(excludeLatest)
 
     /** Applies a [org.ravi.codeassist.CodeCommand.Plan] to session memory. */
     fun applyPlan(command: org.ravi.codeassist.CodeCommand.Plan) = transcript.applyPlan(command)
@@ -106,9 +111,19 @@ object AgentOrchestrator {
 
     // Hard ceiling on automated feedback rounds. A stuck or misbehaving LLM
     // must not be able to drive the accessibility pipeline forever (each round
-    // holds a wake lock and burns battery). When exceeded, the loop halts to a
-    // user-initiated state instead of auto-continuing.
+    // holds a wake lock and burns battery). When exceeded, the loop parks in a
+    // resumable state instead of auto-continuing (see resumeAfterBudgetExhaustion).
     private const val MAX_LOOP_ITERATIONS = 25
+
+    // Stuck-loop heuristic: three consecutive rounds with an identical digest
+    // (same failures/blocks re-emitted, no new output) mean re-prompting is
+    // pointless — halt and force a change of approach.
+    private const val MAX_IDENTICAL_ROUNDS = 3
+
+    // Outer deadline for a single model response. waitForMutationAndScrape has
+    // its own 45s+120s internal budget; this catches pathological stalls so the
+    // watchdog can re-assert the prompt instead of hanging forever.
+    private const val MODEL_RESPONSE_TIMEOUT_MS = 180_000L
 
     fun initializeSession(profile: AgentProfile, signatures: List<ElementSignature>) {
         activeProfile = profile
@@ -118,6 +133,9 @@ object AgentOrchestrator {
         isFirstPromptInSession = true
         loopIterationCount = 0
         consecutiveParseFailures = 0
+        consecutiveIdenticalRounds = 0
+        budgetExhausted = false
+        lastPromptInjected = null
         sessionStartMillis = System.currentTimeMillis()
         lastActionLabel = "Idle"
         mutatingApprovalGateArmed = true
@@ -138,6 +156,9 @@ object AgentOrchestrator {
         isFirstPromptInSession = true
         loopIterationCount = 0
         consecutiveParseFailures = 0
+        consecutiveIdenticalRounds = 0
+        budgetExhausted = false
+        lastPromptInjected = null
         sessionStartMillis = System.currentTimeMillis()
         lastActionLabel = "Idle"
         mutatingApprovalGateArmed = true
@@ -227,20 +248,21 @@ object AgentOrchestrator {
 
     fun startLoop(userPrompt: String) {
         clearStopRequest()
+        budgetExhausted = false
         agentScope.cancel()
         agentScope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
         loopIterationCount++
         if (loopIterationCount > MAX_LOOP_ITERATIONS) {
-            loopIterationCount = 0
+            loopIterationCount = MAX_LOOP_ITERATIONS
+            budgetExhausted = true
             val service = org.ravi.codeassist.AgentAccessibilityService.instance
+            val planTail = if (transcript.planTasks.isEmpty()) "" else " with ${transcript.pendingPlanCount} plan task(s) remaining"
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
                 service?.updateOverlayStatus(
-                    "[Loop halted: exceeded $MAX_LOOP_ITERATIONS automated iterations without reaching DONE. " +
-                        "The safety guard stopped the loop to avoid runaway resource usage. " +
-                        "Start a new session or send a fresh prompt to continue.]"
+                    "[Loop budget exhausted after $MAX_LOOP_ITERATIONS rounds$planTail. Tap Resume to continue with a fresh budget, or Stop to end the session.]"
                 )
             }
-            updateState(AgentState.IDLE)
+            updateState(AgentState.WAITING_FOR_USER)
             return
         }
         agentJob = agentScope.launch {
@@ -256,6 +278,7 @@ object AgentOrchestrator {
                     isFirstPromptInSession = false
                 }
             }
+            lastPromptInjected = promptToInject
 
             if (!isActive) return@launch
             updateState(AgentState.EXECUTING_ACTION("type_text"))
@@ -271,10 +294,7 @@ object AgentOrchestrator {
             service.executeToolCall("click_send")
 
             if (!isActive) return@launch
-            updateState(AgentState.WAITING_FOR_MUTATION)
-            withContext(Dispatchers.Main) { service.updateOverlayStatus("Waiting for AI completion...") }
-            val scrapeResult = service.executeToolCall("read_latest_response")
-            val aiResponse = scrapeResult.substringAfter("-> ")
+            val aiResponse = awaitModelResponse(service, promptToInject)
 
             if (!isActive) return@launch
             if (aiResponse.contains(":::CODE_ASSIST:::")) {
@@ -310,7 +330,61 @@ object AgentOrchestrator {
             }
         }
     }
-    
+
+    /** True when the loop hit [MAX_LOOP_ITERATIONS] and parked waiting for a
+     *  resume that grants a fresh budget. */
+    fun isBudgetExhausted(): Boolean = budgetExhausted
+
+    /**
+     * User-initiated continuation after budget exhaustion: resets the round
+     * counter and re-asserts the last prompt that was sent, so the model can
+     * pick up where the session left off instead of restarting cold.
+     */
+    fun resumeAfterBudgetExhaustion() {
+        val prompt = lastPromptInjected ?: run {
+            updateState(AgentState.IDLE)
+            return
+        }
+        loopIterationCount = 0
+        budgetExhausted = false
+        startLoop(prompt)
+    }
+
+    /**
+     * Bounded wait for the model's response. If the scrape produces no agent
+     * output (internal generation timeout or the [MODEL_RESPONSE_TIMEOUT_MS]
+     * watchdog cap), the last prompt is re-asserted exactly once — a single
+     * missed response must not stall the loop. If the retry also fails, the
+     * loop parks in WAITING_FOR_USER with the reason surfaced on the overlay.
+     */
+    private suspend fun awaitModelResponse(
+        service: org.ravi.codeassist.AgentAccessibilityService,
+        prompt: String
+    ): String {
+        updateState(AgentState.WAITING_FOR_MUTATION)
+        withContext(Dispatchers.Main) { service.updateOverlayStatus("Waiting for AI completion...") }
+        var aiResponse = scrapeLatestResponse(service)
+        if (aiResponse.startsWith("Error:") && !isStopRequested()) {
+            withContext(Dispatchers.Main) { service.updateOverlayStatus("No response detected — re-sending prompt...") }
+            service.executeToolCall("type_text", prompt)
+            kotlinx.coroutines.delay(1000)
+            service.executeToolCall("click_send")
+            aiResponse = scrapeLatestResponse(service)
+            if (aiResponse.startsWith("Error:")) {
+                aiResponse = "Waiting for model response — no agent output was detected after re-sending. Check the chat app or tap Resume to continue."
+            }
+        }
+        return aiResponse
+    }
+
+    private suspend fun scrapeLatestResponse(service: org.ravi.codeassist.AgentAccessibilityService): String {
+        val scrapeResult = withTimeoutOrNull(MODEL_RESPONSE_TIMEOUT_MS) {
+            service.executeToolCall("read_latest_response")
+        }
+        if (scrapeResult == null) return "Error: LLM Generation Timeout (watchdog)."
+        return scrapeResult.substringAfter("-> ")
+    }
+
     /** Escalates guidance after repeated malformed envelopes and returns null once
      *  a limit is hit so the caller can halt the loop instead of burning rounds. */
     private fun buildParseErrorPrompt(): String? {
@@ -334,6 +408,25 @@ object AgentOrchestrator {
     fun processExecutionResults(success: Boolean, logs: String, hasDone: Boolean = false) {
         if (hasDone && success) {
             val service = org.ravi.codeassist.AgentAccessibilityService.instance
+            val pending = transcript.pendingPlanCount
+            if (pending > 0) {
+                // Mechanical gate: DONE before <ACTIVE_PLAN> is resolved is
+                // premature. Warn, surface the checklist, and continue so the
+                // model can reconcile the plan instead of silently ending early.
+                val safeLogs = org.ravi.codeassist.utils.SystemPromptGenerator.truncateForInjection(logs)
+                if (recordRoundDigest(safeLogs)) {
+                    haltLoopForLoop(service, pending)
+                    return
+                }
+                val gatePrompt = ":::CODE_ASSIST_TRANSACTION_RESULT:::\n" + safeLogs + "\n" +
+                    "\n[NOTE: Your DONE command was ignored. <ACTIVE_PLAN> still has $pending pending task(s). Mark them complete with [PLAN_DONE: n] or replace the plan with [COMMAND: PLAN] before terminating with DONE.]\n" +
+                    observationLogSection(excludeLatest = true) + "\n" +
+                    planSection() + "\n" +
+                    org.ravi.codeassist.utils.SystemPromptGenerator.standingReminder + "\n" +
+                    ":::END_TRANSACTION_RESULT:::\nResolve the pending plan tasks, then terminate with a DONE-only response."
+                startLoop(gatePrompt)
+                return
+            }
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
                 val remaining = transcript.pendingPlanCount
                 val tail = if (transcript.planTasks.isEmpty()) "" else " Remaining: $remaining/${transcript.planTasks.size} plan tasks."
@@ -346,13 +439,39 @@ object AgentOrchestrator {
         // from the model's context window, then re-anchor the rules near this
         // decision point so they survive long ReAct loops.
         val safeLogs = org.ravi.codeassist.utils.SystemPromptGenerator.truncateForInjection(logs)
-        transcript.addObservation(transcript.buildObservationDigest(safeLogs))
+        if (recordRoundDigest(safeLogs)) {
+            haltLoopForLoop(org.ravi.codeassist.AgentAccessibilityService.instance, null)
+            return
+        }
         val feedbackPrompt = ":::CODE_ASSIST_TRANSACTION_RESULT:::\n" + safeLogs + "\n" +
-            observationLogSection() + "\n" +
+            observationLogSection(excludeLatest = true) + "\n" +
             planSection() + "\n" +
             org.ravi.codeassist.utils.SystemPromptGenerator.standingReminder + "\n" +
             ":::END_TRANSACTION_RESULT:::\nEvaluate and proceed. Terminate with DONE if completed."
         startLoop(feedbackPrompt)
+    }
+
+    /**
+     * Records the round's observation digest and returns true when identical
+     * rounds have repeated [MAX_IDENTICAL_ROUNDS] times — the model is stuck
+     * re-emitting the same result with no new output, so re-prompting is
+     * pointless and the loop should halt.
+     */
+    private fun recordRoundDigest(safeLogs: String): Boolean {
+        val digest = transcript.buildObservationDigest(safeLogs)
+        consecutiveIdenticalRounds =
+            if (digest.isNotBlank() && digest == transcript.lastObservation) consecutiveIdenticalRounds + 1 else 0
+        transcript.addObservation(digest)
+        return consecutiveIdenticalRounds >= MAX_IDENTICAL_ROUNDS
+    }
+
+    private fun haltLoopForLoop(service: org.ravi.codeassist.AgentAccessibilityService?, pending: Int?) {
+        val reason = if (pending != null) {
+            "Loop detected: $MAX_IDENTICAL_ROUNDS consecutive identical DONE rounds with $pending plan task(s) still pending. Resolve the plan before terminating."
+        } else {
+            "Loop detected: $MAX_IDENTICAL_ROUNDS consecutive identical rounds (the same result was re-emitted with no new output). Review the last error's context, change approach, and start a new session."
+        }
+        if (service != null) haltLoop(service, reason) else updateState(AgentState.IDLE)
     }
 
     fun resumeFromText(aiResponse: String) {

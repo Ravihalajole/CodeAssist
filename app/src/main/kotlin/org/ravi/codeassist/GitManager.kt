@@ -3,7 +3,10 @@ package org.ravi.codeassist
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ResetCommand
 import org.eclipse.jgit.api.errors.EmptyCommitException
+import org.eclipse.jgit.diff.DiffEntry
+import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.lib.RepositoryCache
+import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
@@ -398,6 +401,43 @@ object GitManager {
                 val lastCommit = git.log().setMaxCount(1).call().asSequence().firstOrNull()?.name
                 val last = if (lastCommit != null) " | last commit ${lastCommit.take(7)}" else ""
                 "git <$branch> | ${if (changes == 0) "clean" else "$changes pending change(s)"}$last"
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Stat-style summary of the most recent commit (HEAD vs its parent) for the
+     * per-batch state snapshot, so the model can verify exactly which lines
+     * landed, e.g. `  CodeAssist.md | +14 -2`. Null when there's no repo, no
+     * prior commit, or HEAD changed nothing.
+     */
+    suspend fun lastCommitDiffStat(workspaceRoot: File): String? {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return null
+        return try {
+            Git.open(repoRoot).use outer@{ git ->
+                val commit = git.log().setMaxCount(1).call().asSequence().firstOrNull() ?: return@outer null
+                val parent = commit.parents.firstOrNull() ?: return@outer null
+                val formatter = DiffFormatter(java.io.ByteArrayOutputStream())
+                try {
+                    formatter.setRepository(git.repository)
+                    git.repository.newObjectReader().use { reader ->
+                        val oldTree = CanonicalTreeParser(null, reader, parent.tree.id)
+                        val newTree = CanonicalTreeParser(null, reader, commit.tree.id)
+                        val diff = git.diff().setOldTree(oldTree).setNewTree(newTree).call()
+                        if (diff.isEmpty()) return@outer null
+                        diff.map { entry ->
+                            val edits = formatter.toFileHeader(entry).toEditList()
+                            val added = edits.sumOf { it.endB - it.beginB }
+                            val removed = edits.sumOf { it.endA - it.beginA }
+                            val path = if (entry.changeType == DiffEntry.ChangeType.DELETE) entry.oldPath else entry.newPath
+                            "  $path | +$added -$removed"
+                        }.joinToString("\n", prefix = "\n--- LAST COMMIT DIFF (HEAD) ---\n")
+                    }
+                } finally {
+                    formatter.close()
+                }
             }
         } catch (_: Exception) {
             null
