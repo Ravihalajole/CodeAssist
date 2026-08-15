@@ -8,16 +8,16 @@
     android:paddingHorizontal="12dp"
     android:paddingBottom="10dp">
 
-    <!-- Expandable Tool Drawer -->
+    <!-- Glass Tool Sheet (springs open above the pill) -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/llToolDrawer"
-        android:layout_width="252dp"
+        android:layout_width="300dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
         android:visibility="gone"
-        android:layout_marginBottom="8dp"
+        android:layout_marginBottom="10dp"
         app:cardBackgroundColor="@color/ovl_raised"
-        app:cardCornerRadius="18dp"
+        app:cardCornerRadius="22dp"
         app:cardElevation="0dp"
         app:strokeColor="@color/ovl_stroke_cyan"
         app:strokeWidth="1dp">
@@ -28,31 +28,67 @@
             android:orientation="vertical"
             android:padding="8dp">
 
-            <!-- Tool Drawer Header -->
+            <!-- Sheet Grip -->
+            <View
+                android:layout_width="36dp"
+                android:layout_height="4dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="2dp"
+                android:layout_marginBottom="6dp"
+                android:background="@drawable/bg_sheet_grip" />
+
+            <!-- Sheet Header -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="8dp"
+                android:paddingStart="6dp"
                 android:paddingEnd="2dp"
-                android:paddingBottom="5dp">
+                android:paddingBottom="8dp">
 
-                <TextView
+                <View
+                    android:id="@+id/vSheetDot"
+                    android:layout_width="9dp"
+                    android:layout_height="9dp"
+                    android:background="@drawable/bg_glow_dot"
+                    android:backgroundTint="@color/state_cyan" />
+
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:letterSpacing="0.02"
-                    android:text="Agent Tools"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
+                    android:orientation="vertical"
+                    android:layout_marginStart="8dp">
+
+                    <TextView
+                        android:id="@+id/tvSheetStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Idle"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="12.5sp"
+                        android:textStyle="bold"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+
+                    <TextView
+                        android:id="@+id/tvSheetTele"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:text="round 0 · 0:00"
+                        android:textColor="@color/text_mid"
+                        android:textSize="10sp"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+                </LinearLayout>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnToolClose"
                     style="@style/Widget.Material3.Button.IconButton"
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
                     android:padding="0dp"
                     android:insetLeft="0dp"
                     android:insetTop="0dp"
@@ -64,14 +100,14 @@
                     app:iconGravity="textStart"
                     app:iconPadding="0dp"
                     app:backgroundTint="@color/ovl_high"
-                    app:cornerRadius="14dp"
+                    app:cornerRadius="13dp"
                     android:contentDescription="Close tools" />
             </LinearLayout>
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:layout_marginBottom="3dp"
+                android:layout_marginBottom="4dp"
                 android:background="@color/ovl_stroke" />
 
             <GridLayout
@@ -237,7 +273,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:visibility="gone"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="8dp"
                 app:cardBackgroundColor="@color/ovl_card_red"
                 app:cardCornerRadius="12dp"
                 app:strokeColor="@color/ovl_stroke_red_soft"
@@ -278,7 +314,7 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- Outer Gradient Border Container -->
+    <!-- Outer Gradient Border Container (accent rim) -->
     <FrameLayout
         android:id="@+id/flPillGradientBorder"
         android:layout_width="wrap_content"
@@ -286,102 +322,103 @@
         android:padding="2dp"
         android:background="@drawable/bg_dynamic_pill_gradient">
 
-        <!-- Inner Dark Floating Pill Card -->
-        <LinearLayout
+        <!-- Inner Dark Floating Pill Glass -->
+        <FrameLayout
             android:id="@+id/llPillContent"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:minHeight="44dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="@drawable/bg_pill_glass"
-            android:paddingStart="10dp"
-            android:paddingEnd="5dp"
-            android:paddingVertical="4dp">
+            android:minHeight="46dp"
+            android:background="@drawable/bg_pill_glass">
 
-            <!-- Glowing Status Dot -->
-            <View
-                android:id="@+id/vAgentStatusIndicator"
-                android:layout_width="10dp"
-                android:layout_height="10dp"
-                android:background="@drawable/bg_glow_dot"
-                android:backgroundTint="@color/state_cyan" />
-
-            <!-- Status Column (headline + detail) -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="10dp">
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="12dp"
+                android:paddingEnd="6dp"
+                android:paddingVertical="5dp">
 
-                <!-- Status Label -->
-                <TextView
-                    android:id="@+id/tvOverlayStatus"
+                <!-- Glowing Status Dot -->
+                <View
+                    android:id="@+id/vAgentStatusIndicator"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:background="@drawable/bg_glow_dot"
+                    android:backgroundTint="@color/state_cyan" />
+
+                <!-- Status Column (headline + detail) -->
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Idle"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textSize="11sp"
-                    android:textStyle="bold"
-                    android:fontFamily="monospace"
-                    android:letterSpacing="0.06"
-                    android:maxWidth="150dp"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
+                    android:orientation="vertical"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="10dp">
 
-                <!-- Status Detail (optional secondary line) -->
-                <TextView
-                    android:id="@+id/tvOverlayDetail"
-                    android:layout_width="150dp"
-                    android:layout_height="wrap_content"
-                    android:visibility="gone"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:textSize="10sp"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
+                    <TextView
+                        android:id="@+id/tvOverlayStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Idle"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:fontFamily="monospace"
+                        android:letterSpacing="0.06"
+                        android:maxWidth="150dp"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+
+                    <TextView
+                        android:id="@+id/tvOverlayDetail"
+                        android:layout_width="150dp"
+                        android:layout_height="wrap_content"
+                        android:visibility="gone"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:textSize="10sp"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+                </LinearLayout>
+
+                <!-- Morphing Primary Action Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnMorphingAction"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:padding="0dp"
+                    android:insetLeft="0dp"
+                    android:insetTop="0dp"
+                    android:insetRight="0dp"
+                    android:insetBottom="0dp"
+                    app:icon="@drawable/ic_stroke_play"
+                    app:iconSize="16dp"
+                    app:iconTint="@color/brand_on_accent"
+                    app:iconGravity="textStart"
+                    app:iconPadding="0dp"
+                    app:backgroundTint="@color/brand_mint"
+                    app:cornerRadius="19dp"
+                    android:contentDescription="Play or stop" />
             </LinearLayout>
 
-            <!-- Tool Palette Toggle Button -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnToolbox"
-                style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:padding="0dp"
-                android:insetLeft="0dp"
-                android:insetTop="0dp"
-                android:insetRight="0dp"
-                android:insetBottom="0dp"
-                app:icon="@drawable/ic_nav_settings"
-                app:iconTint="@color/text_mid"
-                app:iconSize="16dp"
-                app:iconGravity="textStart"
-                app:iconPadding="0dp"
-                app:backgroundTint="@color/ovl_high"
-                app:cornerRadius="16dp"
-                android:layout_marginEnd="5dp"
-                android:contentDescription="Toggle tools" />
+            <!-- Round Progress Bar (sweeps while generating) -->
+            <FrameLayout
+                android:id="@+id/vProgressBar"
+                android:layout_width="match_parent"
+                android:layout_height="2.5dp"
+                android:layout_gravity="bottom"
+                android:layout_marginStart="14dp"
+                android:layout_marginEnd="14dp"
+                android:layout_marginBottom="4dp"
+                android:visibility="gone"
+                android:background="@drawable/bg_progress_track">
 
-            <!-- Morphing Primary Action Button -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnMorphingAction"
-                style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:padding="0dp"
-                android:insetLeft="0dp"
-                android:insetTop="0dp"
-                android:insetRight="0dp"
-                android:insetBottom="0dp"
-                app:icon="@drawable/ic_stroke_play"
-                app:iconSize="16dp"
-                app:iconTint="@color/brand_on_accent"
-                app:iconGravity="textStart"
-                app:iconPadding="0dp"
-                app:backgroundTint="@color/brand_mint"
-                app:cornerRadius="19dp"
-                android:contentDescription="Play or stop" />
-        </LinearLayout>
+                <View
+                    android:id="@+id/vProgressFill"
+                    android:layout_width="96dp"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bg_progress_fill" />
+            </FrameLayout>
+        </FrameLayout>
     </FrameLayout>
 </LinearLayout>

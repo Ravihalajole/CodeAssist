@@ -24,9 +24,8 @@ class AgentOverlayManager(private val context: Context) {
     private var isGenerating = false
     private var dotJob: Job? = null
     private var statusOverride: String? = null
-    private var pillExpanded = false
-    private var wasIdle = true
-    private var isCompactMode = false
+    private var sheetOpen = false
+    private var progressAnim: android.animation.ValueAnimator? = null
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -35,15 +34,7 @@ class AgentOverlayManager(private val context: Context) {
     private fun updateMorphingButton() {
         val btnMorphingAction = overlayView?.findViewById<MaterialButton>(R.id.btnMorphingAction) ?: return
 
-        if (isCompactMode) {
-            btnMorphingAction.setIconResource(R.drawable.ic_stroke_play)
-            btnMorphingAction.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                androidx.core.content.ContextCompat.getColor(context, R.color.brand_mint)
-            )
-            btnMorphingAction.iconTint = android.content.res.ColorStateList.valueOf(
-                androidx.core.content.ContextCompat.getColor(context, R.color.brand_on_accent)
-            )
-        } else if (isGenerating) {
+        if (isGenerating) {
             btnMorphingAction.setIconResource(R.drawable.ic_stroke_stop)
             btnMorphingAction.backgroundTintList = android.content.res.ColorStateList.valueOf(
                 androidx.core.content.ContextCompat.getColor(context, R.color.surf_raised)
@@ -81,7 +72,6 @@ class AgentOverlayManager(private val context: Context) {
         }
 
         val btnMorphingAction = overlayView?.findViewById<MaterialButton>(R.id.btnMorphingAction)
-        val btnToolbox = overlayView?.findViewById<MaterialButton>(R.id.btnToolbox)
         val llToolDrawer = overlayView?.findViewById<View>(R.id.llToolDrawer)
         val llCloseConfirmBar = overlayView?.findViewById<View>(R.id.llCloseConfirmBar)
 
@@ -124,6 +114,7 @@ class AgentOverlayManager(private val context: Context) {
         }
 
         fun closeDrawer() {
+            sheetOpen = false
             val drawer = llToolDrawer ?: return
             if (drawer.visibility == View.VISIBLE) {
                 animateDrawer(drawer, false)
@@ -131,19 +122,23 @@ class AgentOverlayManager(private val context: Context) {
             llCloseConfirmBar?.visibility = View.GONE
         }
 
+        fun openSheet() {
+            val drawer = llToolDrawer ?: return
+            if (drawer.visibility != View.VISIBLE) {
+                sheetOpen = true
+                animateDrawer(drawer, true)
+            }
+        }
+
         btnToolClose?.setOnClickListener {
             closeDrawer()
         }
 
-        btnToolbox?.setOnClickListener {
-            val drawer = llToolDrawer
-            if (drawer != null) {
-                if (drawer.visibility == View.VISIBLE) {
-                    llCloseConfirmBar?.visibility = View.GONE
-                    animateDrawer(drawer, false)
-                } else {
-                    animateDrawer(drawer, true)
-                }
+        fun toggleSheet() {
+            if (sheetOpen) {
+                closeDrawer()
+            } else {
+                openSheet()
             }
         }
 
@@ -190,6 +185,7 @@ class AgentOverlayManager(private val context: Context) {
         var initialY = 0
         var initialTouchX = 0f
         var initialTouchY = 0f
+        var dragged = false
 
         // Convert gravity-space (BOTTOM|CENTER_HORIZONTAL) x/y into screen
         // coordinates, clamp the pill fully on-screen, then convert back.
@@ -214,6 +210,7 @@ class AgentOverlayManager(private val context: Context) {
             val layoutParams = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false
             when (event.action) {
                 android.view.MotionEvent.ACTION_DOWN -> {
+                    dragged = false
                     initialX = layoutParams.x
                     initialY = layoutParams.y
                     initialTouchX = event.rawX
@@ -223,7 +220,8 @@ class AgentOverlayManager(private val context: Context) {
                 android.view.MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - initialTouchX
                     val dy = event.rawY - initialTouchY
-                    if (kotlin.math.abs(dx) > 5 || kotlin.math.abs(dy) > 5) {
+                    if (kotlin.math.abs(dx) > 6 || kotlin.math.abs(dy) > 6) {
+                        dragged = true
                         // BOTTOM gravity: increasing y moves the pill up, so a
                         // downward drag (dy > 0) must DECREASE y.
                         val (clampedX, clampedY) = clampToScreen(initialX + dx.toInt(), initialY - dy.toInt())
@@ -237,6 +235,7 @@ class AgentOverlayManager(private val context: Context) {
                 }
                 android.view.MotionEvent.ACTION_UP -> {
                     sharedPref.edit().putInt("OVERLAY_POS_X", layoutParams.x).putInt("OVERLAY_POS_Y", layoutParams.y).apply()
+                    if (!dragged) toggleSheet()
                     false
                 }
                 else -> false
@@ -244,10 +243,7 @@ class AgentOverlayManager(private val context: Context) {
         }
 
         btnMorphingAction?.setOnClickListener {
-            if (isCompactMode) {
-                pillExpanded = true
-                scope.launch { updateStatusInternal() }
-            } else if (isGenerating) {
+            if (isGenerating) {
                 onStop()
             } else {
                 org.ravi.codeassist.AgentAccessibilityService.instance?.resumeOrSync()
@@ -339,30 +335,10 @@ class AgentOverlayManager(private val context: Context) {
         this.statusOverride = statusOverride
 
         val state = org.ravi.codeassist.agent.AgentOrchestrator.state.value
-        val isIdle = state is org.ravi.codeassist.agent.AgentState.IDLE
-        if (!wasIdle && isIdle) pillExpanded = false
-        wasIdle = isIdle
-        isCompactMode = isIdle && !pillExpanded && this.statusOverride == null
-
-        val drawer = overlayView?.findViewById<View>(R.id.llToolDrawer)
-        val confirmBar = overlayView?.findViewById<View>(R.id.llCloseConfirmBar)
-        val btnToolbox = overlayView?.findViewById<View>(R.id.btnToolbox)
-
-        if (isCompactMode) {
-            drawer?.visibility = View.GONE
-            confirmBar?.visibility = View.GONE
-            fadeView(tvStatus, false)
-            fadeView(tvDetail, false)
-            fadeView(btnToolbox, false)
-        } else {
-            fadeView(tvStatus, true)
-            fadeView(btnToolbox, true)
-        }
-
         val ui = overlayUiFor(state)
         tvStatus.text = ui.label
 
-        if (tvDetail != null && !isCompactMode) {
+        if (tvDetail != null) {
             val telemetry = if (ui.generating) buildTelemetryLine() else null
             val text = statusOverride ?: ui.detail ?: telemetry
             if (text.isNullOrEmpty()) {
@@ -395,6 +371,12 @@ class AgentOverlayManager(private val context: Context) {
             flGradientBorder?.alpha = 1.0f
         }
 
+        if (isGenerating) {
+            startProgressSweep()
+        } else {
+            stopProgressSweep()
+        }
+
         updateMorphingButton()
 
         if (flGradientBorder != null) {
@@ -408,29 +390,48 @@ class AgentOverlayManager(private val context: Context) {
         }
 
         vIndicator?.backgroundTintList = android.content.res.ColorStateList.valueOf(ui.dot)
+
+        // glass sheet header mirrors the pill status
+        overlayView?.findViewById<TextView>(R.id.tvSheetStatus)?.text = ui.label
+        val tele = if (ui.generating) buildTelemetryLine() else (statusOverride ?: ui.detail)
+        val tvSheetTele = overlayView?.findViewById<TextView>(R.id.tvSheetTele)
+        if (tvSheetTele != null) {
+            tvSheetTele.text = tele.orEmpty()
+        }
+        overlayView?.findViewById<View>(R.id.vSheetDot)?.backgroundTintList =
+            android.content.res.ColorStateList.valueOf(ui.dot)
+        overlayView?.findViewById<com.google.android.material.card.MaterialCardView>(R.id.llToolDrawer)
+            ?.setStrokeColor(
+                android.content.res.ColorStateList.valueOf(
+                    androidx.core.graphics.ColorUtils.setAlphaComponent(ui.start, 0x55)
+                )
+            )
     }
 
-    private fun fadeView(view: View?, show: Boolean) {
-        if (view == null) return
-        view.animate().cancel()
-        if (show) {
-            view.visibility = View.VISIBLE
-            view.alpha = 0f
-            view.animate()
-                .alpha(1f)
-                .setDuration(160)
-                .setInterpolator(android.view.animation.DecelerateInterpolator())
-                .start()
-        } else {
-            view.animate()
-                .alpha(0f)
-                .setDuration(120)
-                .withEndAction {
-                    view.visibility = View.GONE
-                    view.alpha = 1f
-                }
-                .start()
+    private fun startProgressSweep() {
+        val track = overlayView?.findViewById<View>(R.id.vProgressBar) ?: return
+        val fill = overlayView?.findViewById<View>(R.id.vProgressFill) ?: return
+        if (progressAnim != null) return
+        track.visibility = View.VISIBLE
+        val dist = (overlayView?.findViewById<View>(R.id.llPillContent)?.width ?: 0) + fill.width
+        val anim = android.animation.ValueAnimator.ofFloat(-fill.width.toFloat(), dist.toFloat()).apply {
+            duration = 1400
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            interpolator = android.view.animation.LinearInterpolator()
+            addUpdateListener { a ->
+                fill.translationX = a.animatedValue as Float
+            }
         }
+        anim.start()
+        progressAnim = anim
+    }
+
+    private fun stopProgressSweep() {
+        val track = overlayView?.findViewById<View>(R.id.vProgressBar) ?: return
+        progressAnim?.cancel()
+        progressAnim = null
+        track.visibility = View.GONE
+        overlayView?.findViewById<View>(R.id.vProgressFill)?.translationX = 0f
     }
 
     private fun refreshTelemetryDetail() {
@@ -566,6 +567,7 @@ class AgentOverlayManager(private val context: Context) {
     fun hideOverlay() {
         dotJob?.cancel()
         dotJob = null
+        stopProgressSweep()
         hideScrollZonePicker()
         overlayView?.let {
             try {
