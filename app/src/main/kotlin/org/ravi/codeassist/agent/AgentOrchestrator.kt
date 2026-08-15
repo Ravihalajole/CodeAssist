@@ -119,12 +119,19 @@ object AgentOrchestrator {
     }
 
     private fun commandFingerprint(command: org.ravi.codeassist.CodeCommand): String? = when (command) {
-        is org.ravi.codeassist.CodeCommand.Patch -> "PATCH|${command.path}|${command.replaceAll}|${command.search}|${command.replace}"
-        is org.ravi.codeassist.CodeCommand.Create -> "CREATE|${command.path}|${command.content}"
+        is org.ravi.codeassist.CodeCommand.Patch -> "PATCH|${command.path}|${command.replaceAll}|${normalizedBody(command.search)}|${normalizedBody(command.replace)}"
+        is org.ravi.codeassist.CodeCommand.Create -> "CREATE|${command.path}|${normalizedBody(command.content)}"
         is org.ravi.codeassist.CodeCommand.Delete -> "DELETE|${command.path}"
         is org.ravi.codeassist.CodeCommand.Move -> "MOVE|${command.oldPath}|${command.newPath}"
         else -> null
     }
+
+    /**
+     * Trailing whitespace is a common re-emission artifact; normalizing it makes
+     * a re-typed (but logically identical) write dedup with its first execution.
+     */
+    private fun normalizedBody(text: String): String =
+        text.lines().joinToString("\n") { it.trimEnd() }
 
     /**
      * Splits a scraped payload into its individual `:::CODE_ASSIST:::` envelopes
@@ -157,17 +164,26 @@ object AgentOrchestrator {
     }
 
     /**
-     * Drops the already-executed commands from one envelope. Returns the kept
+     * Drops already-executed commands from one envelope. Returns the kept
      * commands, or null when the whole envelope was a duplicate. Read-only-only
-     * envelopes never dedup — re-reading is harmless.
+     * envelopes never dedup — re-reading is harmless. [seenInScrape] carries the
+     * fingerprints queued by EARLIER envelopes of the SAME scrape, so a write
+     * the model emitted twice in one message (or an envelope duplicated by the
+     * scrape's stream stitching) is applied only once.
      */
-    private fun filterReexecuted(envelopeText: String): List<org.ravi.codeassist.CodeCommand>? {
+    private fun filterReexecuted(
+        envelopeText: String,
+        seenInScrape: MutableSet<String>
+    ): List<org.ravi.codeassist.CodeCommand>? {
         val commands = org.ravi.codeassist.EnvelopeParser.parse(envelopeText)
         if (commands.none { it.isMutating }) return commands
         val kept = commands.filter { cmd ->
             if (!cmd.isMutating) return@filter true
             val fp = commandFingerprint(cmd)
-            fp == null || fp !in recentExecutedFingerprints
+            if (fp == null) return@filter true
+            if (fp in recentExecutedFingerprints) return@filter false
+            if (!seenInScrape.add(fp)) return@filter false
+            true
         }
         return if (kept.isEmpty()) null else kept
     }
@@ -221,6 +237,7 @@ object AgentOrchestrator {
         sessionCheckpointRef = null
         clearStopRequest()
         transcript.reset()
+        org.ravi.codeassist.CommandExecutorUtils.clearAppliedWrites()
         _state.value = AgentState.IDLE
     }
 
@@ -246,6 +263,7 @@ object AgentOrchestrator {
         sessionCheckpointRef = null
         clearStopRequest()
         transcript.reset()
+        org.ravi.codeassist.CommandExecutorUtils.clearAppliedWrites()
         updateState(AgentState.IDLE)
     }
 
@@ -384,8 +402,9 @@ object AgentOrchestrator {
                 }
                 val freshCommands = mutableListOf<org.ravi.codeassist.CodeCommand>()
                 var duplicateEnvelopes = 0
+                val seenInScrape = mutableSetOf<String>()
                 splitEnvelopes(aiResponse).forEach { env ->
-                    val cmdList = filterReexecuted(env)
+                    val cmdList = filterReexecuted(env, seenInScrape)
                     if (cmdList == null) duplicateEnvelopes++ else freshCommands.addAll(cmdList)
                 }
 
@@ -623,8 +642,9 @@ object AgentOrchestrator {
                 }
                 val freshCommands = mutableListOf<org.ravi.codeassist.CodeCommand>()
                 var duplicateEnvelopes = 0
+                val seenInScrape = mutableSetOf<String>()
                 splitEnvelopes(aiResponse).forEach { env ->
-                    val cmdList = filterReexecuted(env)
+                    val cmdList = filterReexecuted(env, seenInScrape)
                     if (cmdList == null) duplicateEnvelopes++ else freshCommands.addAll(cmdList)
                 }
 

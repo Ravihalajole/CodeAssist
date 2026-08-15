@@ -89,6 +89,7 @@ class OverlayConfirmationManager(private val context: Context) {
                         android.widget.Toast.makeText(context, "Session Auto-Allow Enabled", android.widget.Toast.LENGTH_SHORT).show()
                         btnApprove?.isEnabled = false
                         btnReject?.isEnabled = false
+                        isEnabled = false
                         progress?.visibility = View.VISIBLE
                         executeBatch(commands, workspaceRoot, onResult)
                     }

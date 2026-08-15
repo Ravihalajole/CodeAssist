@@ -119,10 +119,18 @@ object CommandExecutor {
             when (command) {
                 is CodeCommand.Read -> handleRead(rootDir, command.path, command.startLine, command.endLine)
                 is CodeCommand.Grep -> handleGrep(rootDir, command.path, command.pattern, command.ignoreDirs)
-                is CodeCommand.Patch -> handlePatch(rootDir, command.path, command.search, command.replace, command.replaceAll)
-                is CodeCommand.Create -> handleCreate(rootDir, command.path, command.content)
-                is CodeCommand.Delete -> handleDelete(rootDir, command.path)
-                is CodeCommand.Move -> handleMove(rootDir, command.oldPath, command.newPath)
+                is CodeCommand.Patch -> guardedWrite(command) {
+                    handlePatch(rootDir, command.path, command.search, command.replace, command.replaceAll)
+                }
+                is CodeCommand.Create -> guardedWrite(command) {
+                    handleCreate(rootDir, command.path, command.content)
+                }
+                is CodeCommand.Delete -> guardedWrite(command) {
+                    handleDelete(rootDir, command.path)
+                }
+                is CodeCommand.Move -> guardedWrite(command) {
+                    handleMove(rootDir, command.oldPath, command.newPath)
+                }
                 is CodeCommand.Glob -> handleGlob(rootDir, command.pattern)
                 is CodeCommand.Outline -> handleOutline(rootDir, command.path)
                 is CodeCommand.Done -> ExecutionResult(true, "HALT_DONE: ${command.message}")
@@ -130,6 +138,30 @@ object CommandExecutor {
             }
         } catch (e: Exception) {
             ExecutionResult(false, "System Error: ${e.localizedMessage}")
+        }
+    }
+
+    /**
+     * Last-line-of-defense double-execution guard. An identical write to the
+     * same path already applied in this session is skipped with a success note
+     * (surfaced in the batch feedback so the model sees it), never re-written.
+     * The fingerprint is normalized so trailing-whitespace re-emissions dedup
+     * too. On first-time success the write is recorded for the session.
+     */
+    private fun guardedWrite(
+        command: CodeCommand,
+        perform: () -> ExecutionResult
+    ): ExecutionResult {
+        val fp = CommandExecutorUtils.writeFingerprint(command) ?: return perform()
+        if (CommandExecutorUtils.isWriteAlreadyApplied(fp)) {
+            val target = org.ravi.codeassist.agent.AgentPolicy.targetPath(command)
+            return ExecutionResult(
+                true,
+                "[SKIPPED] ${command.javaClass.simpleName} ${target ?: ""} — identical write already applied this session (duplicate skipped)."
+            )
+        }
+        return perform().also { result ->
+            if (result.success) CommandExecutorUtils.markAppliedWrite(fp)
         }
     }
 

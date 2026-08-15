@@ -4,6 +4,38 @@ import java.io.File
 import java.util.regex.Pattern
 
 object CommandExecutorUtils {
+    /**
+     * Session-scoped guard against double-applied writes. Every successful
+     * mutating execution records its fingerprint here, and a second attempt at
+     * the identical write in the same session is refused instead of silently
+     * re-applying — CREATE overwrites unconditionally and PATCH can re-match a
+     * different occurrence, so an upstream leak (duplicate envelope in one
+     * scrape, concurrent resume) would otherwise mutate the file twice. Cleared
+     * on session init/reset.
+     */
+    private val appliedWriteFingerprints = mutableSetOf<String>()
+
+    fun clearAppliedWrites() {
+        appliedWriteFingerprints.clear()
+    }
+
+    fun isWriteAlreadyApplied(fingerprint: String): Boolean = fingerprint in appliedWriteFingerprints
+
+    fun markAppliedWrite(fingerprint: String) {
+        appliedWriteFingerprints.add(fingerprint)
+    }
+
+    fun writeFingerprint(command: CodeCommand): String? = when (command) {
+        is CodeCommand.Patch -> "PATCH|${command.path}|${command.replaceAll}|${writeBody(command.search)}|${writeBody(command.replace)}"
+        is CodeCommand.Create -> "CREATE|${command.path}|${writeBody(command.content)}"
+        is CodeCommand.Delete -> "DELETE|${command.path}"
+        is CodeCommand.Move -> "MOVE|${command.oldPath}|${command.newPath}"
+        else -> null
+    }
+
+    private fun writeBody(text: String): String =
+        text.lines().joinToString("\n") { it.trimEnd() }
+
     fun countOccurrences(text: String, search: String): Int {
         if (search.isEmpty()) return 0
         var count = 0
