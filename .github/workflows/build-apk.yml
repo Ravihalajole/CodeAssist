@@ -50,6 +50,11 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build debug APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.CI_DEBUG_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.CI_DEBUG_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.CI_DEBUG_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.CI_DEBUG_KEY_PASSWORD }}
         run: ./gradlew assembleDebug
 
       - name: Upload APK artifact

@@ -15,3 +15,5 @@ local.properties
 # CodeAssist internal
 .codeassist/
 *.apk
+/b64.txt
+/ci-debug.keystore
