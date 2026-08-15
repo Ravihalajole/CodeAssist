@@ -603,9 +603,9 @@ class MainActivity : AppCompatActivity() {
             setTextColor(androidx.core.content.ContextCompat.getColor(this@MainActivity, R.color.text_hi))
         }
         val scroll = android.widget.ScrollView(this).apply {
-            addView(input, android.widget.ScrollView.LayoutParams(
-                android.widget.ScrollView.LayoutParams.MATCH_PARENT,
-                android.widget.ScrollView.LayoutParams.WRAP_CONTENT
+            addView(input, android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
             ))
         }
         val padding = (16 * resources.displayMetrics.density).toInt()

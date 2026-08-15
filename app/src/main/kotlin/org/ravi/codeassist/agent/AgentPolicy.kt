@@ -9,11 +9,12 @@ import org.json.JSONObject
  * JSON array and enforced as hard execution blocks.
  *
  * Rule format (one per line in the settings editor):
- *   deny PATCH:**/secrets/**     (command uppercase, optional; path glob optional)
+ *   deny PATCH:secrets           (command uppercase, optional; path glob optional)
  * A missing command matches every command type; a missing glob matches every
- * path. Only DENY is enforced at execution time — ask/allow stay on the
- * existing AutoAllowMode + destructive-confirmation gates (mobile-friendly:
- * DELETE/MOVE always require human confirmation, no rule can weaken that).
+ * path. Globs may use `*` and `**` wildcards. Only DENY is enforced at
+ * execution time — ask/allow stay on the existing AutoAllowMode +
+ * destructive-confirmation gates (mobile-friendly: DELETE/MOVE always require
+ * human confirmation, no rule can weaken that).
  */
 object AgentPolicy {
 

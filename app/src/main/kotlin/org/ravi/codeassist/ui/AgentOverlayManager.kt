@@ -157,7 +157,7 @@ class AgentOverlayManager(private val context: Context) {
             val maxLeft = (metrics.widthPixels - winW).coerceAtLeast(0)
             val maxTop = (metrics.heightPixels - winH).coerceAtLeast(0)
             val screenLeft = ((metrics.widthPixels - winW) / 2f + x).coerceIn(0f, maxLeft.toFloat())
-            val screenTop = (metrics.heightPixels - winH - y).coerceIn(0f, maxTop.toFloat())
+            val screenTop = (metrics.heightPixels - winH - y).coerceIn(0, maxTop)
             val newX = (screenLeft - (metrics.widthPixels - winW) / 2f).toInt()
             val newY = (metrics.heightPixels - winH - screenTop).toInt()
             return Pair(newX, newY)

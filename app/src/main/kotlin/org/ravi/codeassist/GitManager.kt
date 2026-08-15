@@ -341,7 +341,7 @@ object GitManager {
                         shortName == "codeassist-session-start" -> 0
                         else -> return@mapNotNull null
                     }
-                    val commitId = git.repository.peel(ref) ?: ref.objectId ?: return@mapNotNull null
+                    val commitId = git.repository.resolve("${ref.name}^{}") ?: ref.objectId ?: return@mapNotNull null
                     val commit = git.repository.parseCommit(commitId)
                     RoundCheckpoint(
                         tag = shortName,
