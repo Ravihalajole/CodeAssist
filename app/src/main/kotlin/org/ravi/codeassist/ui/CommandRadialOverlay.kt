@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.os.Handler
 import android.os.Looper
+import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -27,6 +28,7 @@ class CommandRadialOverlay(private val context: Context) {
 
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val handler = Handler(Looper.getMainLooper())
+    private val themedContext = ContextThemeWrapper(context, R.style.Theme_CodeAssist)
 
     private var container: FrameLayout? = null
     private var exitButton: MaterialButton? = null
@@ -57,7 +59,7 @@ class CommandRadialOverlay(private val context: Context) {
         val size = dp(240)
         val center = (size / 2).toFloat()
 
-        val root = FrameLayout(context).apply {
+        val root = FrameLayout(themedContext).apply {
             alpha = 0f
             scaleX = 0.6f
             scaleY = 0.6f
@@ -140,7 +142,7 @@ class CommandRadialOverlay(private val context: Context) {
         val accent = spec.accent
         val stroke = ColorUtils.setAlphaComponent(accent, 0x66)
         val raised = ContextCompat.getColor(context, R.color.surf_raised)
-        val button = MaterialButton(context, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+        val button = MaterialButton(themedContext, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
             icon = androidx.core.content.ContextCompat.getDrawable(context, spec.iconRes)
             iconSize = dp(18)
             iconTint = ColorStateList.valueOf(accent)
@@ -156,14 +158,14 @@ class CommandRadialOverlay(private val context: Context) {
             minHeight = 0
             contentDescription = spec.label
         }
-        val label = TextView(context).apply {
+        val label = TextView(themedContext).apply {
             text = spec.label
             setTextColor(accent)
             textSize = 9.5f
             setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
             letterSpacing = 0.02f
         }
-        val layout = LinearLayout(context).apply {
+        val layout = LinearLayout(themedContext).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             addView(button, LinearLayout.LayoutParams(dp(40), dp(40)))
