@@ -31,6 +31,7 @@ object AgentOrchestrator {
     private var loopIterationCount = 0
     private var mutatingApprovalGateArmed = true
     private var consecutiveParseFailures = 0
+    private var consecutiveDriftRounds = 0
     private var consecutiveIdenticalRounds = 0
     private var budgetExhausted = false
     private var lastPromptInjected: String? = null
@@ -133,6 +134,7 @@ object AgentOrchestrator {
         isFirstPromptInSession = true
         loopIterationCount = 0
         consecutiveParseFailures = 0
+        consecutiveDriftRounds = 0
         consecutiveIdenticalRounds = 0
         budgetExhausted = false
         lastPromptInjected = null
@@ -156,6 +158,7 @@ object AgentOrchestrator {
         isFirstPromptInSession = true
         loopIterationCount = 0
         consecutiveParseFailures = 0
+        consecutiveDriftRounds = 0
         consecutiveIdenticalRounds = 0
         budgetExhausted = false
         lastPromptInjected = null
@@ -305,6 +308,7 @@ object AgentOrchestrator {
                 
                 if (commands.isNotEmpty()) {
                     consecutiveParseFailures = 0
+                    consecutiveDriftRounds = 0
                     noteActivity("executing ${commands.size} command(s)")
                     handleCommandRouting(commands, workspaceRoot, service, sharedPref)
                 } else {
@@ -321,12 +325,30 @@ object AgentOrchestrator {
                     }
                     startLoop(errorPrompt)
                 }
-            } else {
+            } else if (aiResponse.startsWith("Error:") || aiResponse.startsWith("Waiting for model response")) {
                 consecutiveParseFailures = 0
                 withContext(Dispatchers.Main) { 
                     service.updateOverlayStatus(aiResponse)
                 }
                 updateState(AgentState.WAITING_FOR_USER)
+            } else {
+                // The model broke protocol — most commonly it answers a plain
+                // human chat message as a chatbot instead of emitting an
+                // envelope. Re-anchor it and continue the loop instead of
+                // parking on an unrecoverable prose reply.
+                consecutiveParseFailures = 0
+                withContext(Dispatchers.Main) { 
+                    service.updateOverlayStatus("Re-anchoring agent protocol...") 
+                }
+                noteActivity("re-anchoring protocol drift")
+                val driftPrompt = buildProtocolDriftPrompt() ?: run {
+                    haltLoop(
+                        service,
+                        "Repeatedly non-protocol output: the model keeps answering as a plain chatbot instead of the CodeAssist agent. Start a new session."
+                    )
+                    return@launch
+                }
+                startLoop(driftPrompt)
             }
         }
     }
@@ -395,6 +417,24 @@ object AgentOrchestrator {
         }
         if (consecutiveParseFailures >= 3) return null
         return ":::CODE_ASSIST_TRANSACTION_ERROR:::\nSTATUS: ENVELOPE_PARSE_FAILED\nDETAILS: $guidance\n" + planSection() + "\n" + org.ravi.codeassist.utils.SystemPromptGenerator.standingReminder + "\n:::END_TRANSACTION_ERROR:::"
+    }
+
+    /**
+     * Escalates guidance when the model answers in plain chat text instead of a
+     * `:::CODE_ASSIST:::` envelope — the signature of "breaking character",
+     * most often triggered by a human typing a bare message into the chat. The
+     * corrective prompt re-anchors the protocol (rule 9: a plain user message
+     * is a NEW GOAL) and continues the loop; after [consecutiveDriftRounds]
+     * repeats the caller halts instead of burning rounds.
+     */
+    private fun buildProtocolDriftPrompt(): String? {
+        consecutiveDriftRounds++
+        val guidance = when (consecutiveDriftRounds) {
+            1 -> "Your last reply was plain chat text instead of a CodeAssist envelope. You are the CodeAssist agent, not a chatbot. If the user typed a plain message, treat it as the new active goal and reply with EXACTLY ONE ```text :::CODE_ASSIST::: envelope (restate it with [COMMAND: PLAN], then READ/GREP/PATCH as needed). No prose outside <thinking>."
+            else -> "Your last $consecutiveDriftRounds reply(s) were plain chat text, not CodeAssist envelopes. This is a protocol violation. Do NOT write any commentary — emit EXACTLY ONE complete envelope as a single ```text block."
+        }
+        if (consecutiveDriftRounds >= 3) return null
+        return ":::CODE_ASSIST_TRANSACTION_ERROR:::\nSTATUS: PROTOCOL_DRIFT\nDETAILS: $guidance\n" + planSection() + "\n" + org.ravi.codeassist.utils.SystemPromptGenerator.standingReminder + "\n:::END_TRANSACTION_ERROR:::"
     }
 
     private fun haltLoop(service: org.ravi.codeassist.AgentAccessibilityService, reason: String) {
@@ -491,6 +531,8 @@ object AgentOrchestrator {
                 val commands = org.ravi.codeassist.EnvelopeParser.parse(aiResponse)
                 
                 if (commands.isNotEmpty()) {
+                    consecutiveParseFailures = 0
+                    consecutiveDriftRounds = 0
                     handleCommandRouting(commands, workspaceRoot, service, sharedPref)
                 } else {
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
@@ -504,10 +546,21 @@ object AgentOrchestrator {
                 }
             } else {
                 consecutiveParseFailures = 0
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
-                    service.updateOverlayStatus("Resumed. No envelope found.")
+                if (aiResponse.isBlank()) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
+                        service.updateOverlayStatus("Resumed. No envelope found.")
+                    }
+                    updateState(AgentState.WAITING_FOR_USER)
+                    return@launch
                 }
-                updateState(AgentState.WAITING_FOR_USER)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
+                    service.updateOverlayStatus("Re-anchoring agent protocol...") 
+                }
+                val driftPrompt = buildProtocolDriftPrompt() ?: run {
+                    haltLoop(service, "Repeatedly non-protocol output: the model keeps answering as a plain chatbot instead of the CodeAssist agent. Start a new session.")
+                    return@launch
+                }
+                startLoop(driftPrompt)
             }
         }
     }
