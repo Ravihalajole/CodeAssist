@@ -83,14 +83,6 @@ class AgentOverlayManager(private val context: Context) {
         val btnCloseConfirm = overlayView?.findViewById<View>(R.id.btnCloseConfirm)
         val btnToolClose = overlayView?.findViewById<View>(R.id.btnToolClose)
 
-        fun closeDrawer() {
-            val drawer = llToolDrawer ?: return
-            if (drawer.visibility == View.VISIBLE) {
-                animateDrawer(drawer, false)
-            }
-            llCloseConfirmBar?.visibility = View.GONE
-        }
-
         fun animateDrawer(drawer: View, show: Boolean) {
             drawer.animate().cancel()
             if (show) {
@@ -118,6 +110,14 @@ class AgentOverlayManager(private val context: Context) {
                     .withEndAction { drawer.visibility = View.GONE }
                     .start()
             }
+        }
+
+        fun closeDrawer() {
+            val drawer = llToolDrawer ?: return
+            if (drawer.visibility == View.VISIBLE) {
+                animateDrawer(drawer, false)
+            }
+            llCloseConfirmBar?.visibility = View.GONE
         }
 
         btnToolClose?.setOnClickListener {
