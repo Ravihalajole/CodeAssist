@@ -5,19 +5,19 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:gravity="center_horizontal"
-    android:paddingHorizontal="16dp"
-    android:paddingBottom="12dp">
+    android:paddingHorizontal="12dp"
+    android:paddingBottom="10dp">
 
     <!-- Expandable Tool Drawer -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/llToolDrawer"
-        android:layout_width="272dp"
+        android:layout_width="252dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
         android:visibility="gone"
-        android:layout_marginBottom="10dp"
+        android:layout_marginBottom="8dp"
         app:cardBackgroundColor="@color/ovl_raised"
-        app:cardCornerRadius="22dp"
+        app:cardCornerRadius="18dp"
         app:cardElevation="0dp"
         app:strokeColor="@color/ovl_stroke_cyan"
         app:strokeWidth="1dp">
@@ -26,7 +26,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="10dp">
+            android:padding="8dp">
 
             <!-- Tool Drawer Header -->
             <LinearLayout
@@ -34,39 +34,25 @@
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="10dp"
+                android:paddingStart="8dp"
                 android:paddingEnd="2dp"
-                android:paddingBottom="8dp">
+                android:paddingBottom="5dp">
 
-                <LinearLayout
+                <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:letterSpacing="0.02"
-                        android:text="Agent Tools"
-                        android:textColor="?attr/colorOnSurface"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="1dp"
-                        android:text="Tap a tool to run it"
-                        android:textColor="@color/text_mid"
-                        android:textSize="10sp" />
-                </LinearLayout>
+                    android:letterSpacing="0.02"
+                    android:text="Agent Tools"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnToolClose"
                     style="@style/Widget.Material3.Button.IconButton"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
                     android:padding="0dp"
                     android:insetLeft="0dp"
                     android:insetTop="0dp"
@@ -74,18 +60,18 @@
                     android:insetBottom="0dp"
                     app:icon="@drawable/ic_close"
                     app:iconTint="?attr/colorOnSurfaceVariant"
-                    app:iconSize="16dp"
+                    app:iconSize="14dp"
                     app:iconGravity="textStart"
                     app:iconPadding="0dp"
                     app:backgroundTint="@color/ovl_high"
-                    app:cornerRadius="15dp"
+                    app:cornerRadius="14dp"
                     android:contentDescription="Close tools" />
             </LinearLayout>
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:layout_marginBottom="4dp"
+                android:layout_marginBottom="3dp"
                 android:background="@color/ovl_stroke" />
 
             <GridLayout
@@ -99,12 +85,12 @@
                     android:id="@+id/btnToolResume"
                     style="@style/Widget.Material3.Button"
                     android:layout_width="0dp"
-                    android:layout_height="68dp"
+                    android:layout_height="58dp"
                     android:layout_columnWeight="1"
-                    android:layout_margin="4dp"
-                    android:paddingTop="10dp"
-                    android:paddingBottom="8dp"
-                    android:paddingHorizontal="4dp"
+                    android:layout_margin="3dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="6dp"
+                    android:paddingHorizontal="2dp"
                     android:text="Resume"
                     android:textColor="@color/text_hi"
                     android:textSize="11sp"
@@ -112,24 +98,24 @@
                     app:icon="@drawable/ic_stroke_play"
                     app:iconTint="@color/brand_mint"
                     app:iconGravity="top"
-                    app:iconSize="22dp"
-                    app:iconPadding="5dp"
+                    app:iconSize="20dp"
+                    app:iconPadding="4dp"
                     app:backgroundTint="@color/ovl_high"
                     app:strokeColor="@color/ovl_stroke_mint"
                     app:strokeWidth="1dp"
-                    app:cornerRadius="16dp" />
+                    app:cornerRadius="14dp" />
 
                 <!-- Init Tool -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnToolInit"
                     style="@style/Widget.Material3.Button"
                     android:layout_width="0dp"
-                    android:layout_height="68dp"
+                    android:layout_height="58dp"
                     android:layout_columnWeight="1"
-                    android:layout_margin="4dp"
-                    android:paddingTop="10dp"
-                    android:paddingBottom="8dp"
-                    android:paddingHorizontal="4dp"
+                    android:layout_margin="3dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="6dp"
+                    android:paddingHorizontal="2dp"
                     android:text="Init"
                     android:textColor="@color/text_hi"
                     android:textSize="11sp"
@@ -137,24 +123,24 @@
                     app:icon="@drawable/ic_play"
                     app:iconTint="@color/brand_mint"
                     app:iconGravity="top"
-                    app:iconSize="22dp"
-                    app:iconPadding="5dp"
+                    app:iconSize="20dp"
+                    app:iconPadding="4dp"
                     app:backgroundTint="@color/ovl_high"
                     app:strokeColor="@color/ovl_stroke_mint"
                     app:strokeWidth="1dp"
-                    app:cornerRadius="16dp" />
+                    app:cornerRadius="14dp" />
 
                 <!-- Bounds Picker -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnToolBounds"
                     style="@style/Widget.Material3.Button"
                     android:layout_width="0dp"
-                    android:layout_height="68dp"
+                    android:layout_height="58dp"
                     android:layout_columnWeight="1"
-                    android:layout_margin="4dp"
-                    android:paddingTop="10dp"
-                    android:paddingBottom="8dp"
-                    android:paddingHorizontal="4dp"
+                    android:layout_margin="3dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="6dp"
+                    android:paddingHorizontal="2dp"
                     android:text="Bounds"
                     android:textColor="@color/text_hi"
                     android:textSize="11sp"
@@ -162,24 +148,24 @@
                     app:icon="@drawable/ic_target_crosshair"
                     app:iconTint="@color/state_violet"
                     app:iconGravity="top"
-                    app:iconSize="22dp"
-                    app:iconPadding="5dp"
+                    app:iconSize="20dp"
+                    app:iconPadding="4dp"
                     app:backgroundTint="@color/ovl_high"
                     app:strokeColor="@color/ovl_stroke_violet"
                     app:strokeWidth="1dp"
-                    app:cornerRadius="16dp" />
+                    app:cornerRadius="14dp" />
 
                 <!-- New Session -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnToolNewSession"
                     style="@style/Widget.Material3.Button"
                     android:layout_width="0dp"
-                    android:layout_height="68dp"
+                    android:layout_height="58dp"
                     android:layout_columnWeight="1"
-                    android:layout_margin="4dp"
-                    android:paddingTop="10dp"
-                    android:paddingBottom="8dp"
-                    android:paddingHorizontal="4dp"
+                    android:layout_margin="3dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="6dp"
+                    android:paddingHorizontal="2dp"
                     android:text="Reset"
                     android:textColor="@color/text_hi"
                     android:textSize="11sp"
@@ -187,24 +173,24 @@
                     app:icon="@android:drawable/ic_menu_rotate"
                     app:iconTint="@color/state_amber"
                     app:iconGravity="top"
-                    app:iconSize="22dp"
-                    app:iconPadding="5dp"
+                    app:iconSize="20dp"
+                    app:iconPadding="4dp"
                     app:backgroundTint="@color/ovl_high"
                     app:strokeColor="@color/ovl_stroke_amber"
                     app:strokeWidth="1dp"
-                    app:cornerRadius="16dp" />
+                    app:cornerRadius="14dp" />
 
                 <!-- Settings (Main App) -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnToolSettings"
                     style="@style/Widget.Material3.Button"
                     android:layout_width="0dp"
-                    android:layout_height="68dp"
+                    android:layout_height="58dp"
                     android:layout_columnWeight="1"
-                    android:layout_margin="4dp"
-                    android:paddingTop="10dp"
-                    android:paddingBottom="8dp"
-                    android:paddingHorizontal="4dp"
+                    android:layout_margin="3dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="6dp"
+                    android:paddingHorizontal="2dp"
                     android:text="App"
                     android:textColor="@color/text_mid"
                     android:textSize="11sp"
@@ -212,24 +198,24 @@
                     app:icon="@drawable/ic_nav_settings"
                     app:iconTint="?attr/colorOnSurfaceVariant"
                     app:iconGravity="top"
-                    app:iconSize="22dp"
-                    app:iconPadding="5dp"
+                    app:iconSize="20dp"
+                    app:iconPadding="4dp"
                     app:backgroundTint="@color/ovl_high"
                     app:strokeColor="@color/ovl_stroke"
                     app:strokeWidth="1dp"
-                    app:cornerRadius="16dp" />
+                    app:cornerRadius="14dp" />
 
                 <!-- Exit Mode -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnToolStopSession"
                     style="@style/Widget.Material3.Button"
                     android:layout_width="0dp"
-                    android:layout_height="68dp"
+                    android:layout_height="58dp"
                     android:layout_columnWeight="1"
-                    android:layout_margin="4dp"
-                    android:paddingTop="10dp"
-                    android:paddingBottom="8dp"
-                    android:paddingHorizontal="4dp"
+                    android:layout_margin="3dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="6dp"
+                    android:paddingHorizontal="2dp"
                     android:text="Exit"
                     android:textColor="@color/state_red"
                     android:textSize="11sp"
@@ -237,12 +223,12 @@
                     app:icon="@drawable/ic_close"
                     app:iconTint="@color/state_red"
                     app:iconGravity="top"
-                    app:iconSize="22dp"
-                    app:iconPadding="5dp"
+                    app:iconSize="20dp"
+                    app:iconPadding="4dp"
                     app:backgroundTint="@color/ovl_high"
                     app:strokeColor="@color/ovl_stroke_red"
                     app:strokeWidth="1dp"
-                    app:cornerRadius="16dp" />
+                    app:cornerRadius="14dp" />
             </GridLayout>
 
             <!-- Nested Close Session Safety Confirmation -->
@@ -251,9 +237,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:visibility="gone"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="6dp"
                 app:cardBackgroundColor="@color/ovl_card_red"
-                app:cardCornerRadius="14dp"
+                app:cardCornerRadius="12dp"
                 app:strokeColor="@color/ovl_stroke_red_soft"
                 app:strokeWidth="1dp"
                 app:cardElevation="0dp">
@@ -263,7 +249,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:padding="12dp">
+                    android:padding="10dp">
 
                     <TextView
                         android:layout_width="0dp"
@@ -277,7 +263,7 @@
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnCloseConfirm"
                         android:layout_width="wrap_content"
-                        android:layout_height="36dp"
+                        android:layout_height="34dp"
                         android:text="Exit"
                         android:textSize="11sp"
                         android:textStyle="bold"
@@ -305,19 +291,19 @@
             android:id="@+id/llPillContent"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:minHeight="46dp"
+            android:minHeight="44dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:background="@drawable/bg_pill_glass"
-            android:paddingStart="14dp"
-            android:paddingEnd="6dp"
-            android:paddingVertical="5dp">
+            android:paddingStart="10dp"
+            android:paddingEnd="5dp"
+            android:paddingVertical="4dp">
 
             <!-- Glowing Status Dot -->
             <View
                 android:id="@+id/vAgentStatusIndicator"
-                android:layout_width="12dp"
-                android:layout_height="12dp"
+                android:layout_width="10dp"
+                android:layout_height="10dp"
                 android:background="@drawable/bg_glow_dot"
                 android:backgroundTint="@color/state_cyan" />
 
@@ -326,8 +312,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:layout_marginStart="10dp"
-                android:layout_marginEnd="14dp">
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="10dp">
 
                 <!-- Status Label -->
                 <TextView
@@ -336,18 +322,18 @@
                     android:layout_height="wrap_content"
                     android:text="Idle"
                     android:textColor="?attr/colorOnSurface"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:textStyle="bold"
                     android:fontFamily="monospace"
                     android:letterSpacing="0.06"
-                    android:maxWidth="170dp"
+                    android:maxWidth="150dp"
                     android:maxLines="1"
                     android:ellipsize="end" />
 
                 <!-- Status Detail (optional secondary line) -->
                 <TextView
                     android:id="@+id/tvOverlayDetail"
-                    android:layout_width="160dp"
+                    android:layout_width="150dp"
                     android:layout_height="wrap_content"
                     android:visibility="gone"
                     android:textColor="?attr/colorOnSurfaceVariant"
@@ -360,8 +346,8 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnToolbox"
                 style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:padding="0dp"
                 android:insetLeft="0dp"
                 android:insetTop="0dp"
@@ -369,32 +355,32 @@
                 android:insetBottom="0dp"
                 app:icon="@drawable/ic_nav_settings"
                 app:iconTint="@color/text_mid"
-                app:iconSize="18dp"
+                app:iconSize="16dp"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
                 app:backgroundTint="@color/ovl_high"
-                app:cornerRadius="17dp"
-                android:layout_marginEnd="6dp"
+                app:cornerRadius="16dp"
+                android:layout_marginEnd="5dp"
                 android:contentDescription="Toggle tools" />
 
             <!-- Morphing Primary Action Button -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnMorphingAction"
                 style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
                 android:padding="0dp"
                 android:insetLeft="0dp"
                 android:insetTop="0dp"
                 android:insetRight="0dp"
                 android:insetBottom="0dp"
                 app:icon="@drawable/ic_stroke_play"
-                app:iconSize="18dp"
+                app:iconSize="16dp"
                 app:iconTint="@color/brand_on_accent"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
                 app:backgroundTint="@color/brand_mint"
-                app:cornerRadius="20dp"
+                app:cornerRadius="19dp"
                 android:contentDescription="Play or stop" />
         </LinearLayout>
     </FrameLayout>

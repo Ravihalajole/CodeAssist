@@ -24,6 +24,9 @@ class AgentOverlayManager(private val context: Context) {
     private var isGenerating = false
     private var dotJob: Job? = null
     private var statusOverride: String? = null
+    private var pillExpanded = false
+    private var wasIdle = true
+    private var isCompactMode = false
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -32,7 +35,15 @@ class AgentOverlayManager(private val context: Context) {
     private fun updateMorphingButton() {
         val btnMorphingAction = overlayView?.findViewById<MaterialButton>(R.id.btnMorphingAction) ?: return
 
-        if (isGenerating) {
+        if (isCompactMode) {
+            btnMorphingAction.setIconResource(R.drawable.ic_stroke_play)
+            btnMorphingAction.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                androidx.core.content.ContextCompat.getColor(context, R.color.brand_mint)
+            )
+            btnMorphingAction.iconTint = android.content.res.ColorStateList.valueOf(
+                androidx.core.content.ContextCompat.getColor(context, R.color.brand_on_accent)
+            )
+        } else if (isGenerating) {
             btnMorphingAction.setIconResource(R.drawable.ic_stroke_stop)
             btnMorphingAction.backgroundTintList = android.content.res.ColorStateList.valueOf(
                 androidx.core.content.ContextCompat.getColor(context, R.color.surf_raised)
@@ -233,7 +244,10 @@ class AgentOverlayManager(private val context: Context) {
         }
 
         btnMorphingAction?.setOnClickListener {
-            if (isGenerating) {
+            if (isCompactMode) {
+                pillExpanded = true
+                scope.launch { updateStatusInternal() }
+            } else if (isGenerating) {
                 onStop()
             } else {
                 org.ravi.codeassist.AgentAccessibilityService.instance?.resumeOrSync()
@@ -241,7 +255,17 @@ class AgentOverlayManager(private val context: Context) {
         }
 
         windowManager.addView(overlayView, params)
-        updateMorphingButton()
+        scope.launch { updateStatusInternal() }
+
+        overlayView?.setOnTouchListener { _, event ->
+            if (event.action == android.view.MotionEvent.ACTION_OUTSIDE) {
+                val drawer = llToolDrawer
+                if (drawer != null && drawer.visibility == View.VISIBLE) closeDrawer()
+                true
+            } else {
+                false
+            }
+        }
     }
 
     private data class OverlayUi(
@@ -314,10 +338,31 @@ class AgentOverlayManager(private val context: Context) {
 
         this.statusOverride = statusOverride
 
-        val ui = overlayUiFor(org.ravi.codeassist.agent.AgentOrchestrator.state.value)
+        val state = org.ravi.codeassist.agent.AgentOrchestrator.state.value
+        val isIdle = state is org.ravi.codeassist.agent.AgentState.IDLE
+        if (!wasIdle && isIdle) pillExpanded = false
+        wasIdle = isIdle
+        isCompactMode = isIdle && !pillExpanded && this.statusOverride == null
+
+        val drawer = overlayView?.findViewById<View>(R.id.llToolDrawer)
+        val confirmBar = overlayView?.findViewById<View>(R.id.llCloseConfirmBar)
+        val btnToolbox = overlayView?.findViewById<View>(R.id.btnToolbox)
+
+        if (isCompactMode) {
+            drawer?.visibility = View.GONE
+            confirmBar?.visibility = View.GONE
+            fadeView(tvStatus, false)
+            fadeView(tvDetail, false)
+            fadeView(btnToolbox, false)
+        } else {
+            fadeView(tvStatus, true)
+            fadeView(btnToolbox, true)
+        }
+
+        val ui = overlayUiFor(state)
         tvStatus.text = ui.label
 
-        if (tvDetail != null) {
+        if (tvDetail != null && !isCompactMode) {
             val telemetry = if (ui.generating) buildTelemetryLine() else null
             val text = statusOverride ?: ui.detail ?: telemetry
             if (text.isNullOrEmpty()) {
@@ -363,6 +408,29 @@ class AgentOverlayManager(private val context: Context) {
         }
 
         vIndicator?.backgroundTintList = android.content.res.ColorStateList.valueOf(ui.dot)
+    }
+
+    private fun fadeView(view: View?, show: Boolean) {
+        if (view == null) return
+        view.animate().cancel()
+        if (show) {
+            view.visibility = View.VISIBLE
+            view.alpha = 0f
+            view.animate()
+                .alpha(1f)
+                .setDuration(160)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
+                .start()
+        } else {
+            view.animate()
+                .alpha(0f)
+                .setDuration(120)
+                .withEndAction {
+                    view.visibility = View.GONE
+                    view.alpha = 1f
+                }
+                .start()
+        }
     }
 
     private fun refreshTelemetryDetail() {
