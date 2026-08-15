@@ -60,7 +60,7 @@ class CommandOrbView @JvmOverloads constructor(
         close()
     }
     private val stopPath = Path().apply {
-        addRoundRect(RectF(6.5f, 6.5f, 17.5f, 17.5f), 2.5f, 2.5f)
+        addRoundRect(RectF(6.5f, 6.5f, 17.5f, 17.5f), 2.5f, 2.5f, Path.Direction.CW)
     }
     private val coreClip = Path()
 
