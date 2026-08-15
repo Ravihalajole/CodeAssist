@@ -103,6 +103,101 @@ object ToolboxManager {
                 }
             )
         )
+        registerTool(
+            AgentTool(
+                id = "undo_checkpoint",
+                iconResId = android.R.drawable.ic_menu_revert,
+                title = "Undo Session",
+                description = "Pick a round checkpoint and hard-reset the workspace to it.",
+                onExecute = {
+                    val service = org.ravi.codeassist.AgentAccessibilityService.instance
+                    val prefs = service?.getSharedPreferences("CodeAssistPrefs", android.content.Context.MODE_PRIVATE)
+                    val root = prefs?.getString("WORKSPACE_ROOT", null)
+                    if (service == null || root == null) {
+                        service?.let {
+                            android.widget.Toast.makeText(it, "No active workspace root found.", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        return@AgentTool
+                    }
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        val checkpoints = org.ravi.codeassist.GitManager.listCheckpoints(java.io.File(root))
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            if (checkpoints.isEmpty()) {
+                                android.widget.Toast.makeText(service, "No checkpoints yet — start a session with mutations first.", android.widget.Toast.LENGTH_SHORT).show()
+                                return@withContext
+                            }
+                            showUndoPicker(service, root, checkpoints)
+                        }
+                    }
+                }
+            )
+        )
+    }
+
+    /** Lists session/round checkpoints and lets the user pick one to hard-reset to. */
+    private fun showUndoPicker(
+        service: org.ravi.codeassist.AgentAccessibilityService,
+        root: String,
+        checkpoints: List<org.ravi.codeassist.GitManager.RoundCheckpoint>
+    ) {
+        val themedContext = android.view.ContextThemeWrapper(service, org.ravi.codeassist.R.style.Theme_CodeAssist)
+        val dialogView = android.view.LayoutInflater.from(themedContext).inflate(org.ravi.codeassist.R.layout.layout_toolbox_menu, null)
+        val container = dialogView.findViewById<android.widget.LinearLayout>(org.ravi.codeassist.R.id.llToolsContainer)
+        val btnClose = dialogView.findViewById<android.view.View>(org.ravi.codeassist.R.id.btnCloseToolbox)
+
+        val builder = android.app.AlertDialog.Builder(themedContext)
+        val dialog = builder.setView(dialogView).create()
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.window?.setType(android.view.WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
+
+        btnClose?.setOnClickListener { dialog.dismiss() }
+
+        checkpoints.take(12).forEach { checkpoint ->
+            val itemView = android.view.LayoutInflater.from(themedContext).inflate(org.ravi.codeassist.R.layout.item_toolbox_tool, container, false)
+            val ivIcon = itemView.findViewById<android.widget.ImageView>(org.ravi.codeassist.R.id.ivToolIcon)
+            val tvTitle = itemView.findViewById<android.widget.TextView>(org.ravi.codeassist.R.id.tvToolTitle)
+            val tvDesc = itemView.findViewById<android.widget.TextView>(org.ravi.codeassist.R.id.tvToolDesc)
+
+            val label = if (checkpoint.round == 0) "Session Start" else "Round ${checkpoint.round}"
+            val stamp = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(checkpoint.time))
+            ivIcon.setImageResource(android.R.drawable.ic_menu_revert)
+            tvTitle.text = label
+            tvDesc.text = "$stamp — ${checkpoint.message}"
+
+            itemView.setOnClickListener {
+                dialog.dismiss()
+                confirmUndo(service, root, checkpoint)
+            }
+            container.addView(itemView)
+        }
+
+        dialog.show()
+    }
+
+    /** Confirmation gate before the destructive hard reset. */
+    private fun confirmUndo(
+        service: org.ravi.codeassist.AgentAccessibilityService,
+        root: String,
+        checkpoint: org.ravi.codeassist.GitManager.RoundCheckpoint
+    ) {
+        val label = if (checkpoint.round == 0) "session start" else "round ${checkpoint.round}"
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(service)
+            .setTitle("Undo to $label?")
+            .setMessage("Hard-resets the workspace to the $label checkpoint. All CodeAssist mutations and commits after it are discarded. This cannot be undone.")
+            .setPositiveButton("Reset") { _, _ ->
+                org.ravi.codeassist.agent.AgentOrchestrator.requestStop()
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    val ok = org.ravi.codeassist.GitManager.resetHardToCommit(java.io.File(root), "refs/tags/${checkpoint.tag}")
+                    org.ravi.codeassist.agent.AgentOrchestrator.sessionCheckpointRef = null
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        val msg = if (ok) "Workspace rolled back to $label." else "Rollback failed."
+                        android.widget.Toast.makeText(service, msg, android.widget.Toast.LENGTH_SHORT).show()
+                        service.updateOverlayStatus(if (ok) "Workspace rolled back" else "Rollback failed")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     fun registerTool(tool: AgentTool) {
@@ -110,6 +205,10 @@ object ToolboxManager {
             tools.add(tool)
         }
     }
+
+    /** Single source of truth for a tool by id; the overlay drawer and the
+     *  floating-bubble menu both render from this registry. */
+    fun getTool(id: String): AgentTool? = tools.find { it.id == id }
 
     fun showMenu(context: Context) {
         if (tools.isEmpty()) {

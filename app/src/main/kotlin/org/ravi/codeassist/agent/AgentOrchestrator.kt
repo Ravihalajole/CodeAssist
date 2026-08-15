@@ -37,98 +37,58 @@ object AgentOrchestrator {
     @Volatile private var sessionStartMillis = System.currentTimeMillis()
     @Volatile var lastActionLabel: String = "Idle"
 
-    fun noteActivity(action: String) { lastActionLabel = action }
+    /** Structured session memory (plan + observations + action log). */
+    private val transcript = SessionTranscript()
+
+    /**
+     * Cooperative stop token. Set by [requestStop] and observed by the
+     * accessibility polling loops ([org.ravi.codeassist.AgentAccessibilityService.waitForMutationAndScrape])
+     * that run on a scope outside the agent's own coroutine (sentinel auto-resume
+     * and resume/sync paths), which cancelling [agentScope] cannot reach.
+     */
+    @Volatile private var sessionStopRequested = false
+
+    /**
+     * Non-null once the first mutating batch of a session has snapshotted the
+     * workspace (TransactionManager) — acts as a one-shot guard that also
+     * triggers the `codeassist-session-start` tag. The round tags created per
+     * committed batch (see GitManager.listCheckpoints) drive the "Undo Session"
+     * picker; this ref is cleared on reset/undo.
+     */
+    @Volatile var sessionCheckpointRef: String? = null
+
+    fun requestStop() {
+        sessionStopRequested = true
+        updateState(AgentState.IDLE)
+    }
+
+    fun isStopRequested(): Boolean = sessionStopRequested
+
+    fun clearStopRequest() {
+        sessionStopRequested = false
+    }
+
+    fun noteActivity(action: String) {
+        lastActionLabel = action
+        transcript.recordAction(action)
+    }
 
     fun telemetry(): Telemetry {
         val elapsed = (System.currentTimeMillis() - sessionStartMillis) / 1000
-        return Telemetry(loopIterationCount, elapsed, lastActionLabel, activePlan.count { !it.done })
+        return Telemetry(loopIterationCount, elapsed, transcript.latestAction, transcript.pendingPlanCount)
     }
 
-    /** Agent-side plan/task tracking. A re-declared checklist replaces wholesale. */
-    data class PlanTask(val text: String, val done: Boolean)
+    /** Current ReAct loop round, used for round-granular git checkpoints. */
+    fun currentRound(): Int = loopIterationCount
 
-    private val activePlan = mutableListOf<PlanTask>()
-    private var planNote: String? = null
-
-    /** Rolling history of recent transaction digests (compaction-lite). */
-    private const val MAX_OBSERVATION_HISTORY = 10
-    private val recentObservations = java.util.ArrayDeque<String>()
-
-    private fun resetPlanState() {
-        activePlan.clear()
-        planNote = null
-        recentObservations.clear()
-    }
-
-    /**
-     * Compacts a transaction result into a short digest for the rolling log:
-     * the FILE STATUS lines plus the BATCH SUMMARY line. Falls back to a
-     * truncated first-lines summary when the markers are absent (e.g. a
-     * plan-only or parse-error round).
-     */
-    private fun buildObservationDigest(logs: String): String {
-        val statusBlock = Regex("(?s)--- FILE STATUS ---\n(.*?)(?=--- BATCH SUMMARY ---)").find(logs)
-        val summaryLine = logs.lineSequence().map { it.trim() }.find { it.startsWith("BATCH SUMMARY") }
-        val sb = StringBuilder()
-        if (statusBlock != null) {
-            statusBlock.groupValues[1].lines()
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-                .take(20)
-                .forEach { sb.append(it).append('\n') }
-        }
-        summaryLine?.let { sb.append(it).append('\n') }
-        val compact = sb.toString().trimEnd().take(600)
-        return compact.ifBlank { logs.lineSequence().filter { it.isNotBlank() }.take(6).joinToString(" | ").take(400) }
-    }
+    /** Rendered plan checklist re-injected on every feedback round. */
+    fun planSection(): String = transcript.planSection()
 
     /** Rendered rolling history re-injected with each feedback round. */
-    fun observationLogSection(): String {
-        if (recentObservations.isEmpty()) return ""
-        return buildString {
-            appendLine("<RECENT_OBSERVATION_LOG — rolling history of recent decisions/results, newest last. Anchor your next action on the latest entry; earlier entries are context, not instructions.>")
-            recentObservations.forEach { digest ->
-                appendLine("  " + digest.replace("\n", "\n  "))
-            }
-        }.trimEnd()
-    }
+    fun observationLogSection(): String = transcript.observationLogSection()
 
-    /**
-     * Applies a [CodeCommand.Plan]: a non-empty [CodeCommand.Plan.tasks] list
-     * replaces the stored checklist (all items reset to pending); doneNumbers
-     * mark 1-based items complete on the active plan; the note records progress.
-     */
-    fun applyPlan(command: org.ravi.codeassist.CodeCommand.Plan) {
-        if (command.tasks.isNotEmpty()) {
-            activePlan.clear()
-            command.tasks.forEach { activePlan.add(PlanTask(it, false)) }
-        }
-        if (command.doneNumbers.isNotEmpty()) {
-            command.doneNumbers.filter { it in 1..activePlan.size }.distinct().sorted().forEach { n ->
-                activePlan[n - 1] = activePlan[n - 1].copy(done = true)
-            }
-        }
-        if (command.note.isNotBlank()) planNote = command.note
-    }
-
-    /**
-     * Rendered plan checklist re-injected on every feedback round so the model
-     * never loses track of a multi-step goal inside a long ReAct loop.
-     */
-    fun planSection(): String {
-        if (activePlan.isEmpty()) {
-            return "<NO_ACTIVE_PLAN — if this is a multi-step goal, declare one with [COMMAND: PLAN] + [CONTENT] checklist so progress is tracked across rounds.>"
-        }
-        return buildString {
-            appendLine("<ACTIVE_PLAN — authoritative checklist. Keep it current.>")
-            activePlan.forEachIndexed { index, task ->
-                val mark = if (task.done) "[x]" else "[ ]"
-                appendLine("$mark ${index + 1}. ${task.text}")
-            }
-            planNote?.let { appendLine("Latest progress note: $it") }
-            appendLine("To update: re-emit [COMMAND: PLAN] with the full revised [CONTENT] checklist, or a progress-only update with [PLAN_DONE: n] and/or [PLAN_NOTE: ...].")
-        }
-    }
+    /** Applies a [org.ravi.codeassist.CodeCommand.Plan] to session memory. */
+    fun applyPlan(command: org.ravi.codeassist.CodeCommand.Plan) = transcript.applyPlan(command)
 
     /**
      * One-shot gate: the very first MUTATING batch seen in a session (or app
@@ -161,7 +121,9 @@ object AgentOrchestrator {
         sessionStartMillis = System.currentTimeMillis()
         lastActionLabel = "Idle"
         mutatingApprovalGateArmed = true
-        resetPlanState()
+        sessionCheckpointRef = null
+        clearStopRequest()
+        transcript.reset()
         _state.value = AgentState.IDLE
     }
 
@@ -179,7 +141,9 @@ object AgentOrchestrator {
         sessionStartMillis = System.currentTimeMillis()
         lastActionLabel = "Idle"
         mutatingApprovalGateArmed = true
-        resetPlanState()
+        sessionCheckpointRef = null
+        clearStopRequest()
+        transcript.reset()
         updateState(AgentState.IDLE)
     }
 
@@ -199,6 +163,10 @@ object AgentOrchestrator {
             
             val sharedPref = context?.getSharedPreferences("CodeAssistPrefs", android.content.Context.MODE_PRIVATE)
             val workspaceRoot = sharedPref?.getString("WORKSPACE_ROOT", null)
+            val policySection = AgentPolicy.policySection(AgentPolicy.rulesFor(sharedPref))
+            if (policySection.isNotBlank()) {
+                appendLine("\n$policySection")
+            }
             if (!workspaceRoot.isNullOrEmpty()) {
                 appendLine("\n--- SYSTEM SUMMARY ---")
                 val root = java.io.File(workspaceRoot)
@@ -258,6 +226,7 @@ object AgentOrchestrator {
     }
 
     fun startLoop(userPrompt: String) {
+        clearStopRequest()
         agentScope.cancel()
         agentScope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
         loopIterationCount++
@@ -317,15 +286,6 @@ object AgentOrchestrator {
                 if (commands.isNotEmpty()) {
                     consecutiveParseFailures = 0
                     noteActivity("executing ${commands.size} command(s)")
-                    if (commands.any { it is org.ravi.codeassist.CodeCommand.AskUser }) {
-                        val askMsg = (commands.first { it is org.ravi.codeassist.CodeCommand.AskUser } as org.ravi.codeassist.CodeCommand.AskUser).message
-                        withContext(Dispatchers.Main) { 
-                            service.updateOverlayStatus(askMsg)
-                        }
-                        updateState(AgentState.WAITING_FOR_USER)
-                        return@launch
-                    }
-
                     handleCommandRouting(commands, workspaceRoot, service, sharedPref)
                 } else {
                     noteActivity("correcting malformed envelope")
@@ -356,7 +316,7 @@ object AgentOrchestrator {
     private fun buildParseErrorPrompt(): String? {
         consecutiveParseFailures++
         val guidance = when (consecutiveParseFailures) {
-            1 -> "Emit the failing command(s) again. Ensure you strictly follow the tool syntax (e.g., [COMMAND: PATCH], [PATH: file.kt], <<<<<<< SEARCH, etc.). If your output was truncated, just emit the remaining commands."
+            1 -> "Emit the failing command(s) again. Ensure you strictly follow the tool syntax (e.g., [COMMAND: PATCH], [PATH: file.kt], [SEARCH], etc.). If your output was truncated, just emit the remaining commands."
             else -> "Your last ${consecutiveParseFailures} envelope(s) were malformed. Do NOT write any commentary. Emit EXACTLY ONE command as a single ```text block with a complete :::CODE_ASSIST::: ... :::END_CODE_ASSIST::: pair."
         }
         if (consecutiveParseFailures >= 3) return null
@@ -375,8 +335,8 @@ object AgentOrchestrator {
         if (hasDone && success) {
             val service = org.ravi.codeassist.AgentAccessibilityService.instance
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                val remaining = activePlan.count { !it.done }
-                val tail = if (activePlan.isEmpty()) "" else " Remaining: $remaining/${activePlan.size} plan tasks."
+                val remaining = transcript.pendingPlanCount
+                val tail = if (transcript.planTasks.isEmpty()) "" else " Remaining: $remaining/${transcript.planTasks.size} plan tasks."
                 service?.updateOverlayStatus("Task Complete.$tail")
             }
             updateState(AgentState.IDLE)
@@ -386,11 +346,7 @@ object AgentOrchestrator {
         // from the model's context window, then re-anchor the rules near this
         // decision point so they survive long ReAct loops.
         val safeLogs = org.ravi.codeassist.utils.SystemPromptGenerator.truncateForInjection(logs)
-        val digest = buildObservationDigest(safeLogs)
-        if (digest.isNotEmpty()) {
-            recentObservations.addLast(digest)
-            while (recentObservations.size > MAX_OBSERVATION_HISTORY) recentObservations.removeFirst()
-        }
+        transcript.addObservation(transcript.buildObservationDigest(safeLogs))
         val feedbackPrompt = ":::CODE_ASSIST_TRANSACTION_RESULT:::\n" + safeLogs + "\n" +
             observationLogSection() + "\n" +
             planSection() + "\n" +
@@ -400,6 +356,7 @@ object AgentOrchestrator {
     }
 
     fun resumeFromText(aiResponse: String) {
+        clearStopRequest()
         isFirstPromptInSession = false
         agentScope.cancel()
         agentScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
@@ -415,15 +372,6 @@ object AgentOrchestrator {
                 val commands = org.ravi.codeassist.EnvelopeParser.parse(aiResponse)
                 
                 if (commands.isNotEmpty()) {
-                    if (commands.any { it is org.ravi.codeassist.CodeCommand.AskUser }) {
-                        val askMsg = (commands.first { it is org.ravi.codeassist.CodeCommand.AskUser } as org.ravi.codeassist.CodeCommand.AskUser).message
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
-                            service.updateOverlayStatus(askMsg)
-                        }
-                        updateState(AgentState.WAITING_FOR_USER)
-                        return@launch
-                    }
-
                     handleCommandRouting(commands, workspaceRoot, service, sharedPref)
                 } else {
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 

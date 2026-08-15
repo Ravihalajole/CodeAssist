@@ -72,6 +72,28 @@
             android:columnCount="3"
             android:alignmentMode="alignMargins">
 
+            <!-- Resume Tool -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnToolResume"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="72dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:text="Resume"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="12sp"
+                android:paddingTop="12dp"
+                android:paddingBottom="8dp"
+                android:paddingHorizontal="4dp"
+                app:icon="@drawable/ic_stroke_play"
+                app:iconTint="@color/brand_mint"
+                app:iconGravity="top"
+                app:iconSize="24dp"
+                app:iconPadding="4dp"
+                app:strokeColor="@color/ovl_stroke_mint"
+                app:cornerRadius="16dp" />
+
             <!-- Init Tool -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnToolInit"

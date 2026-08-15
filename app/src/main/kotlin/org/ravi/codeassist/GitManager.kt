@@ -276,6 +276,86 @@ object GitManager {
         }
     }
 
+    /**
+     * Current HEAD commit hash of the enclosing repo, or null when the
+     * workspace stands outside any repository.
+     */
+    suspend fun currentHead(workspaceRoot: File): String? {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return null
+        return try {
+            Git.open(repoRoot).use { git ->
+                git.repository.resolve("HEAD")?.name
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Creates a rollback checkpoint by committing every current workspace
+     * change, then returning the resulting HEAD. When nothing is dirty the
+     * existing HEAD is returned unchanged. Used as the session-start
+     * snapshot the "Undo Session" tool resets back to.
+     */
+    suspend fun createCheckpoint(workspaceRoot: File, label: String): String? {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return null
+        val committed = commitAllChanges(workspaceRoot, "[CodeAssist checkpoint] $label")
+        return committed ?: currentHead(workspaceRoot)
+    }
+
+    /**
+     * Tags current HEAD (lightweight tag, force-updated) so round/session
+     * checkpoints can be listed and hard-reset to by the "Undo Session" tool.
+     */
+    suspend fun tagCurrentHead(workspaceRoot: File, tagName: String): Boolean = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return false
+        cleanupStaleLocks(workspaceRoot)
+        return try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                git.tag().setName(tagName).setForceUpdate(true).call()
+                true
+            }
+        } catch (_: Exception) {
+            false
+        } finally {
+            cleanupStaleLocks(workspaceRoot)
+        }
+    }
+
+    data class RoundCheckpoint(val tag: String, val round: Int, val message: String, val time: Long)
+
+    /**
+     * Lists the `codeassist-round-*` checkpoint tags (plus the session-start
+     * tag) newest first, for the undo picker. Reads the underlying commit for
+     * the message/timestamp.
+     */
+    suspend fun listCheckpoints(workspaceRoot: File): List<RoundCheckpoint> = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return emptyList()
+        return try {
+            Git.open(repoRoot).use { git ->
+                git.tagList().call().mapNotNull { ref ->
+                    val shortName = ref.name.removePrefix("refs/tags/")
+                    val round = when {
+                        shortName.startsWith("codeassist-round-") -> shortName.removePrefix("codeassist-round-").toIntOrNull() ?: return@mapNotNull null
+                        shortName == "codeassist-session-start" -> 0
+                        else -> return@mapNotNull null
+                    }
+                    val commitId = git.repository.peel(ref) ?: ref.objectId ?: return@mapNotNull null
+                    val commit = git.repository.parseCommit(commitId)
+                    RoundCheckpoint(
+                        tag = shortName,
+                        round = round,
+                        message = commit.shortMessage,
+                        time = commit.commitTime.toLong() * 1000L
+                    )
+                }.sortedWith(compareByDescending<RoundCheckpoint> { it.round }.thenByDescending { it.time })
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
     data class CommitInfo(val hash: String, val message: String, val author: String, val time: Long)
 
     data class WorkspaceStatus(val isRepo: Boolean, val branch: String?, val isClean: Boolean, val changeCount: Int)

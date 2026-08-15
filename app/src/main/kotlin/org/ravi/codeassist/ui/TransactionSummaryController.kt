@@ -18,7 +18,6 @@ object TransactionSummaryController {
                     is CodeCommand.Glob -> command.pattern
                     is CodeCommand.Outline -> command.path
                     is CodeCommand.Plan -> generatePlanSummary(command)
-                    is CodeCommand.AskUser -> "Message: ${command.message}"
                     is CodeCommand.Done -> "Message: ${command.message}"
                 }
                 appendLine("${index + 1}. [$actionName] -> $targetPath")

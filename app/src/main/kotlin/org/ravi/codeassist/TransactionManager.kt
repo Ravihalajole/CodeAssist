@@ -43,7 +43,7 @@ object TransactionManager {
     ): TransactionResult = withContext(Dispatchers.IO) {
         val sharedPref = context.getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val rootFile = File(workspaceRoot)
-        val executableCommands = commands.filter { it !is CodeCommand.Done && it !is CodeCommand.AskUser && it !is CodeCommand.Plan }
+        val executableCommands = commands.filter { it !is CodeCommand.Done && it !is CodeCommand.Plan }
         val attemptedPaths = executableCommands.flatMap { 
             when (it) {
                 is CodeCommand.Patch -> listOf(it.path)
@@ -53,14 +53,13 @@ object TransactionManager {
                 else -> emptyList()
             }
         }.distinct()
-        val containsAskUser = commands.any { it is CodeCommand.AskUser }
         val hasModifications = attemptedPaths.isNotEmpty()
 
         val authorName = sharedPref.getString("GIT_AUTHOR_NAME", "CodeAssist AI") ?: "CodeAssist AI"
         val authorEmail = sharedPref.getString("GIT_AUTHOR_EMAIL", "ai@codeassist.local") ?: "ai@codeassist.local"
 
         var commitMessage = fallbackCommitMessage
-        if (hasModifications && !containsAskUser) {
+        if (hasModifications) {
             GitManager.initGit(rootFile, authorName, authorEmail)
             
             val firstMod = executableCommands.firstOrNull { it.isMutating }
@@ -91,11 +90,34 @@ object TransactionManager {
 
         var successCount = 0
         val finalClipboardFeedback = java.lang.StringBuilder()
+
+        // One-shot session checkpoint: snapshotted before the first mutating
+        // batch so "Undo Session" can hard-reset the whole session away.
+        if (hasModifications && org.ravi.codeassist.agent.AgentOrchestrator.sessionCheckpointRef == null) {
+            org.ravi.codeassist.agent.AgentOrchestrator.sessionCheckpointRef =
+                GitManager.createCheckpoint(rootFile, "session-start")
+            GitManager.tagCurrentHead(rootFile, "codeassist-session-start")
+        }
+
+        val policyRules = org.ravi.codeassist.agent.AgentPolicy.rulesFor(sharedPref)
+        val policyBlocked = executableCommands.filter {
+            org.ravi.codeassist.agent.AgentPolicy.effectFor(policyRules, it) == org.ravi.codeassist.agent.AgentPolicy.Effect.DENY
+        }
+        val runnableCommands = executableCommands - policyBlocked.toSet()
+
         val modifiedPaths = mutableListOf<String>()
         val fileStatuses = mutableListOf<String>()
         val executionFailures = mutableListOf<Pair<CodeCommand, String>>()
 
-        for (command in executableCommands) {
+        policyBlocked.forEach { command ->
+            val detail = org.ravi.codeassist.agent.AgentPolicy.targetPath(command)
+                ?.let { "on $it" } ?: ""
+            executionFailures.add(Pair(command, "Policy: blocked by DENY rule${if (detail.isNotEmpty()) " $detail" else ""}."))
+            fileStatuses.add("[BLOCKED] ${command.javaClass.simpleName} ${commandPathSummary(command)} | Policy DENY")
+            finalClipboardFeedback.append("[${command.javaClass.simpleName} BLOCKED] Policy DENY$detail.\n")
+        }
+
+        for (command in runnableCommands) {
             val validationError = CommandExecutor.validate(command, workspaceRoot)
             if (validationError != null) {
                 executionFailures.add(Pair(command, "Validation: $validationError"))
@@ -131,11 +153,11 @@ object TransactionManager {
             }
         }
 
-        if (hasModifications && successCount > 0 && !containsAskUser) {
+        if (hasModifications && successCount > 0) {
             val detailedMessage = buildString {
                 appendLine(commitMessage)
                 appendLine("\nOperations:")
-                executableCommands.forEach { cmd ->
+                runnableCommands.forEach { cmd ->
                     when (cmd) {
                         is CodeCommand.Patch -> {
                             appendLine("- Patched: ${cmd.path}")
@@ -158,11 +180,9 @@ object TransactionManager {
                 }
             }
             GitManager.commitChanges(rootFile, detailedMessage.trim(), modifiedPaths.distinct(), authorName, authorEmail)
+            GitManager.tagCurrentHead(rootFile, "codeassist-round-${org.ravi.codeassist.agent.AgentOrchestrator.currentRound()}")
         }
 
-        commands.filterIsInstance<CodeCommand.AskUser>().firstOrNull()?.let {
-            finalClipboardFeedback.append("\nHALT_FOR_USER: ${it.message}")
-        }
         commands.filterIsInstance<CodeCommand.Done>().firstOrNull()?.let {
             finalClipboardFeedback.append("\nHALT_DONE: ${it.message}")
         }

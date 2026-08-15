@@ -37,7 +37,6 @@ sealed class CodeCommand {
         val doneNumbers: List<Int> = emptyList(),
         val note: String = ""
     ) : CodeCommand() { override val isMutating = false }
-    data class AskUser(val message: String) : CodeCommand() { override val isMutating = false }
     data class Done(val message: String) : CodeCommand() { override val isMutating = false }
 }
 

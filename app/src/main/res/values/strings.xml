@@ -58,6 +58,8 @@
     <string name="allow_write">Write</string>
     <string name="direct_node_input">Direct Node Input</string>
     <string name="direct_input_desc">Bypass clipboard to protect history</string>
+    <string name="policy_rules">Policy Rules</string>
+    <string name="policy_rules_desc">Deny commands by path pattern</string>
     <string name="source_control_profile">Source Control Profile</string>
     <string name="git_identity_profile">Git Identity Profile</string>
 

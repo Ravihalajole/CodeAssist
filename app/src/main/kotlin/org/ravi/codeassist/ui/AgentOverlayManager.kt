@@ -74,6 +74,7 @@ class AgentOverlayManager(private val context: Context) {
         val llToolDrawer = overlayView?.findViewById<View>(R.id.llToolDrawer)
         val llCloseConfirmBar = overlayView?.findViewById<View>(R.id.llCloseConfirmBar)
 
+        val btnToolResume = overlayView?.findViewById<View>(R.id.btnToolResume)
         val btnToolInit = overlayView?.findViewById<View>(R.id.btnToolInit)
         val btnToolBounds = overlayView?.findViewById<View>(R.id.btnToolBounds)
         val btnToolNewSession = overlayView?.findViewById<View>(R.id.btnToolNewSession)
@@ -102,21 +103,24 @@ class AgentOverlayManager(private val context: Context) {
             }
         }
 
+        btnToolResume?.setOnClickListener {
+            closeDrawer()
+            org.ravi.codeassist.agent.ToolboxManager.getTool("resume_session")?.onExecute()
+        }
+
         btnToolInit?.setOnClickListener {
             closeDrawer()
-            org.ravi.codeassist.AgentAccessibilityService.instance?.injectSystemPrompt()
+            org.ravi.codeassist.agent.ToolboxManager.getTool("init_workspace")?.onExecute()
         }
 
         btnToolBounds?.setOnClickListener {
             closeDrawer()
-            org.ravi.codeassist.agent.AgentOrchestrator.getActiveProfile()?.let { profile ->
-                org.ravi.codeassist.AgentAccessibilityService.instance?.openScrollZonePickerOverlay(profile) { _, _, _, _ -> }
-            }
+            org.ravi.codeassist.agent.ToolboxManager.getTool("configure_scroll_zone")?.onExecute()
         }
 
         btnToolNewSession?.setOnClickListener {
             closeDrawer()
-            org.ravi.codeassist.agent.AgentOrchestrator.resetSession()
+            org.ravi.codeassist.agent.ToolboxManager.getTool("new_session")?.onExecute()
         }
 
         btnToolSettings?.setOnClickListener {
@@ -136,10 +140,32 @@ class AgentOverlayManager(private val context: Context) {
             org.ravi.codeassist.AgentAccessibilityService.instance?.stopAgentSession()
         }
 
+        val sharedPref = context.getSharedPreferences("CodeAssistPrefs", android.content.Context.MODE_PRIVATE)
+
         var initialX = 0
         var initialY = 0
         var initialTouchX = 0f
         var initialTouchY = 0f
+
+        // Convert gravity-space (BOTTOM|CENTER_HORIZONTAL) x/y into screen
+        // coordinates, clamp the pill fully on-screen, then convert back.
+        fun clampToScreen(x: Int, y: Int): Pair<Int, Int> {
+            val view = overlayView ?: return Pair(x, y)
+            val metrics = context.resources.displayMetrics
+            val winW = view.width.coerceAtLeast(1)
+            val winH = view.height.coerceAtLeast(1)
+            val maxLeft = (metrics.widthPixels - winW).coerceAtLeast(0)
+            val maxTop = (metrics.heightPixels - winH).coerceAtLeast(0)
+            val screenLeft = ((metrics.widthPixels - winW) / 2f + x).coerceIn(0f, maxLeft.toFloat())
+            val screenTop = (metrics.heightPixels - winH - y).coerceIn(0f, maxTop.toFloat())
+            val newX = (screenLeft - (metrics.widthPixels - winW) / 2f).toInt()
+            val newY = (metrics.heightPixels - winH - screenTop).toInt()
+            return Pair(newX, newY)
+        }
+
+        params.x = sharedPref.getInt("OVERLAY_POS_X", 0)
+        params.y = sharedPref.getInt("OVERLAY_POS_Y", 120)
+
         overlayView?.findViewById<View>(R.id.flPillGradientBorder)?.setOnTouchListener { _, event ->
             val layoutParams = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false
             when (event.action) {
@@ -154,13 +180,20 @@ class AgentOverlayManager(private val context: Context) {
                     val dx = event.rawX - initialTouchX
                     val dy = event.rawY - initialTouchY
                     if (kotlin.math.abs(dx) > 5 || kotlin.math.abs(dy) > 5) {
-                        layoutParams.x = initialX + dx.toInt()
-                        layoutParams.y = initialY - dy.toInt()
+                        // BOTTOM gravity: increasing y moves the pill up, so a
+                        // downward drag (dy > 0) must DECREASE y.
+                        val (clampedX, clampedY) = clampToScreen(initialX + dx.toInt(), initialY - dy.toInt())
+                        layoutParams.x = clampedX
+                        layoutParams.y = clampedY
                         try {
                             windowManager.updateViewLayout(overlayView, layoutParams)
                         } catch (e: Exception) {}
                     }
                     true
+                }
+                android.view.MotionEvent.ACTION_UP -> {
+                    sharedPref.edit().putInt("OVERLAY_POS_X", layoutParams.x).putInt("OVERLAY_POS_Y", layoutParams.y).apply()
+                    false
                 }
                 else -> false
             }

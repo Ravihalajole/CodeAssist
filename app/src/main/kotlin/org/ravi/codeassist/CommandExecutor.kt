@@ -27,6 +27,8 @@ object CommandExecutor {
         val rootDir = File(workspaceRoot)
         if (!rootDir.exists() || !rootDir.isDirectory) return "Workspace root invalid."
 
+        org.ravi.codeassist.utils.CommandValidator.schemaError(command)?.let { return it }
+
         return try {
             val targetPath = when(command) {
                 is CodeCommand.Read -> command.path
@@ -36,7 +38,7 @@ object CommandExecutor {
                 is CodeCommand.Delete -> command.path
                 is CodeCommand.Move -> command.oldPath
                 is CodeCommand.Outline -> command.path
-                is CodeCommand.Glob, is CodeCommand.AskUser, is CodeCommand.Done, is CodeCommand.Plan -> return null
+                is CodeCommand.Glob, is CodeCommand.Done, is CodeCommand.Plan -> return null
             }
             val targetFile = File(rootDir, targetPath)
             
@@ -123,7 +125,6 @@ object CommandExecutor {
                 is CodeCommand.Move -> handleMove(rootDir, command.oldPath, command.newPath)
                 is CodeCommand.Glob -> handleGlob(rootDir, command.pattern)
                 is CodeCommand.Outline -> handleOutline(rootDir, command.path)
-                is CodeCommand.AskUser -> ExecutionResult(true, "HALT_FOR_USER: ${command.message}")
                 is CodeCommand.Done -> ExecutionResult(true, "HALT_DONE: ${command.message}")
                 is CodeCommand.Plan -> ExecutionResult(true, "PLAN_RECORDED: ${command.tasks.size} tasks, ${command.doneNumbers.size} done, note=${command.note.take(80)}")
             }
@@ -364,7 +365,8 @@ object CommandExecutor {
     /**
      * Resolves a PATCH against normalized file content using the same strategy
      * cascade as the executor: REPLACE_ALL, wildcard, exact single occurrence,
-     * floating-indent, fuzzy whitespace-insensitive, then Levenshtein. Never
+     * normalized-exact (quote/space/zero-width artifact recovery), then
+     * floating-indent, fuzzy whitespace-insensitive, and Levenshtein. Never
      * touches disk, so it is safe to call for live previews. The returned text
      * uses \n line endings; callers must re-apply the original \r\n style.
      */
@@ -392,6 +394,10 @@ object CommandExecutor {
 
         val occurrences = CommandExecutorUtils.countOccurrences(normalizedOriginal, normalizedSearch)
         if (occurrences != 1) {
+            val (normalizedSuccess, normalizedText) = findNormalizedExactMatchAndReplace(normalizedOriginal, normalizedSearch, normalizedReplace)
+            if (normalizedSuccess) {
+                return PatchResolution(success = true, resultText = normalizedText, strategy = PatchStrategy.NORMALIZED_EXACT)
+            }
             val (floatingSuccess, floatingText) = findFloatingIndentMatchAndReplace(normalizedOriginal, normalizedSearch, normalizedReplace)
             if (floatingSuccess) {
                 return PatchResolution(success = true, resultText = floatingText, strategy = PatchStrategy.FLOATING)
@@ -413,6 +419,22 @@ object CommandExecutor {
         )
     }
 
+    /**
+     * Recovers from chat-app rendering artifacts (smart quotes, NBSP, zero-width
+     * chars) that break byte-exact matching. Compares normalizeForMatch'd SEARCH
+     * against the normalized file; on a unique normalized match the patch is
+     * applied to the ACTUAL original bytes, so the file is never written with
+     * normalized text.
+     */
+    private fun findNormalizedExactMatchAndReplace(original: String, search: String, replace: String): Pair<Boolean, String> {
+        val normSearch = CommandExecutorUtils.normalizeForMatch(search)
+        if (normSearch.isEmpty()) return Pair(false, original)
+        val normOriginal = CommandExecutorUtils.normalizeForMatch(original)
+        if (CommandExecutorUtils.countOccurrences(normOriginal, normSearch) != 1) return Pair(false, original)
+        val range = CommandExecutorUtils.findNormalizedRange(original, search) ?: return Pair(false, original)
+        return Pair(true, original.substring(0, range.first) + replace + original.substring(range.last + 1))
+    }
+
     private fun buildFallbackErrorMessage(normalizedOriginal: String, normalizedSearch: String): String {
         val fallbackLine = normalizedSearch.lines().firstOrNull { it.trim().isNotEmpty() }?.trim() ?: ""
         val snippet = if (fallbackLine.isNotEmpty()) {
@@ -427,7 +449,7 @@ object CommandExecutor {
         return "Patch rejected: Exact matching block not found.\n--- SMART FALLBACK CONTEXT ---\n[WARNING: Line numbers 'N | ' are for reference only. DO NOT include them in your SEARCH block]\n$snippet\n\nPlease correct your SEARCH block."
     }
 
-    private enum class PatchStrategy { REPLACE_ALL, WILDCARD, EXACT, FLOATING, FUZZY, LEVENSHTEIN }
+    private enum class PatchStrategy { REPLACE_ALL, WILDCARD, EXACT, NORMALIZED_EXACT, FLOATING, FUZZY, LEVENSHTEIN }
 
     private data class PatchResolution(
         val success: Boolean,

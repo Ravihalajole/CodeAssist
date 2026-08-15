@@ -427,6 +427,8 @@ class MainActivity : AppCompatActivity() {
             sharedPref.edit().putString("PREF_INPUT_MODE", if (isChecked) "DIRECT" else "CLIPBOARD").apply()
         }
 
+        findViewById<View>(R.id.rowPolicyRules)?.setOnClickListener { showPolicyEditor(sharedPref) }
+
         btnEditGitConfig.setOnClickListener {
             val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_config, null)
             val etDialogGitName = dialogView.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etDialogGitName)
@@ -591,6 +593,43 @@ class MainActivity : AppCompatActivity() {
     }
 
     // --- ACTIONS ---
+
+    private fun showPolicyEditor(sharedPref: android.content.SharedPreferences) {
+        val input = android.widget.EditText(this).apply {
+            setText(org.ravi.codeassist.agent.AgentPolicy.rulesFor(sharedPref).joinToString("\n") { it.render() })
+            gravity = android.view.Gravity.TOP
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            setHint("deny PATCH:**/secrets/**\ndeny DELETE:*.env")
+            setTextColor(androidx.core.content.ContextCompat.getColor(this@MainActivity, R.color.text_hi))
+        }
+        val scroll = android.widget.ScrollView(this).apply {
+            addView(input, android.widget.ScrollView.LayoutParams(
+                android.widget.ScrollView.LayoutParams.MATCH_PARENT,
+                android.widget.ScrollView.LayoutParams.WRAP_CONTENT
+            ))
+        }
+        val padding = (16 * resources.displayMetrics.density).toInt()
+        scroll.setPadding(padding, padding, padding, padding)
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle("Policy Rules")
+            .setMessage("One rule per line: deny COMMAND:PATH-GLOB (uppercase command, * wildcards, e.g. deny PATCH:**/secrets/**). Only DENY is enforced; DELETE/MOVE always keep human confirmation.")
+            .setView(scroll)
+            .setPositiveButton("Save") { _, _ ->
+                val (rules, errors) = org.ravi.codeassist.agent.AgentPolicy.parseLines(
+                    input.text?.toString()?.lines() ?: emptyList()
+                )
+                if (errors.isNotEmpty()) {
+                    Toast.makeText(this, "Ignored ${errors.size} malformed rule(s).", Toast.LENGTH_SHORT).show()
+                }
+                org.ravi.codeassist.agent.AgentPolicy.saveRules(sharedPref, rules)
+                if (rules.isNotEmpty()) {
+                    Toast.makeText(this, "Saved ${rules.size} policy rule(s).", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 
     private fun showGitActionsSheet() {
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)

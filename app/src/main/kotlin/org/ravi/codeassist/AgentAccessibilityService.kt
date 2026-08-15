@@ -73,28 +73,10 @@ class AgentAccessibilityService : AccessibilityService() {
     fun startAgentSession() {
         overlayManager.showOverlay(
             onStop = {
-                org.ravi.codeassist.agent.AgentOrchestrator.updateState(org.ravi.codeassist.agent.AgentState.IDLE)
+                org.ravi.codeassist.agent.AgentOrchestrator.requestStop()
                 overlayManager.updateStatus("Stopped")
             }
         )
-    }
-
-    fun injectSystemPrompt() {
-        serviceScope.launch {
-            val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-            val clipText = clipboard?.primaryClip?.getItemAt(0)?.text?.toString()
-            
-            // Use clipboard text as goal if reasonable, otherwise use default exploratory goal
-            val goal = if (!clipText.isNullOrBlank() && clipText.length < 1000 && !clipText.startsWith(":::CODE_ASSIST")) {
-                clipText
-            } else {
-                "Explore the project, analyze it, and wait for my next instructions."
-            }
-            
-            val prompt = org.ravi.codeassist.agent.AgentOrchestrator.buildSystemPrompt(goal, this@AgentAccessibilityService)
-            executeToolCall("type_text", prompt)
-            executeToolCall("click_send")
-        }
     }
 
     fun openScrollZonePickerOverlay(profile: AgentProfile, onSaveCompleted: (Float, Float, Float, Float) -> Unit) {
@@ -125,7 +107,7 @@ class AgentAccessibilityService : AccessibilityService() {
 
     fun stopAgentSession() {
         overlayManager.hideOverlay()
-        org.ravi.codeassist.agent.AgentOrchestrator.updateState(org.ravi.codeassist.agent.AgentState.IDLE)
+        org.ravi.codeassist.agent.AgentOrchestrator.requestStop()
     }
 
     fun updateOverlayStatus(status: String) {
@@ -258,8 +240,10 @@ class AgentAccessibilityService : AccessibilityService() {
             if (containerSig != null) {
                 Log.d(TAG, "Sentinel Auto-Resume: Using Rolling Baseline (${preSendBaselineText.length} chars)")
                 val text = waitForMutationAndScrape(containerSig)
-                org.ravi.codeassist.agent.AgentOrchestrator.resumeFromText(text)
-            } else {
+                if (!org.ravi.codeassist.agent.AgentOrchestrator.isStopRequested()) {
+                    org.ravi.codeassist.agent.AgentOrchestrator.resumeFromText(text)
+                }
+            } else if (!org.ravi.codeassist.agent.AgentOrchestrator.isStopRequested()) {
                 org.ravi.codeassist.agent.AgentOrchestrator.resumeFromText("Error: RESPONSE_CONTAINER signature missing. Cannot auto-resume.")
             }
         }
@@ -696,6 +680,8 @@ class AgentAccessibilityService : AccessibilityService() {
             kotlinx.coroutines.delay(1000)
             coldStartElapsed += 1000
 
+            if (org.ravi.codeassist.agent.AgentOrchestrator.isStopRequested()) return "Error: Stopped by user."
+
             if (stopSig != null) {
                 val stopNode = findNodeBySignature(stopSig)
                 if (stopNode != null && stopNode.isVisibleToUser) {
@@ -739,6 +725,8 @@ class AgentAccessibilityService : AccessibilityService() {
             while (isGenerating && stabilizationElapsed < 120000) {
                 kotlinx.coroutines.delay(1000)
                 stabilizationElapsed += 1000
+
+                if (org.ravi.codeassist.agent.AgentOrchestrator.isStopRequested()) return "Error: Stopped by user."
 
                 val checkNode = findNodeBySignature(stopSig)
                 if (checkNode == null || !checkNode.isVisibleToUser) {
@@ -839,6 +827,8 @@ class AgentAccessibilityService : AccessibilityService() {
                 kotlinx.coroutines.delay(1000)
                 stabilizationElapsed += 1000
 
+                if (org.ravi.codeassist.agent.AgentOrchestrator.isStopRequested()) return "Error: Stopped by user."
+
                 val matches = findAllNodesBySignature(sig)
                 currentText = matches.joinToString("\n") { extractAllText(it, 0) }.trim()
                 matches.forEach { try { it.recycle() } catch (e: Exception) {} }
@@ -865,6 +855,7 @@ class AgentAccessibilityService : AccessibilityService() {
 
         // Final text pull
         kotlinx.coroutines.delay(1000) // 1s buffer for final UI render
+        if (org.ravi.codeassist.agent.AgentOrchestrator.isStopRequested()) return "Error: Stopped by user."
         val finalMatches = findAllNodesBySignature(sig)
         val finalText = finalMatches.joinToString("\n") { extractAllText(it, 0) }.trim()
         finalMatches.forEach { try { it.recycle() } catch (e: Exception) {} }
@@ -1369,6 +1360,9 @@ override fun onInterrupt() {
     }
 
     fun resumeOrSync() {
+        // Explicit user intent to resume: clear any prior stop so the scrub
+        // below is allowed to hand control back to the loop.
+        org.ravi.codeassist.agent.AgentOrchestrator.clearStopRequest()
         serviceScope.launch {
             val signatures = org.ravi.codeassist.agent.AgentOrchestrator.getActiveSignatures()
             val stopSig = signatures.find { it.role == org.ravi.codeassist.database.ElementRole.STOP_BUTTON }
@@ -1381,7 +1375,9 @@ override fun onInterrupt() {
                 val containerSig = signatures.find { it.role == org.ravi.codeassist.database.ElementRole.RESPONSE_CONTAINER }
                 if (containerSig != null) {
                     val text = waitForMutationAndScrape(containerSig)
-                    org.ravi.codeassist.agent.AgentOrchestrator.resumeFromText(text)
+                    if (!org.ravi.codeassist.agent.AgentOrchestrator.isStopRequested()) {
+                        org.ravi.codeassist.agent.AgentOrchestrator.resumeFromText(text)
+                    }
                 }
             } else {
                 try { stopNode?.recycle() } catch (e: Exception) {}
@@ -1398,7 +1394,9 @@ override fun onInterrupt() {
                     scrapedText = extractAllText(tempRoot, 0)
                     tempRoot?.recycle()
                 }
-                org.ravi.codeassist.agent.AgentOrchestrator.resumeFromText(scrapedText)
+                if (!org.ravi.codeassist.agent.AgentOrchestrator.isStopRequested()) {
+                    org.ravi.codeassist.agent.AgentOrchestrator.resumeFromText(scrapedText)
+                }
             }
         }
     }

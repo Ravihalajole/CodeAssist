@@ -44,7 +44,11 @@ object EnvelopeParser {
         }
 
         for (line in lines) {
-            val trimmedLine = line.trim()
+            // normalizeForMatch strips chat-app rendering artifacts (smart quotes,
+            // NBSP, zero-width chars) from the DISPATCH line so tags and markers
+            // survive mangling; body content is appended raw below to stay
+            // byte-exact for SEARCH/CONTENT matching.
+            val trimmedLine = CommandExecutorUtils.normalizeForMatch(line.trim())
 
             when (currentState) {
                 ParseState.IDLE -> {
@@ -102,8 +106,8 @@ object EnvelopeParser {
                             pendingCommandClosed = false
                             currentState = ParseState.IN_CONTENT
                         }
-                        trimmedLine.startsWith("<<<<<<< SEARCH") -> {
-                            // PATCH body started; not closed until >>>>>>> REPLACE.
+                        trimmedLine.startsWith("[SEARCH]") -> {
+                            // PATCH body started; not closed until [END_REPLACE].
                             pendingCommandClosed = false
                             currentState = ParseState.IN_SEARCH 
                         }
@@ -117,19 +121,32 @@ object EnvelopeParser {
                     } else contentBuffer.append(line).append("\n")
                 }
                 ParseState.IN_SEARCH -> {
-                    if (trimmedLine.startsWith("=======")) currentState = ParseState.IN_REPLACE
-                    else searchBuffer.append(line).append("\n")
+                    when {
+                        trimmedLine.startsWith("[END_SEARCH]") -> currentState = ParseState.IN_REPLACE
+                        // Recovery path: a bare [REPLACE] also closes the search
+                        // block when the model skips [END_SEARCH]. The extracted
+                        // SEARCH is still verified against the file before any
+                        // write, so a mis-split degrades to a rejection, never
+                        // silent corruption.
+                        trimmedLine == "[REPLACE]" -> currentState = ParseState.IN_REPLACE
+                        else -> searchBuffer.append(line).append("\n")
+                    }
                 }
                 ParseState.IN_REPLACE -> {
-                    if (trimmedLine.startsWith(">>>>>>> REPLACE")) {
-                        // PATCH SEARCH/REPLACE block fully received.
-                        pendingCommandClosed = true
-                        flushPendingCommand()
-                        searchBuffer.setLength(0)
-                        replaceBuffer.setLength(0)
-                        currentState = ParseState.IN_ENVELOPE
+                    when {
+                        trimmedLine.startsWith("[END_REPLACE]") -> {
+                            // PATCH SEARCH/REPLACE block fully received.
+                            pendingCommandClosed = true
+                            flushPendingCommand()
+                            searchBuffer.setLength(0)
+                            replaceBuffer.setLength(0)
+                            currentState = ParseState.IN_ENVELOPE
+                        }
+                        // Consume the [REPLACE] block opener without adding it to
+                        // the replace content; only a leading occurrence is special.
+                        replaceBuffer.isEmpty() && trimmedLine == "[REPLACE]" -> Unit
+                        else -> replaceBuffer.append(line).append("\n")
                     }
-                    else replaceBuffer.append(line).append("\n")
                 }
             }
         }
@@ -150,7 +167,7 @@ object EnvelopeParser {
         if (name.isEmpty()) return null
         if (name == "PATCH" && search.isEmpty()) return null
         if (name == "PLAN" && content.isBlank() && planDone.isEmpty() && planNote.isEmpty()) return null
-        if (name != "DONE" && name != "ASK_USER" && name != "GLOB" && name != "PLAN" && path.isEmpty()) {
+        if (name != "DONE" && name != "GLOB" && name != "PLAN" && path.isEmpty()) {
             if (name == "GREP" && pattern.isNotEmpty()) {} else return null
         }
 
@@ -169,7 +186,6 @@ object EnvelopeParser {
                     doneNumbers = planDone,
                     note = planNote
                 )
-                "ASK_USER" -> CodeCommand.AskUser(message.ifEmpty { "Need clarification." })
                 "DONE" -> CodeCommand.Done(message.ifEmpty { "Task completed autonomously." })
                 else -> null
             }
