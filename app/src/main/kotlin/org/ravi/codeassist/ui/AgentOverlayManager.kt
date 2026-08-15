@@ -5,6 +5,7 @@ import android.graphics.PixelFormat
 import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
@@ -14,51 +15,38 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.ravi.codeassist.R
 
 class AgentOverlayManager(private val context: Context) {
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var overlayView: View? = null
+    private var orbView: CommandOrbView? = null
+    private var orbHitTarget: View? = null
+    private var chipView: View? = null
+    private var chipText: TextView? = null
+    private var chipJob: Job? = null
+    private var radialOverlay: CommandRadialOverlay? = null
     private var isGenerating = false
-    private var dotJob: Job? = null
-    private var statusOverride: String? = null
-    private var sheetOpen = false
-    private var progressAnim: android.animation.ValueAnimator? = null
+    private var longPressRunnable: Runnable? = null
+    private var longPressFired = false
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     val isShowing: Boolean get() = overlayView != null
-
-    private fun updateMorphingButton() {
-        val btnMorphingAction = overlayView?.findViewById<MaterialButton>(R.id.btnMorphingAction) ?: return
-
-        if (isGenerating) {
-            btnMorphingAction.setIconResource(R.drawable.ic_stroke_stop)
-            btnMorphingAction.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                androidx.core.content.ContextCompat.getColor(context, R.color.surf_raised)
-            )
-            btnMorphingAction.iconTint = android.content.res.ColorStateList.valueOf(
-                androidx.core.content.ContextCompat.getColor(context, R.color.text_hi)
-            )
-        } else {
-            btnMorphingAction.setIconResource(R.drawable.ic_stroke_play)
-            btnMorphingAction.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                androidx.core.content.ContextCompat.getColor(context, R.color.brand_mint)
-            )
-            btnMorphingAction.iconTint = android.content.res.ColorStateList.valueOf(
-                androidx.core.content.ContextCompat.getColor(context, R.color.brand_on_accent)
-            )
-        }
-    }
 
     fun showOverlay(onStop: () -> Unit) {
         if (overlayView != null) return
 
         val themedContext = ContextThemeWrapper(context, R.style.Theme_CodeAssist)
         val inflater = LayoutInflater.from(themedContext)
-        overlayView = inflater.inflate(R.layout.layout_agent_overlay, null)
+        val view = inflater.inflate(R.layout.layout_agent_overlay, null)
+        overlayView = view
+        orbView = view.findViewById(R.id.orbView)
+        orbHitTarget = view.findViewById(R.id.flOrbContainer)
+        chipView = view.findViewById(R.id.llStatusChip)
+        chipText = view.findViewById(R.id.tvStatusChip)
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -71,129 +59,13 @@ class AgentOverlayManager(private val context: Context) {
             y = 120
         }
 
-        val btnMorphingAction = overlayView?.findViewById<MaterialButton>(R.id.btnMorphingAction)
-        val llToolDrawer = overlayView?.findViewById<View>(R.id.llToolDrawer)
-        val llCloseConfirmBar = overlayView?.findViewById<View>(R.id.llCloseConfirmBar)
-
-        val btnToolResume = overlayView?.findViewById<View>(R.id.btnToolResume)
-        val btnToolInit = overlayView?.findViewById<View>(R.id.btnToolInit)
-        val btnToolBounds = overlayView?.findViewById<View>(R.id.btnToolBounds)
-        val btnToolNewSession = overlayView?.findViewById<View>(R.id.btnToolNewSession)
-        val btnToolSettings = overlayView?.findViewById<View>(R.id.btnToolSettings)
-        val btnToolStopSession = overlayView?.findViewById<View>(R.id.btnToolStopSession)
-        val btnCloseConfirm = overlayView?.findViewById<View>(R.id.btnCloseConfirm)
-        val btnToolClose = overlayView?.findViewById<View>(R.id.btnToolClose)
-
-        fun animateDrawer(drawer: View, show: Boolean) {
-            drawer.animate().cancel()
-            if (show) {
-                drawer.visibility = View.VISIBLE
-                drawer.alpha = 0f
-                drawer.scaleX = 0.97f
-                drawer.scaleY = 0.97f
-                drawer.post {
-                    drawer.pivotX = drawer.width / 2f
-                    drawer.pivotY = drawer.height.toFloat()
-                    drawer.animate()
-                        .alpha(1f)
-                        .scaleX(1f)
-                        .scaleY(1f)
-                        .setDuration(180)
-                        .setInterpolator(android.view.animation.DecelerateInterpolator())
-                        .start()
-                }
-            } else {
-                drawer.animate()
-                    .alpha(0f)
-                    .scaleX(0.97f)
-                    .scaleY(0.97f)
-                    .setDuration(140)
-                    .withEndAction { drawer.visibility = View.GONE }
-                    .start()
-            }
-        }
-
-        fun closeDrawer() {
-            sheetOpen = false
-            val drawer = llToolDrawer ?: return
-            if (drawer.visibility == View.VISIBLE) {
-                animateDrawer(drawer, false)
-            }
-            llCloseConfirmBar?.visibility = View.GONE
-        }
-
-        fun openSheet() {
-            val drawer = llToolDrawer ?: return
-            if (drawer.visibility != View.VISIBLE) {
-                sheetOpen = true
-                animateDrawer(drawer, true)
-            }
-        }
-
-        btnToolClose?.setOnClickListener {
-            closeDrawer()
-        }
-
-        fun toggleSheet() {
-            if (sheetOpen) {
-                closeDrawer()
-            } else {
-                openSheet()
-            }
-        }
-
-        btnToolResume?.setOnClickListener {
-            closeDrawer()
-            org.ravi.codeassist.agent.ToolboxManager.getTool("resume_session")?.onExecute()
-        }
-
-        btnToolInit?.setOnClickListener {
-            closeDrawer()
-            org.ravi.codeassist.agent.ToolboxManager.getTool("init_workspace")?.onExecute()
-        }
-
-        btnToolBounds?.setOnClickListener {
-            closeDrawer()
-            org.ravi.codeassist.agent.ToolboxManager.getTool("configure_scroll_zone")?.onExecute()
-        }
-
-        btnToolNewSession?.setOnClickListener {
-            closeDrawer()
-            org.ravi.codeassist.agent.ToolboxManager.getTool("new_session")?.onExecute()
-        }
-
-        btnToolSettings?.setOnClickListener {
-            closeDrawer()
-            val intent = android.content.Intent(context, org.ravi.codeassist.MainActivity::class.java).apply {
-                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            context.startActivity(intent)
-        }
-
-        btnToolStopSession?.setOnClickListener {
-            llCloseConfirmBar?.visibility = View.VISIBLE
-        }
-
-        btnCloseConfirm?.setOnClickListener {
-            closeDrawer()
-            org.ravi.codeassist.AgentAccessibilityService.instance?.stopAgentSession()
-        }
-
         val sharedPref = context.getSharedPreferences("CodeAssistPrefs", android.content.Context.MODE_PRIVATE)
 
-        var initialX = 0
-        var initialY = 0
-        var initialTouchX = 0f
-        var initialTouchY = 0f
-        var dragged = false
-
-        // Convert gravity-space (BOTTOM|CENTER_HORIZONTAL) x/y into screen
-        // coordinates, clamp the pill fully on-screen, then convert back.
         fun clampToScreen(x: Int, y: Int): Pair<Int, Int> {
-            val view = overlayView ?: return Pair(x, y)
+            val v = overlayView ?: return Pair(x, y)
             val metrics = context.resources.displayMetrics
-            val winW = view.width.coerceAtLeast(1)
-            val winH = view.height.coerceAtLeast(1)
+            val winW = v.width.coerceAtLeast(1)
+            val winH = v.height.coerceAtLeast(1)
             val maxLeft = (metrics.widthPixels - winW).coerceAtLeast(0)
             val maxTop = (metrics.heightPixels - winH).coerceAtLeast(0)
             val screenLeft = ((metrics.widthPixels - winW) / 2f + x).coerceIn(0f, maxLeft.toFloat())
@@ -206,23 +78,42 @@ class AgentOverlayManager(private val context: Context) {
         params.x = sharedPref.getInt("OVERLAY_POS_X", 0)
         params.y = sharedPref.getInt("OVERLAY_POS_Y", 120)
 
-        overlayView?.findViewById<View>(R.id.flPillGradientBorder)?.setOnTouchListener { _, event ->
+        val touchSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop
+        var initialX = 0
+        var initialY = 0
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+        var dragged = false
+
+        view.setOnTouchListener { _, event ->
             val layoutParams = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false
             when (event.action) {
-                android.view.MotionEvent.ACTION_DOWN -> {
+                MotionEvent.ACTION_DOWN -> {
                     dragged = false
+                    longPressFired = false
                     initialX = layoutParams.x
                     initialY = layoutParams.y
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
+                    if (isTouchOnOrb(event.x, event.y)) {
+                        longPressRunnable?.let { view.removeCallbacks(it) }
+                        val task = Runnable {
+                            longPressFired = true
+                            openRadial()
+                        }
+                        longPressRunnable = task
+                        view.postDelayed(task, 360)
+                    }
                     true
                 }
-                android.view.MotionEvent.ACTION_MOVE -> {
+                MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - initialTouchX
                     val dy = event.rawY - initialTouchY
-                    if (kotlin.math.abs(dx) > 6 || kotlin.math.abs(dy) > 6) {
+                    if (kotlin.math.abs(dx) > touchSlop || kotlin.math.abs(dy) > touchSlop) {
                         dragged = true
-                        // BOTTOM gravity: increasing y moves the pill up, so a
+                        longPressRunnable?.let { view.removeCallbacks(it) }
+                        longPressRunnable = null
+                        // BOTTOM gravity: increasing y moves the window up, so a
                         // downward drag (dy > 0) must DECREASE y.
                         val (clampedX, clampedY) = clampToScreen(initialX + dx.toInt(), initialY - dy.toInt())
                         layoutParams.x = clampedX
@@ -233,213 +124,113 @@ class AgentOverlayManager(private val context: Context) {
                     }
                     true
                 }
-                android.view.MotionEvent.ACTION_UP -> {
+                MotionEvent.ACTION_UP -> {
+                    longPressRunnable?.let { view.removeCallbacks(it) }
+                    longPressRunnable = null
                     sharedPref.edit().putInt("OVERLAY_POS_X", layoutParams.x).putInt("OVERLAY_POS_Y", layoutParams.y).apply()
-                    if (!dragged) toggleSheet()
+                    if (!dragged && !longPressFired && isTouchOnOrb(event.x, event.y)) {
+                        if (isGenerating) {
+                            onStop()
+                        } else {
+                            org.ravi.codeassist.AgentAccessibilityService.instance?.resumeOrSync()
+                        }
+                    }
                     false
+                }
+                MotionEvent.ACTION_OUTSIDE -> {
+                    radialOverlay?.dismiss()
+                    true
                 }
                 else -> false
             }
         }
 
-        btnMorphingAction?.setOnClickListener {
-            if (isGenerating) {
-                onStop()
-            } else {
-                org.ravi.codeassist.AgentAccessibilityService.instance?.resumeOrSync()
-            }
-        }
-
         windowManager.addView(overlayView, params)
         scope.launch { updateStatusInternal() }
+    }
 
-        overlayView?.setOnTouchListener { _, event ->
-            if (event.action == android.view.MotionEvent.ACTION_OUTSIDE) {
-                val drawer = llToolDrawer
-                if (drawer != null && drawer.visibility == View.VISIBLE) closeDrawer()
-                true
-            } else {
-                false
-            }
-        }
+    private fun isTouchOnOrb(x: Float, y: Float): Boolean {
+        val target = orbHitTarget ?: return false
+        return x >= target.left && x <= target.right && y >= target.top && y <= target.bottom
+    }
+
+    private fun openRadial() {
+        if (radialOverlay?.isShowing == true) return
+        val lp = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return
+        val winW = (overlayView?.width ?: 0).takeIf { it > 0 } ?: return
+        val winH = (overlayView?.height ?: 0).takeIf { it > 0 } ?: return
+        val metrics = context.resources.displayMetrics
+        val centerX = (metrics.widthPixels - winW) / 2 + lp.x + winW / 2
+        val centerY = metrics.heightPixels - lp.y - winH / 2
+        val radial = CommandRadialOverlay(context)
+        radial.show(
+            centerX = centerX,
+            centerY = centerY,
+            onResume = { org.ravi.codeassist.agent.ToolboxManager.getTool("resume_session")?.onExecute() },
+            onInit = { org.ravi.codeassist.agent.ToolboxManager.getTool("init_workspace")?.onExecute() },
+            onBounds = { org.ravi.codeassist.agent.ToolboxManager.getTool("configure_scroll_zone")?.onExecute() },
+            onNewSession = { org.ravi.codeassist.agent.ToolboxManager.getTool("new_session")?.onExecute() },
+            onSettings = {
+                val intent = android.content.Intent(context, org.ravi.codeassist.MainActivity::class.java).apply {
+                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                context.startActivity(intent)
+            },
+            onExit = { org.ravi.codeassist.AgentAccessibilityService.instance?.stopAgentSession() }
+        )
+        radialOverlay = radial
     }
 
     private data class OverlayUi(
-        val label: String,
-        val detail: String?,
         val start: Int,
-        val end: Int,
-        val dot: Int,
-        val generating: Boolean
+        val generating: Boolean,
+        val pulse: Boolean
     )
 
     private fun overlayUiFor(state: org.ravi.codeassist.agent.AgentState): OverlayUi {
-        val executing = Triple(0xFF34E0A1.toInt(), 0xFF17CFC0.toInt(), 0xFF34E0A1.toInt())
-        val working = Triple(0xFFFFAD3F.toInt(), 0xFFFF8A3C.toInt(), 0xFFFFAD3F.toInt())
-        val failed = Triple(0xFFFF4D5A.toInt(), 0xFFD50000.toInt(), 0xFFFF4D5A.toInt())
-        val user = Triple(0xFF4C8DFF.toInt(), 0xFF3568C8.toInt(), 0xFF4C8DFF.toInt())
-        val tools = Triple(0xFFA06BF5.toInt(), 0xFF7B3FBF.toInt(), 0xFFA06BF5.toInt())
-        val scroll = Triple(0xFF4DD8E7.toInt(), 0xFF2BB3C2.toInt(), 0xFF4DD8E7.toInt())
+        val executing = 0xFF34E0A1.toInt()
+        val working = 0xFFFFAD3F.toInt()
+        val failed = 0xFFFF4D5A.toInt()
+        val user = 0xFF4C8DFF.toInt()
+        val tools = 0xFFA06BF5.toInt()
+        val scroll = 0xFF4DD8E7.toInt()
 
         return when (state) {
-            is org.ravi.codeassist.agent.AgentState.IDLE ->
-                OverlayUi("Idle", null, scroll.first, scroll.second, scroll.third, false)
-            is org.ravi.codeassist.agent.AgentState.ANALYZING_SCREEN ->
-                OverlayUi("Reading screen", null, working.first, working.second, working.third, true)
-            is org.ravi.codeassist.agent.AgentState.AWAITING_LLM ->
-                OverlayUi("Thinking", null, working.first, working.second, working.third, true)
-            is org.ravi.codeassist.agent.AgentState.EXECUTING_ACTION -> {
-                val label = when {
-                    state.actionName.contains("type_") -> "Typing"
-                    state.actionName.contains("click") -> "Tapping"
-                    state.actionName.contains("scroll") -> "Scrolling"
-                    else -> "Working"
-                }
-                OverlayUi(label, null, executing.first, executing.second, executing.third, true)
-            }
-            is org.ravi.codeassist.agent.AgentState.WAITING_FOR_MUTATION ->
-                OverlayUi("Waiting for AI", null, working.first, working.second, working.third, true)
-            is org.ravi.codeassist.agent.AgentState.WAITING_FOR_USER ->
-                OverlayUi("Needs your input", null, user.first, user.second, user.third, false)
-            is org.ravi.codeassist.agent.AgentState.ERROR ->
-                OverlayUi("Stopped", state.message, failed.first, failed.second, failed.third, false)
-            is org.ravi.codeassist.agent.AgentState.TOOLBOX_OPEN ->
-                OverlayUi("Tools", null, tools.first, tools.second, tools.third, false)
-            is org.ravi.codeassist.agent.AgentState.SCROLL_CONFIG_ACTIVE ->
-                OverlayUi("Scroll zone", null, scroll.first, scroll.second, scroll.third, false)
+            is org.ravi.codeassist.agent.AgentState.IDLE -> OverlayUi(scroll, false, false)
+            is org.ravi.codeassist.agent.AgentState.ANALYZING_SCREEN -> OverlayUi(working, true, false)
+            is org.ravi.codeassist.agent.AgentState.AWAITING_LLM -> OverlayUi(working, true, false)
+            is org.ravi.codeassist.agent.AgentState.EXECUTING_ACTION -> OverlayUi(executing, true, false)
+            is org.ravi.codeassist.agent.AgentState.WAITING_FOR_MUTATION -> OverlayUi(working, true, false)
+            is org.ravi.codeassist.agent.AgentState.WAITING_FOR_USER -> OverlayUi(user, false, true)
+            is org.ravi.codeassist.agent.AgentState.ERROR -> OverlayUi(failed, false, true)
+            is org.ravi.codeassist.agent.AgentState.TOOLBOX_OPEN -> OverlayUi(tools, false, false)
+            is org.ravi.codeassist.agent.AgentState.SCROLL_CONFIG_ACTIVE -> OverlayUi(scroll, false, false)
         }
     }
 
-    private fun buildTelemetryLine(): String {
-        val t = org.ravi.codeassist.agent.AgentOrchestrator.telemetry()
-        val mm = t.elapsedSeconds / 60
-        val ss = t.elapsedSeconds % 60
-        val plan = if (t.planPending > 0) "  ·  ${t.planPending} plan open" else ""
-        return "round ${t.round}  ·  %d:%02d  ·  ${t.lastAction}$plan".format(mm, ss)
+    private suspend fun updateStatusInternal() {
+        val orb = orbView ?: return
+        val state = org.ravi.codeassist.agent.AgentOrchestrator.state.value
+        val ui = overlayUiFor(state)
+        isGenerating = ui.generating
+        orb.applyUi(ui.start, ui.generating, ui.pulse)
     }
 
     fun updateStatus(status: String) {
         if (overlayView == null) return
-        val clipped = if (status.length > 96) status.take(96) + "…" else status
-        scope.launch {
-            updateStatusInternal(clipped)
-        }
-    }
-
-    private suspend fun updateStatusInternal(statusOverride: String? = null) {
-        val tvStatus = overlayView?.findViewById<TextView>(R.id.tvOverlayStatus) ?: return
-        val tvDetail = overlayView?.findViewById<TextView>(R.id.tvOverlayDetail)
-        val vIndicator = overlayView?.findViewById<View>(R.id.vAgentStatusIndicator)
-        val flGradientBorder = overlayView?.findViewById<View>(R.id.flPillGradientBorder)
-
-        this.statusOverride = statusOverride
-
-        val state = org.ravi.codeassist.agent.AgentOrchestrator.state.value
-        val ui = overlayUiFor(state)
-        tvStatus.text = ui.label
-
-        if (tvDetail != null) {
-            val telemetry = if (ui.generating) buildTelemetryLine() else null
-            val text = statusOverride ?: ui.detail ?: telemetry
-            if (text.isNullOrEmpty()) {
-                tvDetail.visibility = View.GONE
-            } else {
-                tvDetail.text = text
-                tvDetail.visibility = View.VISIBLE
-            }
-        }
-
-        isGenerating = ui.generating
-
-        if (isGenerating && dotJob == null) {
-            dotJob = scope.launch {
-                var dim = true
-                var tick = 0
-                while (isActive) {
-                    vIndicator?.animate()?.alpha(if (dim) 0.3f else 1.0f)?.setDuration(500)?.start()
-                    flGradientBorder?.animate()?.alpha(if (dim) 0.7f else 1.0f)?.setDuration(500)?.start()
-                    dim = !dim
-                    tick++
-                    if (tick % 2 == 0) refreshTelemetryDetail()
-                    kotlinx.coroutines.delay(500)
-                }
-            }
-        } else if (!isGenerating) {
-            dotJob?.cancel()
-            dotJob = null
-            vIndicator?.alpha = 1.0f
-            flGradientBorder?.alpha = 1.0f
-        }
-
-        if (isGenerating) {
-            startProgressSweep()
-        } else {
-            stopProgressSweep()
-        }
-
-        updateMorphingButton()
-
-        if (flGradientBorder != null) {
-            val gradientDrawable = android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
-                intArrayOf(ui.start, ui.end)
-            ).apply {
-                cornerRadius = 96f
-            }
-            flGradientBorder.background = gradientDrawable
-        }
-
-        vIndicator?.backgroundTintList = android.content.res.ColorStateList.valueOf(ui.dot)
-
-        // glass sheet header mirrors the pill status
-        overlayView?.findViewById<TextView>(R.id.tvSheetStatus)?.text = ui.label
-        val tele = if (ui.generating) buildTelemetryLine() else (statusOverride ?: ui.detail)
-        val tvSheetTele = overlayView?.findViewById<TextView>(R.id.tvSheetTele)
-        if (tvSheetTele != null) {
-            tvSheetTele.text = tele.orEmpty()
-        }
-        overlayView?.findViewById<View>(R.id.vSheetDot)?.backgroundTintList =
-            android.content.res.ColorStateList.valueOf(ui.dot)
-        overlayView?.findViewById<com.google.android.material.card.MaterialCardView>(R.id.llToolDrawer)
-            ?.setStrokeColor(
-                android.content.res.ColorStateList.valueOf(
-                    androidx.core.graphics.ColorUtils.setAlphaComponent(ui.start, 0x55)
-                )
-            )
-    }
-
-    private fun startProgressSweep() {
-        val track = overlayView?.findViewById<View>(R.id.vProgressBar) ?: return
-        val fill = overlayView?.findViewById<View>(R.id.vProgressFill) ?: return
-        if (progressAnim != null) return
-        track.visibility = View.VISIBLE
-        val dist = (overlayView?.findViewById<View>(R.id.llPillContent)?.width ?: 0) + fill.width
-        val anim = android.animation.ValueAnimator.ofFloat(-fill.width.toFloat(), dist.toFloat()).apply {
-            duration = 1400
-            repeatCount = android.animation.ValueAnimator.INFINITE
-            interpolator = android.view.animation.LinearInterpolator()
-            addUpdateListener { a ->
-                fill.translationX = a.animatedValue as Float
-            }
-        }
-        anim.start()
-        progressAnim = anim
-    }
-
-    private fun stopProgressSweep() {
-        val track = overlayView?.findViewById<View>(R.id.vProgressBar) ?: return
-        progressAnim?.cancel()
-        progressAnim = null
-        track.visibility = View.GONE
-        overlayView?.findViewById<View>(R.id.vProgressFill)?.translationX = 0f
-    }
-
-    private fun refreshTelemetryDetail() {
-        val detail = overlayView?.findViewById<TextView>(R.id.tvOverlayDetail) ?: return
-        if (!isGenerating) return
-        if (statusOverride != null) return
-        if (detail.visibility == View.VISIBLE) {
-            detail.text = buildTelemetryLine()
+        val chip = chipView ?: return
+        val text = chipText ?: return
+        chipJob?.cancel()
+        text.text = status
+        chip.animate().cancel()
+        chip.alpha = 0f
+        chip.visibility = View.VISIBLE
+        chip.animate().alpha(1f).setDuration(160).start()
+        chipJob = scope.launch {
+            delay(2800)
+            chip.animate().alpha(0f).setDuration(220).withEndAction {
+                chip.visibility = View.GONE
+            }.start()
         }
     }
 
@@ -565,9 +356,10 @@ class AgentOverlayManager(private val context: Context) {
     }
 
     fun hideOverlay() {
-        dotJob?.cancel()
-        dotJob = null
-        stopProgressSweep()
+        chipJob?.cancel()
+        chipJob = null
+        radialOverlay?.dismiss()
+        radialOverlay = null
         hideScrollZonePicker()
         overlayView?.let {
             try {
@@ -575,6 +367,10 @@ class AgentOverlayManager(private val context: Context) {
             } catch (_: Exception) {}
         }
         overlayView = null
+        orbView = null
+        orbHitTarget = null
+        chipView = null
+        chipText = null
     }
 
     fun destroy() {
