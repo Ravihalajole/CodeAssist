@@ -8,7 +8,10 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.DocumentsContract
 import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
@@ -20,6 +23,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.MaterialAutoCompleteTextView
+import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -42,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var toggleAutoAllowMode: com.google.android.material.button.MaterialButtonToggleGroup
     private lateinit var switchInputMode: com.google.android.material.materialswitch.MaterialSwitch
     private lateinit var btnSelectWorkspace: MaterialButton
+    private lateinit var btnCloneWorkspace: MaterialButton
     private lateinit var bottomNavigation: BottomNavigationView
     private lateinit var btnGitOptions: MaterialButton
     private lateinit var btnExecutionHistory: MaterialButton
@@ -124,6 +130,31 @@ class MainActivity : AppCompatActivity() {
                 refreshLogsData()
             } else {
                 Toast.makeText(this@MainActivity, "Workspace path is not writable. Choose a folder under primary internal storage.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private var cloneDialogParentLabel: TextView? = null
+
+    private val cloneParentLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            try {
+                val docId = DocumentsContract.getTreeDocumentId(uri)
+                val split = docId.split(":")
+                if ("primary".equals(split.firstOrNull(), ignoreCase = true)) {
+                    val path = if (split.size > 1 && split[1].isNotEmpty()) {
+                        Environment.getExternalStorageDirectory().absolutePath + "/" + split[1]
+                    } else {
+                        Environment.getExternalStorageDirectory().absolutePath
+                    }
+                    getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+                        .edit().putString("CLONE_PARENT_DIR", path).apply()
+                    cloneDialogParentLabel?.text = path
+                } else {
+                    Toast.makeText(this, "Please select a directory on primary internal storage.", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Failed to resolve folder path.", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -235,6 +266,7 @@ class MainActivity : AppCompatActivity() {
         toggleAutoAllowMode = findViewById(R.id.toggleAutoAllowMode)
         switchInputMode = findViewById(R.id.switchInputMode)
         btnSelectWorkspace = findViewById(R.id.btnSelectWorkspace)
+        btnCloneWorkspace = findViewById(R.id.btnCloneWorkspace)
         bottomNavigation = findViewById(R.id.bottomNavigation)
         btnGitOptions = findViewById(R.id.btnGitOptions)
         btnExecutionHistory = findViewById(R.id.btnExecutionHistory)
@@ -517,6 +549,15 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        btnCloneWorkspace.setOnClickListener {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+                Toast.makeText(this, "Please grant All Files Access permission first.", Toast.LENGTH_LONG).show()
+                checkAndRequestStoragePermission()
+            } else {
+                showCloneDialog()
+            }
+        }
+
         btnExecutionHistory.setOnClickListener {
             showExecutionHistoryDialog()
         }
@@ -645,6 +686,10 @@ class MainActivity : AppCompatActivity() {
             .setView(dialogView)
             .create()
 
+        dialogView.findViewById<View>(R.id.rowGitPush).setOnClickListener {
+            dialog.dismiss()
+            openPushDialog()
+        }
         dialogView.findViewById<View>(R.id.rowGitCommit).setOnClickListener {
             dialog.dismiss()
             showManualCommitDialog()
@@ -921,6 +966,219 @@ class MainActivity : AppCompatActivity() {
 
                 logsAdapter.updateData(postActionCommits)
                 tvEmptyLogs.visibility = if (postActionCommits.isEmpty()) View.VISIBLE else View.GONE
+            }
+        }
+    }
+
+    // --- GIT CLONE ---
+
+    private fun showCloneDialog() {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val defaultParent = File(Environment.getExternalStorageDirectory(), "Documents/CodeAssist/repos").absolutePath
+        val parentDir = sharedPref.getString("CLONE_PARENT_DIR", null) ?: defaultParent
+
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_clone, null)
+        val etUrl = dialogView.findViewById<TextInputEditText>(R.id.etCloneUrl)
+        val etFolder = dialogView.findViewById<TextInputEditText>(R.id.etCloneFolder)
+        val tvParent = dialogView.findViewById<TextView>(R.id.tvCloneParent)
+        val etBranch = dialogView.findViewById<TextInputEditText>(R.id.etCloneBranch)
+        val etDepth = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etCloneDepth)
+        val etUsername = dialogView.findViewById<TextInputEditText>(R.id.etCloneUsername)
+        val etToken = dialogView.findViewById<TextInputEditText>(R.id.etCloneToken)
+        cloneDialogParentLabel = tvParent
+
+        tvParent.text = parentDir
+        etDepth.setSimpleItems(arrayOf(
+            getString(R.string.clone_depth_full), "1", "5", "20", "50", "100"
+        ))
+        etDepth.setText(getString(R.string.clone_depth_full), false)
+        etUsername.setText(sharedPref.getString("GIT_USERNAME", null))
+        etToken.setText(sharedPref.getString("GIT_TOKEN", null))
+
+        var lastSlug: String? = null
+        etUrl.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val slug = repoNameFromUrl(s?.toString() ?: return)
+                if (slug == null) return
+                val currentFolder = etFolder.text?.toString()?.trim()
+                if (currentFolder.isNullOrEmpty() || currentFolder == lastSlug) {
+                    lastSlug = slug
+                    etFolder.setText(slug)
+                }
+            }
+        })
+
+        dialogView.findViewById<MaterialButton>(R.id.btnCloneChangeParent).setOnClickListener {
+            cloneParentLauncher.launch(null)
+        }
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.clone_title)
+            .setView(dialogView)
+            .setPositiveButton(R.string.clone_action) { _, _ ->
+                val url = etUrl.text?.toString()?.trim().orEmpty()
+                val folder = etFolder.text?.toString()?.trim().orEmpty()
+                if (url.isEmpty()) {
+                    Toast.makeText(this, "Enter a repository URL.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                if (folder.isEmpty()) {
+                    Toast.makeText(this, "Enter a folder name.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val branch = etBranch.text?.toString()?.trim().takeIf { it.isNotEmpty() }
+                val depth = when (etDepth.text?.toString()?.trim()) {
+                    getString(R.string.clone_depth_full) -> -1
+                    else -> etDepth.text?.toString()?.trim()?.toIntOrNull() ?: -1
+                }
+                val username = etUsername.text?.toString()?.trim().takeIf { it.isNotEmpty() }
+                val token = etToken.text?.toString()?.takeIf { it.isNotEmpty() }
+                sharedPref.edit()
+                    .putString("GIT_USERNAME", username ?: "")
+                    .putString("GIT_TOKEN", token ?: "")
+                    .apply()
+                runClone(url, File(parentDir, folder), branch, depth, username, token)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun repoNameFromUrl(url: String): String? {
+        val clean = url.trim().trimEnd('/')
+        if (clean.isEmpty()) return null
+        val lastSegment = when {
+            clean.contains("://") -> clean.substringAfterLast('/')
+            clean.contains("@") && clean.contains(':') -> clean.substringAfterLast(':').substringAfterLast('/')
+            else -> clean.substringAfterLast('/')
+        }
+        val name = lastSegment.removeSuffix(".git")
+        return name.ifEmpty { null }
+    }
+
+    private fun runClone(url: String, destDir: File, branch: String?, depth: Int, username: String?, token: String?) {
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+        btnCloneWorkspace.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val result = GitManager.cloneRepository(url, destDir, branch, depth, username, token)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                btnCloneWorkspace.isEnabled = true
+                if (result.ok) {
+                    val clonedPath = result.path?.absolutePath ?: return@withContext
+                    getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+                        .edit()
+                        .putString("WORKSPACE_ROOT", clonedPath)
+                        .remove("WORKSPACE_SAF_URI")
+                        .apply()
+                    tvWorkspacePath.text = File(clonedPath).name
+                    refreshWorkspaceStatus(clonedPath)
+                    refreshLogsData()
+                    Toast.makeText(this@MainActivity, getString(R.string.clone_success, clonedPath), Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this@MainActivity, result.error ?: "Clone failed.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    // --- GIT PUSH ---
+
+    private fun openPushDialog() {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
+        if (workspaceRoot.isNullOrEmpty()) {
+            Toast.makeText(this, getString(R.string.push_no_workspace), Toast.LENGTH_SHORT).show()
+            return
+        }
+        val rootFile = File(workspaceRoot)
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val isRepo = GitManager.isGitInitialized(rootFile)
+            val remotes = GitManager.listRemotes(rootFile)
+            val branches = GitManager.listBranches(rootFile)
+            val currentBranch = GitManager.getWorkspaceStatus(rootFile).branch
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (!isRepo) {
+                    Toast.makeText(this@MainActivity, getString(R.string.push_not_repo), Toast.LENGTH_SHORT).show()
+                } else if (remotes.isEmpty() && branches.isEmpty()) {
+                    Toast.makeText(this@MainActivity, "No remotes or branches found. Configure a remote first.", Toast.LENGTH_LONG).show()
+                } else {
+                    showPushDialog(workspaceRoot, remotes, branches, currentBranch)
+                }
+            }
+        }
+    }
+
+    private fun showPushDialog(workspaceRoot: String, remotes: List<String>, branches: List<String>, currentBranch: String?) {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_push, null)
+        val etRemote = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etPushRemote)
+        val etBranch = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etPushBranch)
+        val etUsername = dialogView.findViewById<TextInputEditText>(R.id.etPushUsername)
+        val etToken = dialogView.findViewById<TextInputEditText>(R.id.etPushToken)
+
+        if (remotes.isNotEmpty()) {
+            etRemote.setSimpleItems(remotes.toTypedArray())
+            etRemote.setText(if ("origin" in remotes) "origin" else remotes.first(), false)
+        }
+        if (branches.isNotEmpty()) {
+            etBranch.setSimpleItems(branches.toTypedArray())
+            etBranch.setText(currentBranch?.takeIf { it in branches } ?: branches.first(), false)
+        }
+        etUsername.setText(sharedPref.getString("GIT_USERNAME", null))
+        etToken.setText(sharedPref.getString("GIT_TOKEN", null))
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.push_title)
+            .setView(dialogView)
+            .setPositiveButton(R.string.push_action) { _, _ ->
+                val remote = etRemote.text?.toString()?.trim().orEmpty()
+                val branch = etBranch.text?.toString()?.trim().orEmpty()
+                val username = etUsername.text?.toString()?.trim().takeIf { it.isNotEmpty() }
+                val token = etToken.text?.toString()?.takeIf { it.isNotEmpty() }
+                if (remote.isEmpty()) {
+                    Toast.makeText(this, "Select or type a remote.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                if (branch.isEmpty()) {
+                    Toast.makeText(this, "Select a branch to push.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                sharedPref.edit()
+                    .putString("GIT_USERNAME", username ?: "")
+                    .putString("GIT_TOKEN", token ?: "")
+                    .apply()
+                runPush(File(workspaceRoot), remote, branch, username, token)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun runPush(rootFile: File, remote: String, branch: String, username: String?, token: String?) {
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val error = GitManager.pushToRemote(rootFile, remote, branch, username, token)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (error == null) {
+                    Toast.makeText(this@MainActivity, getString(R.string.push_success, branch, remote), Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                }
+                refreshLogsData()
+                refreshWorkspaceStatus(rootFile.absolutePath)
             }
         }
     }

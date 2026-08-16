@@ -18,6 +18,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Git clone/push over HTTPS -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- FIXED: Application theme changed to Theme.CodeAssist to support Material 3 attributes -->
     <application
         android:allowBackup="true"

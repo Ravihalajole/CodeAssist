@@ -86,6 +86,18 @@
                     app:cornerRadius="12dp"
                     android:paddingHorizontal="16dp"
                     android:layout_marginStart="16dp"/>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnCloneWorkspace"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="42dp"
+                    android:text="@string/clone_button"
+                    app:icon="@drawable/ic_clone"
+                    app:iconTint="@color/brand_mint"
+                    app:cornerRadius="12dp"
+                    android:paddingHorizontal="16dp"
+                    android:layout_marginStart="10dp"/>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

@@ -20,6 +20,36 @@
     <string name="git_action_revert_desc">Neutralize the changes introduced by a commit</string>
     <string name="git_action_reset">Hard Reset</string>
     <string name="git_action_reset_desc">Discard all commits up to the target hash</string>
+    <string name="git_action_push">Push to Remote</string>
+    <string name="git_action_push_desc">Upload the current branch to a remote</string>
+
+    <!-- Git clone dialog -->
+    <string name="clone_button">Clone</string>
+    <string name="clone_title">Clone Repository</string>
+    <string name="clone_url_hint">Repository URL</string>
+    <string name="clone_folder_hint">Folder name</string>
+    <string name="clone_destination_label">Destination</string>
+    <string name="clone_destination_change">Change</string>
+    <string name="clone_branch_hint">Branch (optional)</string>
+    <string name="clone_branch_help">Empty checks out the repository default branch.</string>
+    <string name="clone_depth_label">Clone depth</string>
+    <string name="clone_depth_full">Full history (-1)</string>
+    <string name="clone_creds_hint">Credentials (only for private repos)</string>
+    <string name="clone_username_hint">Username</string>
+    <string name="clone_token_hint">Token / password</string>
+    <string name="clone_token_help">For GitHub use a personal access token (repo scope). Leave blank for public repositories.</string>
+    <string name="clone_action">Clone</string>
+    <string name="clone_success">Repository cloned to %1$s</string>
+
+    <!-- Git push dialog -->
+    <string name="push_title">Push to Remote</string>
+    <string name="push_remote_hint">Remote</string>
+    <string name="push_remote_help">Pick a configured remote or type a URL.</string>
+    <string name="push_branch_hint">Branch</string>
+    <string name="push_action">Push</string>
+    <string name="push_success">Pushed %1$s to %2$s</string>
+    <string name="push_no_workspace">No workspace selected.</string>
+    <string name="push_not_repo">Workspace is not a Git repository.</string>
 
     <!-- Execution history sheet -->
     <string name="execution_history_title">Execution History</string>

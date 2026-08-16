@@ -6,6 +6,8 @@ import org.eclipse.jgit.api.errors.EmptyCommitException
 import org.eclipse.jgit.diff.DiffEntry
 import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.lib.RepositoryCache
+import org.eclipse.jgit.transport.RemoteRefUpdate
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -471,5 +473,146 @@ object GitManager {
         } catch (_: Exception) {}
         
         return historyList.sortedWith(compareByDescending<CommitInfo> { it.time }.thenByDescending { it.hash })
+    }
+
+    data class CloneResult(val ok: Boolean, val error: String?, val path: File?)
+
+    /**
+     * Clones a repository over HTTPS into [destDir]. A blank or non-positive
+     * [depth] performs a full clone (JGit shallow clone requires depth >= 1);
+     * -1 is the UI default meaning "full history". [branch] is optional — blank
+     * checks out the remote's default branch. Credentials are used only when
+     * both [username] and [password] are non-blank (public repos need none).
+     * On failure the partially-cloned directory is removed best-effort.
+     */
+    suspend fun cloneRepository(
+        url: String,
+        destDir: File,
+        branch: String?,
+        depth: Int,
+        username: String?,
+        password: String?
+    ): CloneResult = gitMutex.withLock {
+        if (destDir.exists() && (destDir.list()?.isNotEmpty() == true)) {
+            return@withLock CloneResult(false, "Destination folder already exists and is not empty.", null)
+        }
+        destDir.parentFile?.mkdirs()
+        try {
+            val command = Git.cloneRepository()
+                .setURI(url)
+                .setDirectory(destDir)
+                .setTimeout(60)
+            if (!branch.isNullOrBlank()) {
+                command.setBranch(branch)
+            }
+            if (depth > 0) {
+                command.setDepth(depth)
+            }
+            if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
+                command.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, password))
+            }
+            command.call().use { git ->
+                git.remoteList().call()
+            }
+            CloneResult(true, null, destDir)
+        } catch (e: Exception) {
+            destDir.deleteRecursively()
+            CloneResult(false, e.message ?: "Clone failed.", null)
+        }
+    }
+
+    /**
+     * Names of the configured remotes (e.g. origin), for the push picker.
+     */
+    suspend fun listRemotes(workspaceRoot: File): List<String> = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock emptyList()
+        try {
+            Git.open(repoRoot).use { git ->
+                git.remoteList().call().map { it.name }.sorted()
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * Short names of the local branches, for the push picker.
+     */
+    suspend fun listBranches(workspaceRoot: File): List<String> = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock emptyList()
+        try {
+            Git.open(repoRoot).use { git ->
+                git.branchList().call().map { it.name.removePrefix("refs/heads/") }.sorted()
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * Pushes the local [branch] to [remoteOrUrl] (a configured remote name or
+     * a full HTTPS URL). Shallow clones (depth > 0) are unshallowed first so
+     * the push is not rejected. Returns null on success, or a friendly error
+     * message on failure (non-fast-forward, auth, network...).
+     */
+    suspend fun pushToRemote(
+        workspaceRoot: File,
+        remoteOrUrl: String,
+        branch: String,
+        username: String?,
+        password: String?
+    ): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
+        if (branch.isBlank()) return@withLock "Select a branch to push."
+        cleanupStaleLocks(workspaceRoot)
+        try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                if (File(repoRoot, ".git/shallow").exists()) {
+                    git.fetch().setRemote(remoteOrUrl).setDepth(0).call()
+                }
+                val command = git.push()
+                    .setRemote(remoteOrUrl)
+                    .setRefSpecs("refs/heads/$branch:refs/heads/$branch")
+                    .setTimeout(60)
+                if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
+                    command.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, password))
+                }
+                val results = command.call()
+                val failures = mutableListOf<String>()
+                for (result in results) {
+                    for (update in result.remoteUpdates) {
+                        if (update.status != RemoteRefUpdate.Status.OK &&
+                            update.status != RemoteRefUpdate.Status.UP_TO_DATE
+                        ) {
+                            failures.add(describePushFailure(update))
+                        }
+                    }
+                }
+                if (failures.isEmpty()) null else failures.joinToString("\n")
+            }
+        } catch (e: Exception) {
+            val msg = e.message ?: "Push failed."
+            when {
+                msg.contains("rejected", ignoreCase = true) || msg.contains("non-fast-forward", ignoreCase = true) ->
+                    "Push rejected — the remote branch has newer commits. Pull/merge remote changes first."
+                msg.contains("auth", ignoreCase = true) || msg.contains("401", ignoreCase = true) ||
+                    msg.contains("not authorized", ignoreCase = true) ->
+                    "Authentication failed — check your username and token (needs repo:push scope)."
+                msg.contains("timeout", ignoreCase = true) ->
+                    "Connection timed out — check your network."
+                else -> msg
+            }
+        }
+    }
+
+    private fun describePushFailure(update: RemoteRefUpdate): String {
+        val status = update.status.toString()
+        return when {
+            update.status == RemoteRefUpdate.Status.REJECTED_NONFASTFORWARD ->
+                "Remote branch has newer commits — pull/merge first."
+            update.remoteMessage.isNullOrBlank() -> "Push rejected ($status)."
+            else -> "Push rejected ($status): ${update.remoteMessage}"
+        }
     }
 }
