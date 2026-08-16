@@ -729,6 +729,7 @@ object GitManager {
             ?: return@withLock ChangesOverview(emptyList(), emptyList(), emptyList(), emptyList())
         try {
             Git.open(repoRoot).use { git ->
+                runCatching { git.diff().setNewTree(ContentCheckingFileTreeIterator(git.repository)).call() }
                 buildChangesOverview(git, repoRoot, git.status().call())
             }
         } catch (_: Exception) {
@@ -1089,6 +1090,7 @@ object GitManager {
         cleanupStaleLocks(workspaceRoot)
         return@withLock try {
             Git.open(repoRoot).use { git ->
+                runCatching { git.diff().setNewTree(ContentCheckingFileTreeIterator(git.repository)).call() }
                 val status = git.status().call()
                 val branch = git.repository.branch
                 val overview = buildChangesOverview(git, repoRoot, status)
