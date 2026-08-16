@@ -1356,7 +1356,10 @@ class MainActivity : AppCompatActivity() {
         btnGitOptions.isEnabled = false
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val error = GitManager.commitSelected(rootFile, paths, message)
+            val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+            val authorName = sharedPref.getString("GIT_AUTHOR_NAME", "CodeAssist AI") ?: "CodeAssist AI"
+            val authorEmail = sharedPref.getString("GIT_AUTHOR_EMAIL", "ai@codeassist.local") ?: "ai@codeassist.local"
+            val error = GitManager.commitSelected(rootFile, paths, message, authorName, authorEmail)
             withContext(Dispatchers.Main) {
                 logsProgress.visibility = View.GONE
                 btnGitOptions.isEnabled = true
@@ -1598,20 +1601,16 @@ class MainActivity : AppCompatActivity() {
         btnGitOptions.isEnabled = false
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val isRepo = GitManager.isGitInitialized(rootFile)
-            val remotes = GitManager.listRemotes(rootFile)
-            val branches = GitManager.listBranches(rootFile)
-            val currentBranch = GitManager.getWorkspaceStatus(rootFile).branch
-            val commitsAhead = currentBranch?.let { GitManager.commitsAhead(rootFile, it) }
+            val info = GitManager.collectRemoteBranchInfo(rootFile)
             withContext(Dispatchers.Main) {
                 logsProgress.visibility = View.GONE
                 btnGitOptions.isEnabled = true
-                if (!isRepo) {
+                if (!info.isRepo) {
                     Toast.makeText(this@MainActivity, getString(R.string.push_not_repo), Toast.LENGTH_SHORT).show()
-                } else if (remotes.isEmpty() && branches.isEmpty()) {
+                } else if (info.remotes.isEmpty() && info.branches.isEmpty()) {
                     Toast.makeText(this@MainActivity, "No remotes or branches found. Configure a remote first.", Toast.LENGTH_LONG).show()
                 } else {
-                    showPushDialog(workspaceRoot, remotes, branches, currentBranch, commitsAhead)
+                    showPushDialog(workspaceRoot, info.remotes, info.branches, info.currentBranch, info.commitsAhead)
                 }
             }
         }
@@ -1705,17 +1704,16 @@ class MainActivity : AppCompatActivity() {
         btnGitOptions.isEnabled = false
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val isRepo = GitManager.isGitInitialized(rootFile)
-            val remotes = GitManager.listRemotes(rootFile)
+            val info = GitManager.collectRemoteBranchInfo(rootFile)
             withContext(Dispatchers.Main) {
                 logsProgress.visibility = View.GONE
                 btnGitOptions.isEnabled = true
-                if (!isRepo) {
+                if (!info.isRepo) {
                     Toast.makeText(this@MainActivity, getString(R.string.pull_not_repo), Toast.LENGTH_SHORT).show()
-                } else if (remotes.isEmpty()) {
+                } else if (info.remotes.isEmpty()) {
                     Toast.makeText(this@MainActivity, "No remotes configured. Configure a remote first.", Toast.LENGTH_LONG).show()
                 } else {
-                    showPullDialog(rootFile, remotes)
+                    showPullDialog(rootFile, info.remotes)
                 }
             }
         }
@@ -1785,11 +1783,12 @@ class MainActivity : AppCompatActivity() {
         logsProgress.visibility = View.VISIBLE
         btnGitOptions.isEnabled = false
         lifecycleScope.launch(Dispatchers.IO) {
-            val branches = GitManager.listBranches(rootFile)
-            val current = GitManager.getWorkspaceStatus(rootFile).branch
+            val info = GitManager.collectRemoteBranchInfo(rootFile)
             withContext(Dispatchers.Main) {
                 logsProgress.visibility = View.GONE
                 btnGitOptions.isEnabled = true
+                val branches = info.branches
+                val current = info.currentBranch
                 val dialogView = android.view.LayoutInflater.from(this@MainActivity)
                     .inflate(R.layout.dialog_git_branch, null)
                 val container = dialogView.findViewById<LinearLayout>(R.id.llBranchList)
@@ -1928,7 +1927,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun confirmStashPop() {
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle(R.string.git_action_stash_pop)
             .setMessage(R.string.stash_pop_msg)
             .setPositiveButton(R.string.git_action_stash_pop) { _, _ ->
@@ -1954,6 +1953,7 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+        styleDestructivePositive(dialog)
     }
 
     // --- CHECKPOINTS ---
@@ -2125,12 +2125,11 @@ class MainActivity : AppCompatActivity() {
         logsProgress.visibility = View.VISIBLE
         btnGitOptions.isEnabled = false
         lifecycleScope.launch(Dispatchers.IO) {
-            val branches = GitManager.listBranches(rootFile)
-            val current = GitManager.getWorkspaceStatus(rootFile).branch
+            val info = GitManager.collectRemoteBranchInfo(rootFile)
             withContext(Dispatchers.Main) {
                 logsProgress.visibility = View.GONE
                 btnGitOptions.isEnabled = true
-                val candidates = branches.filter { it != current }
+                val candidates = info.branches.filter { it != info.currentBranch }
                 if (candidates.isEmpty()) {
                     Toast.makeText(this@MainActivity, R.string.merge_no_branches, Toast.LENGTH_SHORT).show()
                     return@withContext

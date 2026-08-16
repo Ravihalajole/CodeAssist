@@ -595,6 +595,42 @@ object GitManager {
     }
 
     /**
+     * Everything the Push / Merge / Branch dialogs need to open, computed in a
+     * single repository open. These dialogs previously prefetched each value
+     * through its own `Git.open` (up to 5 opens on the push path), which made
+     * them lag just like the actions menu used to.
+     */
+    data class RemoteBranchInfo(
+        val isRepo: Boolean,
+        val remotes: List<String>,
+        val branches: List<String>,
+        val currentBranch: String?,
+        val commitsAhead: Int?
+    )
+
+    suspend fun collectRemoteBranchInfo(workspaceRoot: File): RemoteBranchInfo = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot)
+        if (repoRoot == null) {
+            return@withLock RemoteBranchInfo(false, emptyList(), emptyList(), null, null)
+        }
+        cleanupStaleLocks(workspaceRoot)
+        return@withLock try {
+            Git.open(repoRoot).use { git ->
+                val branch = git.repository.branch
+                RemoteBranchInfo(
+                    isRepo = true,
+                    remotes = remoteDetails(git).map { it.first }.sorted(),
+                    branches = branchList(git),
+                    currentBranch = branch,
+                    commitsAhead = commitsAheadInternal(git, branch)
+                )
+            }
+        } catch (_: Exception) {
+            RemoteBranchInfo(false, emptyList(), emptyList(), null, null)
+        }
+    }
+
+    /**
      * Pushes the local [branch] to [remoteOrUrl] (a configured remote name or
      * a full HTTPS URL). Shallow clones (depth > 0) are unshallowed first so
      * the push is not rejected. Returns null on success, or a friendly error
@@ -848,7 +884,13 @@ object GitManager {
      * them with [message]. Deletions are staged via `git add` semantics. Returns
      * null on success, or a friendly error message.
      */
-    suspend fun commitSelected(workspaceRoot: File, paths: List<String>, message: String): String? = gitMutex.withLock {
+    suspend fun commitSelected(
+        workspaceRoot: File,
+        paths: List<String>,
+        message: String,
+        authorName: String = AUTHOR_NAME,
+        authorEmail: String = AUTHOR_EMAIL
+    ): String? = gitMutex.withLock {
         val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
         val trimmed = message.trim()
         if (trimmed.isEmpty()) return@withLock "Commit message cannot be empty."
@@ -857,11 +899,17 @@ object GitManager {
         try {
             Git.open(repoRoot).use { git ->
                 flushRepositoryCaches(git)
-                paths.forEach { path -> git.add().addFilepattern(path).call() }
+                paths.forEach { path ->
+                    if (File(repoRoot, path).exists()) {
+                        git.add().addFilepattern(path).call()
+                    } else {
+                        git.rm().setCached(true).addFilepattern(path).call()
+                    }
+                }
                 git.commit()
                     .setMessage(trimmed)
-                    .setAuthor(AUTHOR_NAME, AUTHOR_EMAIL)
-                    .setCommitter(AUTHOR_NAME, AUTHOR_EMAIL)
+                    .setAuthor(authorName, authorEmail)
+                    .setCommitter(authorName, authorEmail)
                     .call()
                 null
             }
@@ -1024,6 +1072,7 @@ object GitManager {
                 if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
                     command.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, password))
                 }
+                ensureMergeIdentity(git)
                 val result = command.call()
                 if (result.isSuccessful) null
                 else "Pull failed${result.fetchedFrom?.let { " from $it" } ?: ""}."
