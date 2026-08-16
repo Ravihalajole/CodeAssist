@@ -1051,6 +1051,7 @@ class MainActivity : AppCompatActivity() {
     private fun showCommitDiffSheet(hash: String, message: String, changes: List<GitManager.FileChange>) {
         val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_commit_diff, null)
         val content = dialogView.findViewById<LinearLayout>(R.id.llCommitDiffContent)
+        val scroll = dialogView.findViewById<android.widget.ScrollView>(R.id.svCommitDiffScroll)
         val title = dialogView.findViewById<TextView>(R.id.tvCommitDiffTitle)
         val sub = dialogView.findViewById<TextView>(R.id.tvCommitDiffSub)
         val back = dialogView.findViewById<MaterialButton>(R.id.btnCommitDiffBack)
@@ -1060,69 +1061,111 @@ class MainActivity : AppCompatActivity() {
         val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setView(dialogView)
             .create()
+        dialogView.findViewById<MaterialButton>(R.id.btnCommitDiffClose).setOnClickListener { dialog.dismiss() }
 
         fun showFileList() {
             back.visibility = View.GONE
             title.text = getString(R.string.git_action_diff)
             content.removeAllViews()
-            changes.forEach { change ->
-                val row = android.view.LayoutInflater.from(this).inflate(R.layout.item_git_change, content, false)
-                row.findViewById<View>(R.id.cbChangeSelect).visibility = View.GONE
-                val tvStatus = row.findViewById<TextView>(R.id.tvChangeStatus)
-                val tvPath = row.findViewById<TextView>(R.id.tvChangePath)
-                val tvStats = row.findViewById<TextView>(R.id.tvChangeStats)
-                tvStatus.text = when (change.status) {
-                    GitManager.ChangeStatus.ADDED -> "A"
-                    GitManager.ChangeStatus.MODIFIED -> "M"
-                    GitManager.ChangeStatus.DELETED -> "D"
-                    GitManager.ChangeStatus.RENAMED -> "R"
-                    else -> "M"
+            changes.forEachIndexed { idx, change ->
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setPadding(0, 10, 0, 10)
                 }
-                tvStatus.setTextColor(getColor(when (change.status) {
-                    GitManager.ChangeStatus.ADDED -> R.color.state_green
-                    GitManager.ChangeStatus.DELETED -> R.color.state_red
-                    else -> R.color.state_amber
-                }))
-                tvPath.text = change.path
-                tvStats.text = if (change.status == GitManager.ChangeStatus.DELETED) {
-                    "−${change.removed}"
-                } else {
-                    "+${change.added} −${change.removed}"
-                }
-                tvStats.setTextColor(getColor(if (change.added >= change.removed) R.color.state_green else R.color.state_red))
-                row.setOnClickListener {
-                    val workspaceRoot = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
-                        .getString("WORKSPACE_ROOT", null)
-                    if (workspaceRoot == null) return@setOnClickListener
-                    content.removeAllViews()
-                    val loading = TextView(this)
-                    loading.text = getString(R.string.diff_loading)
-                    loading.setTextAppearance(this, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
-                    loading.setPadding(0, 8, 0, 8)
-                    content.addView(loading)
-                    back.visibility = View.VISIBLE
-                    title.text = change.path
-                    lifecycleScope.launch(Dispatchers.IO) {
-                        val diff = GitManager.fileDiff(File(workspaceRoot), hash, change.path)
-                        withContext(Dispatchers.Main) {
-                            content.removeAllViews()
-                            if (diff.isNullOrEmpty()) {
-                                val none = TextView(this@MainActivity)
-                                none.text = getString(R.string.diff_unavailable)
-                                none.setTextAppearance(this@MainActivity, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
-                                none.setPadding(0, 8, 0, 8)
-                                content.addView(none)
-                            } else {
-                                val tv = TextView(this@MainActivity)
-                                tv.typeface = android.graphics.Typeface.MONOSPACE
-                                tv.setTextIsSelectable(true)
-                                tv.setText(applyDiffColors(diff))
-                                content.addView(tv)
-                            }
-                        }
+                val dot = View(this).apply {
+                    val size = dp(8)
+                    layoutParams = LinearLayout.LayoutParams(size, size).apply { marginEnd = dp(12) }
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        shape = android.graphics.drawable.GradientDrawable.OVAL
+                        setColor(getColor(when (change.status) {
+                            GitManager.ChangeStatus.ADDED -> R.color.state_green
+                            GitManager.ChangeStatus.DELETED -> R.color.state_red
+                            else -> R.color.state_amber
+                        }))
                     }
                 }
+                row.addView(dot)
+
+                val textCol = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                val path = TextView(this).apply {
+                    text = change.path
+                    ellipsize = android.text.TruncateAt.MIDDLE
+                    isSingleLine = true
+                    setTextAppearance(this@MainActivity, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+                    setTextColor(getColor(R.color.text_hi))
+                    typeface = android.graphics.Typeface.MONOSPACE
+                }
+                textCol.addView(path)
+
+                val statsText = if (change.status == GitManager.ChangeStatus.DELETED) {
+                    "−${change.removed}"
+                } else {
+                    "${change.added} added, ${change.removed} removed"
+                }
+                val stats = TextView(this).apply {
+                    text = statsText
+                    setTextAppearance(this@MainActivity, com.google.android.material.R.style.TextAppearance_Material3_BodySmall)
+                    setTextColor(getColor(if (change.added >= change.removed) R.color.state_green else R.color.state_red))
+                    typeface = android.graphics.Typeface.MONOSPACE
+                }
+                textCol.addView(stats)
+                row.addView(textCol)
                 content.addView(row)
+
+                if (idx < changes.lastIndex) {
+                    val divider = View(this).apply {
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT, dp(1)
+                        )
+                        setBackgroundColor(getColor(R.color.line_subtle))
+                    }
+                    content.addView(divider)
+                }
+            }
+            scroll.scrollTo(0, 0)
+        }
+
+        fun showDetail(change: GitManager.FileChange) {
+            content.removeAllViews()
+            val loading = TextView(this).apply {
+                text = getString(R.string.diff_loading)
+                setTextAppearance(this@MainActivity, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+                setTextColor(getColor(R.color.text_mid))
+                setPadding(0, 8, 0, 8)
+            }
+            content.addView(loading)
+            back.visibility = View.VISIBLE
+            title.text = change.path
+            scroll.scrollTo(0, 0)
+
+            lifecycleScope.launch(Dispatchers.IO) {
+                val workspaceRoot = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+                    .getString("WORKSPACE_ROOT", null) ?: return@launch
+                val diff = GitManager.fileDiff(File(workspaceRoot), hash, change.path)
+                withContext(Dispatchers.Main) {
+                    content.removeAllViews()
+                    if (diff.isNullOrEmpty()) {
+                        content.addView(TextView(this@MainActivity).apply {
+                            text = getString(R.string.diff_unavailable)
+                            setTextAppearance(this@MainActivity, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+                            setTextColor(getColor(R.color.text_mid))
+                            setPadding(0, 8, 0, 8)
+                        })
+                    } else {
+                        content.addView(TextView(this@MainActivity).apply {
+                            typeface = android.graphics.Typeface.MONOSPACE
+                            setTextIsSelectable(true)
+                            setText(applyDiffColors(diff))
+                            textSize = 12f
+                            setPadding(0, 4, 0, 4)
+                        })
+                        scroll.scrollTo(0, 0)
+                    }
+                }
             }
         }
 
@@ -1130,6 +1173,8 @@ class MainActivity : AppCompatActivity() {
         showFileList()
         dialog.show()
     }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun applyDiffColors(diff: String): android.text.SpannableString {
         val maxLen = 20000
