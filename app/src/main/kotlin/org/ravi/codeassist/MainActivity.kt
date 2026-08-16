@@ -1049,21 +1049,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showCommitDiffSheet(hash: String, message: String, changes: List<GitManager.FileChange>) {
-        val sheet = com.google.android.material.bottomsheet.BottomSheetDialog(this)
-        sheet.behavior.isFitToContents = false
-        sheet.behavior.skipCollapsed = true
-        sheet.setOnShowListener {
-            sheet.behavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
-        }
-        val sheetView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_commit_diff, null)
-        val content = sheetView.findViewById<LinearLayout>(R.id.llCommitDiffContent)
-        val title = sheetView.findViewById<TextView>(R.id.tvCommitDiffTitle)
-        val sub = sheetView.findViewById<TextView>(R.id.tvCommitDiffSub)
-        val back = sheetView.findViewById<MaterialButton>(R.id.btnCommitDiffBack)
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_commit_diff, null)
+        val content = dialogView.findViewById<LinearLayout>(R.id.llCommitDiffContent)
+        val title = dialogView.findViewById<TextView>(R.id.tvCommitDiffTitle)
+        val sub = dialogView.findViewById<TextView>(R.id.tvCommitDiffSub)
+        val back = dialogView.findViewById<MaterialButton>(R.id.btnCommitDiffBack)
 
         title.text = getString(R.string.git_action_diff)
         sub.text = "${hash.take(12)} · ${message.lines().firstOrNull()?.take(48) ?: ""}"
-        sheetView.findViewById<MaterialButton>(R.id.btnCommitDiffClose).setOnClickListener { sheet.dismiss() }
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setView(dialogView)
+            .create()
 
         fun showFileList() {
             back.visibility = View.GONE
@@ -1132,8 +1128,7 @@ class MainActivity : AppCompatActivity() {
 
         back.setOnClickListener { showFileList() }
         showFileList()
-        sheet.setContentView(sheetView)
-        sheet.show()
+        dialog.show()
     }
 
     private fun applyDiffColors(diff: String): android.text.SpannableString {
