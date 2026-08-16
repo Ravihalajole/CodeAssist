@@ -6,6 +6,7 @@ import org.eclipse.jgit.api.errors.EmptyCommitException
 import org.eclipse.jgit.diff.DiffEntry
 import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.lib.RepositoryCache
+import org.eclipse.jgit.transport.RefSpec
 import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
@@ -573,7 +574,7 @@ object GitManager {
                 }
                 val command = git.push()
                     .setRemote(remoteOrUrl)
-                    .setRefSpecs("refs/heads/$branch:refs/heads/$branch")
+                    .setRefSpecs(RefSpec("refs/heads/$branch:refs/heads/$branch"))
                     .setTimeout(60)
                 if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
                     command.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, password))
@@ -611,8 +612,8 @@ object GitManager {
         return when {
             update.status == RemoteRefUpdate.Status.REJECTED_NONFASTFORWARD ->
                 "Remote branch has newer commits — pull/merge first."
-            update.remoteMessage.isNullOrBlank() -> "Push rejected ($status)."
-            else -> "Push rejected ($status): ${update.remoteMessage}"
+            update.message.isNullOrBlank() -> "Push rejected ($status)."
+            else -> "Push rejected ($status): ${update.message}"
         }
     }
 }

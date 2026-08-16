@@ -1028,12 +1028,12 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this, "Enter a folder name.", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
-                val branch = etBranch.text?.toString()?.trim().takeIf { it.isNotEmpty() }
+                val branch = etBranch.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }
                 val depth = when (etDepth.text?.toString()?.trim()) {
                     getString(R.string.clone_depth_full) -> -1
                     else -> etDepth.text?.toString()?.trim()?.toIntOrNull() ?: -1
                 }
-                val username = etUsername.text?.toString()?.trim().takeIf { it.isNotEmpty() }
+                val username = etUsername.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }
                 val token = etToken.text?.toString()?.takeIf { it.isNotEmpty() }
                 sharedPref.edit()
                     .putString("GIT_USERNAME", username ?: "")
@@ -1143,7 +1143,7 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton(R.string.push_action) { _, _ ->
                 val remote = etRemote.text?.toString()?.trim().orEmpty()
                 val branch = etBranch.text?.toString()?.trim().orEmpty()
-                val username = etUsername.text?.toString()?.trim().takeIf { it.isNotEmpty() }
+                val username = etUsername.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }
                 val token = etToken.text?.toString()?.takeIf { it.isNotEmpty() }
                 if (remote.isEmpty()) {
                     Toast.makeText(this, "Select or type a remote.", Toast.LENGTH_SHORT).show()
