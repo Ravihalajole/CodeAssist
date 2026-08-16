@@ -959,7 +959,7 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.clone_depth_full), "1", "5", "20", "50", "100"
         ))
         etDepth.setText("1", false)
-        configureCredDropdown(etCred)
+        configureCredDropdown(etCred, defaultActive = false)
 
         var lastSlug: String? = null
         etUrl.addTextChangedListener(object : TextWatcher {
@@ -1092,7 +1092,7 @@ class MainActivity : AppCompatActivity() {
             etBranch.setSimpleItems(branches.toTypedArray())
             etBranch.setText(currentBranch?.takeIf { it in branches } ?: branches.first(), false)
         }
-        configureCredDropdown(etCred)
+        configureCredDropdown(etCred, defaultActive = true)
 
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle(R.string.push_title)
@@ -1147,13 +1147,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun configureCredDropdown(et: MaterialAutoCompleteTextView) {
+    private fun configureCredDropdown(et: MaterialAutoCompleteTextView, defaultActive: Boolean) {
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val anonymous = getString(R.string.no_credentials)
         val labels = GitCredentialProfiles.labels(sharedPref)
         et.setSimpleItems(arrayOf(anonymous) + labels)
         val active = GitCredentialProfiles.activeName(sharedPref)
-        et.setText(active?.takeIf { it in labels } ?: anonymous, false)
+        et.setText(if (defaultActive) active?.takeIf { it in labels } ?: anonymous else anonymous, false)
     }
 
     private fun resolveCredProfile(et: MaterialAutoCompleteTextView): Pair<String?, String?> {
