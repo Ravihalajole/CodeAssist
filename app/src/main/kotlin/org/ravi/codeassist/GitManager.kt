@@ -6,7 +6,11 @@ import org.eclipse.jgit.api.ResetCommand
 import org.eclipse.jgit.api.errors.EmptyCommitException
 import org.eclipse.jgit.diff.DiffEntry
 import org.eclipse.jgit.diff.DiffFormatter
+import org.eclipse.jgit.dircache.DirCacheEntry
+import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.lib.RepositoryCache
+import org.eclipse.jgit.treewalk.FileTreeIterator
+import org.eclipse.jgit.treewalk.WorkingTreeIterator
 import org.eclipse.jgit.transport.RefSpec
 import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.URIish
@@ -379,11 +383,10 @@ object GitManager {
         return try {
             Git.open(repoRoot).use { git ->
                 val branch = git.repository.branch
-                val status = git.status().call()
-                val changeCount = status.uncommittedChanges.size +
-                    status.added.size + status.modified.size +
-                    status.removed.size + status.missing.size + status.untracked.size
-                WorkspaceStatus(true, branch, status.isClean, changeCount, status.conflicting.size)
+                val overview = buildChangesOverview(git, repoRoot, git.status().call())
+                val changeCount = overview.staged.size + overview.unstaged.size +
+                    overview.untracked.size + overview.conflicts.size
+                WorkspaceStatus(true, branch, changeCount == 0, changeCount, overview.conflicts.size)
             }
         } catch (_: Exception) {
             WorkspaceStatus(false, null, true, 0)
@@ -401,9 +404,9 @@ object GitManager {
         return try {
             Git.open(repoRoot).use { git ->
                 val branch = git.repository.branch ?: "detached"
-                val status = git.status().call()
-                val changes = status.modified.size + status.added.size +
-                    status.removed.size + status.missing.size + status.untracked.size
+                val overview = buildChangesOverview(git, repoRoot, git.status().call())
+                val changes = overview.staged.size + overview.unstaged.size +
+                    overview.untracked.size + overview.conflicts.size
                 val lastCommit = git.log().setMaxCount(1).call().asSequence().firstOrNull()?.name
                 val last = if (lastCommit != null) " | last commit ${lastCommit.take(7)}" else ""
                 "git <$branch> | ${if (changes == 0) "clean" else "$changes pending change(s)"}$last"
@@ -751,7 +754,9 @@ object GitManager {
         }
         return ChangesOverview(
             staged = runCatching { diffStats(git, cached = true) }.getOrDefault(emptyList()),
-            unstaged = runCatching { diffStats(git, cached = false) }.getOrDefault(emptyList()),
+            unstaged = runCatching { diffStats(git, cached = false) }
+                .getOrDefault(emptyList())
+                .filterNot { it.status == ChangeStatus.ADDED && it.path in status.untracked },
             untracked = untracked,
             conflicts = status.conflicting.toList()
         )
@@ -768,7 +773,11 @@ object GitManager {
             formatter.setRepository(git.repository)
             formatter.setDetectRenames(true)
             val command = git.diff()
-            if (cached) command.setCached(true)
+            if (cached) {
+                command.setCached(true)
+            } else {
+                command.setNewTree(ContentCheckingFileTreeIterator(git.repository))
+            }
             val diff = command.call()
             return git.repository.newObjectReader().use { reader ->
                 diff.map { entry ->
@@ -783,6 +792,31 @@ object GitManager {
             }
         } finally {
             formatter.close()
+        }
+    }
+
+    /**
+     * Working-tree iterator that never reports a tracked file as clean from
+     * stat alone. JGit's [WorkingTreeIterator.compareMetadata] treats a file
+     * whose mode, length and (at the coarser resolution) modification time
+     * match the index entry as [WorkingTreeIterator.MetadataDiff.EQUAL], which
+     * skips the content check entirely. Android's FUSE storage exposes
+     * second-granularity mtimes, so an edit that preserves the file length and
+     * lands in the same second as the last index write is invisible to
+     * `git.status()`/`git.diff()` (only ADD/DELETE, which don't depend on the
+     * stat heuristic, were detected). Reporting [WorkingTreeIterator.MetadataDiff.DIFFER_BY_TIMESTAMP]
+     * forces JGit's `idBuffer()` to re-hash the real working-tree bytes and
+     * `isModified` to run a content comparison, so modifications are always
+     * detected regardless of timestamp/length coincidence.
+     */
+    private class ContentCheckingFileTreeIterator(repository: Repository) : FileTreeIterator(repository) {
+        override fun compareMetadata(entry: DirCacheEntry): WorkingTreeIterator.MetadataDiff {
+            val diff = super.compareMetadata(entry)
+            return if (diff == WorkingTreeIterator.MetadataDiff.EQUAL) {
+                WorkingTreeIterator.MetadataDiff.DIFFER_BY_TIMESTAMP
+            } else {
+                diff
+            }
         }
     }
 
@@ -973,14 +1007,16 @@ object GitManager {
             Git.open(repoRoot).use { git ->
                 val status = git.status().call()
                 val branch = git.repository.branch
+                val overview = buildChangesOverview(git, repoRoot, status)
                 GitActionsSnapshot(
                     repoExists = true,
                     branch = branch,
-                    clean = status.isClean,
-                    changeCount = status.uncommittedChanges.size + status.added.size + status.modified.size +
-                        status.removed.size + status.missing.size + status.untracked.size,
-                    conflictCount = status.conflicting.size,
-                    overview = buildChangesOverview(git, repoRoot, status),
+                    clean = overview.staged.isEmpty() && overview.unstaged.isEmpty() &&
+                        overview.untracked.isEmpty() && overview.conflicts.isEmpty(),
+                    changeCount = overview.staged.size + overview.unstaged.size +
+                        overview.untracked.size + overview.conflicts.size,
+                    conflictCount = overview.conflicts.size,
+                    overview = overview,
                     commits = commitHistory(git, 100)
                         .sortedWith(compareByDescending<CommitInfo> { it.time }.thenByDescending { it.hash }),
                     remotes = remoteDetails(git),
