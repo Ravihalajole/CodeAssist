@@ -1966,7 +1966,7 @@ class MainActivity : AppCompatActivity() {
         logsProgress.visibility = View.VISIBLE
         btnGitOptions.isEnabled = false
         lifecycleScope.launch(Dispatchers.IO) {
-            val checkpointList = GitManager.listCheckpoints(rootFile)
+            val checkpoints = GitManager.listCheckpoints(rootFile)
             withContext(Dispatchers.Main) {
                 logsProgress.visibility = View.GONE
                 btnGitOptions.isEnabled = true
@@ -2504,7 +2504,7 @@ class MainActivity : AppCompatActivity() {
                     showCredentialEditor(profile) { render(); refreshGitCredStatus() }
                 }
                 item.findViewById<MaterialButton>(R.id.btnCredDelete).setOnClickListener {
-                    com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                    val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
                         .setTitle(R.string.delete_profile_title)
                         .setMessage(R.string.delete_profile_msg)
                         .setPositiveButton(R.string.delete_button) { _, _ ->
@@ -2512,11 +2512,11 @@ class MainActivity : AppCompatActivity() {
                             render()
                             refreshGitCredStatus()
                         }
-                            .setNegativeButton(android.R.string.cancel, null)
-                            .show()
-                        styleDestructivePositive(resetDialog)
-                    }
-                    container.addView(item)
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show()
+                    styleDestructivePositive(dialog)
+                }
+                container.addView(item)
             }
             if (GitCredentialProfiles.profiles(sharedPref).isEmpty()) {
                 val empty = TextView(this)
