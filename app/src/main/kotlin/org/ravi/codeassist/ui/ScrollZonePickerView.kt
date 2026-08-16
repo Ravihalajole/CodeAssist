@@ -5,7 +5,9 @@ import android.graphics.*
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import androidx.core.content.ContextCompat
 import kotlin.math.abs
+import org.ravi.codeassist.R
 
 class ScrollZonePickerView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
@@ -26,15 +28,16 @@ class ScrollZonePickerView @JvmOverloads constructor(
     }
     private var touchState = TouchState.NONE
 
-    private val handleRadius = 24f
-    private val touchTolerance = 60f
+    private val density = context.resources.displayMetrics.density
+    private val handleRadius = 14f * density
+    private val touchTolerance = 36f * density
 
     init {
         setLayerType(LAYER_TYPE_SOFTWARE, null)
     }
 
     private val scrimPaint = Paint().apply {
-        color = Color.parseColor("#CC000000") // 80% Dim background
+        color = ContextCompat.getColor(context, R.color.ovl_scrim_strong)
         style = Paint.Style.FILL
     }
 
@@ -44,29 +47,28 @@ class ScrollZonePickerView @JvmOverloads constructor(
     }
 
     private val strokePaint = Paint().apply {
-        color = Color.parseColor("#4DD8E7") // High-contrast state cyan
+        color = ContextCompat.getColor(context, R.color.state_cyan)
         style = Paint.Style.STROKE
-        strokeWidth = 6f
+        strokeWidth = 3f * density
         isAntiAlias = true
     }
 
     private val handlePaint = Paint().apply {
-        color = Color.parseColor("#4DD8E7")
+        color = ContextCompat.getColor(context, R.color.state_cyan)
         style = Paint.Style.FILL
         isAntiAlias = true
     }
 
     private val textPaint = Paint().apply {
-        color = Color.WHITE
-        textSize = 36f
+        color = ContextCompat.getColor(context, R.color.text_hi)
+        textSize = 18f * density
         isAntiAlias = true
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        setShadowLayer(4f, 2f, 2f, Color.BLACK)
+        setShadowLayer(2f * density, 1f * density, 1f * density, Color.BLACK)
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        // If box is uninitialized, default to a centered region (20% to 80%)
         if (zoneRect.isEmpty) {
             zoneRect.set(w * 0.15f, h * 0.25f, w * 0.85f, h * 0.75f)
             notifyBoundsChanged()
@@ -77,34 +79,26 @@ class ScrollZonePickerView @JvmOverloads constructor(
         super.onDraw(canvas)
         if (width == 0 || height == 0) return
 
-        // 1. Draw dim full background
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrimPaint)
-
-        // 2. Clear out selection zone window
         canvas.drawRect(zoneRect, clearPaint)
-
-        // 3. Draw high-contrast border lines
         canvas.drawRect(zoneRect, strokePaint)
 
-        // 4. Draw interactive corner handles
         canvas.drawCircle(zoneRect.left, zoneRect.top, handleRadius, handlePaint)
         canvas.drawCircle(zoneRect.right, zoneRect.top, handleRadius, handlePaint)
         canvas.drawCircle(zoneRect.left, zoneRect.bottom, handleRadius, handlePaint)
         canvas.drawCircle(zoneRect.right, zoneRect.bottom, handleRadius, handlePaint)
 
-        // 5. Draw live dimension ratios
         val pctWidth = ((zoneRect.width() / width) * 100).toInt()
         val pctHeight = ((zoneRect.height() / height) * 100).toInt()
         val labelStr = "Scroll Zone: ${pctWidth}% W x ${pctHeight}% H"
         
-        canvas.drawText(labelStr, zoneRect.left + 20f, zoneRect.top - 20f, textPaint)
+        canvas.drawText(labelStr, zoneRect.left + 10f * density, zoneRect.top - 10f * density, textPaint)
         
-        // Draw directional watermark indicators inside the clear window
         val midX = zoneRect.centerX()
         val midY = zoneRect.centerY()
-        canvas.drawText("↑", midX - 10f, midY - 30f, textPaint)
-        canvas.drawText("│", midX - 8f, midY, textPaint)
-        canvas.drawText("↓", midX - 10f, midY + 40f, textPaint)
+        canvas.drawText("\u2191", midX - 5f * density, midY - 15f * density, textPaint)
+        canvas.drawText("\u2502", midX - 4f * density, midY, textPaint)
+        canvas.drawText("\u2193", midX - 5f * density, midY + 20f * density, textPaint)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -121,31 +115,31 @@ class ScrollZonePickerView @JvmOverloads constructor(
             MotionEvent.ACTION_MOVE -> {
                 val dx = x - lastX
                 val dy = y - lastY
+                val minSize = 50f * density
 
                 when (touchState) {
                     TouchState.MOVE -> {
                         zoneRect.offset(dx, dy)
-                        // Keep within screen bounds
                         if (zoneRect.left < 0) zoneRect.offset(-zoneRect.left, 0f)
                         if (zoneRect.top < 0) zoneRect.offset(0f, -zoneRect.top)
                         if (zoneRect.right > width) zoneRect.offset(width - zoneRect.right, 0f)
                         if (zoneRect.bottom > height) zoneRect.offset(0f, height - zoneRect.bottom)
                     }
                     TouchState.TOP_LEFT -> {
-                        zoneRect.left = (zoneRect.left + dx).coerceIn(0f, zoneRect.right - 100f)
-                        zoneRect.top = (zoneRect.top + dy).coerceIn(0f, zoneRect.bottom - 100f)
+                        zoneRect.left = (zoneRect.left + dx).coerceIn(0f, zoneRect.right - minSize)
+                        zoneRect.top = (zoneRect.top + dy).coerceIn(0f, zoneRect.bottom - minSize)
                     }
                     TouchState.TOP_RIGHT -> {
-                        zoneRect.right = (zoneRect.right + dx).coerceIn(zoneRect.left + 100f, width.toFloat())
-                        zoneRect.top = (zoneRect.top + dy).coerceIn(0f, zoneRect.bottom - 100f)
+                        zoneRect.right = (zoneRect.right + dx).coerceIn(zoneRect.left + minSize, width.toFloat())
+                        zoneRect.top = (zoneRect.top + dy).coerceIn(0f, zoneRect.bottom - minSize)
                     }
                     TouchState.BOTTOM_LEFT -> {
-                        zoneRect.left = (zoneRect.left + dx).coerceIn(0f, zoneRect.right - 100f)
-                        zoneRect.bottom = (zoneRect.bottom + dy).coerceIn(zoneRect.top + 100f, height.toFloat())
+                        zoneRect.left = (zoneRect.left + dx).coerceIn(0f, zoneRect.right - minSize)
+                        zoneRect.bottom = (zoneRect.bottom + dy).coerceIn(zoneRect.top + minSize, height.toFloat())
                     }
                     TouchState.BOTTOM_RIGHT -> {
-                        zoneRect.right = (zoneRect.right + dx).coerceIn(zoneRect.left + 100f, width.toFloat())
-                        zoneRect.bottom = (zoneRect.bottom + dy).coerceIn(zoneRect.top + 100f, height.toFloat())
+                        zoneRect.right = (zoneRect.right + dx).coerceIn(zoneRect.left + minSize, width.toFloat())
+                        zoneRect.bottom = (zoneRect.bottom + dy).coerceIn(zoneRect.top + minSize, height.toFloat())
                     }
                     else -> {}
                 }

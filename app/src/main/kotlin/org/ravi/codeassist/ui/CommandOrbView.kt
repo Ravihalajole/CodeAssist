@@ -12,6 +12,8 @@ import android.graphics.Shader
 import android.util.AttributeSet
 import android.view.View
 import android.view.animation.LinearInterpolator
+import androidx.core.content.ContextCompat
+import org.ravi.codeassist.R
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
@@ -21,10 +23,10 @@ class CommandOrbView @JvmOverloads constructor(
     attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
-    private val trackColor = Color.parseColor("#232329")
-    private val coreFill = Color.parseColor("#17181D")
-    private val coreBorder = 0x17FFFFFF.toInt()
-    private val sheenColor = 0x26FFFFFF.toInt()
+    private val trackColor = ContextCompat.getColor(context, R.color.ovl_track)
+    private val coreFill = ContextCompat.getColor(context, R.color.surf_raised)
+    private val coreBorderColor = ContextCompat.getColor(context, R.color.ovl_core_border)
+    private val sheenColor = ContextCompat.getColor(context, R.color.ovl_sheen)
 
     private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -35,7 +37,6 @@ class CommandOrbView @JvmOverloads constructor(
         style = Paint.Style.STROKE
         strokeWidth = dp(3f)
         strokeCap = Paint.Cap.ROUND
-        color = 0xFF4DD8E7.toInt()
     }
     private val corePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
@@ -44,11 +45,10 @@ class CommandOrbView @JvmOverloads constructor(
     private val coreBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = dp(1f)
-        color = coreBorder
+        color = coreBorderColor
     }
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        color = 0xFF4DD8E7.toInt()
     }
     private val auraPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val sheenPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -72,8 +72,9 @@ class CommandOrbView @JvmOverloads constructor(
     private var coreRadius = 0f
     private var auraRadius = 0f
     private var sheenShader: RadialGradient? = null
+    private var auraShader: RadialGradient? = null
 
-    private var accent = 0xFF4DD8E7.toInt()
+    private var accent = ContextCompat.getColor(context, R.color.state_cyan)
     private var generating = false
     private var pulse = false
     private var coreScale = 1f
@@ -105,6 +106,15 @@ class CommandOrbView @JvmOverloads constructor(
             coreRadius * 1.6f,
             sheenColor,
             Color.TRANSPARENT,
+            Shader.TileMode.CLAMP
+        )
+        sheenPaint.shader = sheenShader
+    }
+
+    private fun updateAuraShader() {
+        auraShader = RadialGradient(
+            cx, cy, auraRadius,
+            accent, Color.TRANSPARENT,
             Shader.TileMode.CLAMP
         )
     }
@@ -174,6 +184,9 @@ class CommandOrbView @JvmOverloads constructor(
             duration = 320
             addUpdateListener { a ->
                 accent = a.animatedValue as Int
+                arcPaint.color = accent
+                iconPaint.color = accent
+                updateAuraShader()
                 invalidate()
             }
         }
@@ -184,11 +197,8 @@ class CommandOrbView @JvmOverloads constructor(
         super.onDraw(canvas)
 
         if (generating && auraAlpha > 0f) {
-            auraPaint.shader = RadialGradient(
-                cx, cy, auraRadius,
-                accent, Color.TRANSPARENT,
-                Shader.TileMode.CLAMP
-            )
+            if (auraShader == null) updateAuraShader()
+            auraPaint.shader = auraShader
             auraPaint.alpha = (auraAlpha * 255f).toInt()
             canvas.drawCircle(cx, cy, auraRadius, auraPaint)
             auraPaint.alpha = 255
@@ -199,7 +209,6 @@ class CommandOrbView @JvmOverloads constructor(
 
         canvas.drawCircle(cx, cy, ringRadius, trackPaint)
         if (generating) {
-            arcPaint.color = accent
             canvas.drawArc(ringRect, sweepStart, arcSweep, false, arcPaint)
         }
 
@@ -210,11 +219,9 @@ class CommandOrbView @JvmOverloads constructor(
         coreClip.addCircle(cx, cy, coreRadius, Path.Direction.CW)
         canvas.save()
         canvas.clipPath(coreClip)
-        sheenPaint.shader = sheenShader
         canvas.drawCircle(cx - coreRadius * 0.55f, cy - coreRadius * 0.55f, coreRadius * 1.6f, sheenPaint)
         canvas.restore()
 
-        iconPaint.color = accent
         val iconScale = dp(18f) / 24f
         canvas.save()
         canvas.translate(cx, cy)
@@ -224,6 +231,17 @@ class CommandOrbView @JvmOverloads constructor(
         canvas.restore()
 
         canvas.restore()
+    }
+
+    override fun onVisibilityChanged(changedView: View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (visibility != VISIBLE) {
+            sweepAnim?.pause()
+            pulseAnim?.pause()
+        } else {
+            if (generating) sweepAnim?.resume()
+            if (pulse) pulseAnim?.resume()
+        }
     }
 
     override fun onDetachedFromWindow() {

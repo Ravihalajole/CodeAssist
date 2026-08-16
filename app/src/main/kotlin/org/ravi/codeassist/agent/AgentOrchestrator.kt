@@ -354,13 +354,6 @@ object AgentOrchestrator {
         if (loopIterationCount > MAX_LOOP_ITERATIONS) {
             loopIterationCount = MAX_LOOP_ITERATIONS
             budgetExhausted = true
-            val service = org.ravi.codeassist.AgentAccessibilityService.instance
-            val planTail = if (transcript.planTasks.isEmpty()) "" else " with ${transcript.pendingPlanCount} plan task(s) remaining"
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                service?.updateOverlayStatus(
-                    "[Loop budget exhausted after $MAX_LOOP_ITERATIONS rounds$planTail. Tap Resume to continue with a fresh budget, or Stop to end the session.]"
-                )
-            }
             updateState(AgentState.WAITING_FOR_USER)
             return
         }
@@ -381,14 +374,12 @@ object AgentOrchestrator {
 
             if (!isActive) return@launch
             updateState(AgentState.EXECUTING_ACTION("type_text"))
-            withContext(Dispatchers.Main) { service.updateOverlayStatus("Typing prompt...") }
             noteActivity("typing prompt")
             service.executeToolCall("type_text", promptToInject)
             kotlinx.coroutines.delay(1000)
 
             if (!isActive) return@launch
             updateState(AgentState.EXECUTING_ACTION("click_send"))
-            withContext(Dispatchers.Main) { service.updateOverlayStatus("Sending prompt...") }
             noteActivity("sent prompt — awaiting response")
             service.executeToolCall("click_send")
 
@@ -397,9 +388,6 @@ object AgentOrchestrator {
 
             if (!isActive) return@launch
             if (aiResponse.contains(":::CODE_ASSIST:::")) {
-                withContext(Dispatchers.Main) { 
-                    service.updateOverlayStatus("Envelope Detected. Parsing...") 
-                }
                 val freshCommands = mutableListOf<org.ravi.codeassist.CodeCommand>()
                 var duplicateEnvelopes = 0
                 val seenInScrape = mutableSetOf<String>()
@@ -419,15 +407,9 @@ object AgentOrchestrator {
                     // re-apply the writes; park so the user can steer instead of
                     // silently duplicating mutations.
                     consecutiveParseFailures = 0
-                    withContext(Dispatchers.Main) {
-                        service.updateOverlayStatus("Duplicate envelope skipped — already executed.")
-                    }
                     updateState(AgentState.WAITING_FOR_USER)
                 } else {
                     noteActivity("correcting malformed envelope")
-                    withContext(Dispatchers.Main) { 
-                        service.updateOverlayStatus("Correcting Parse Error...") 
-                    }
                     val errorPrompt = buildParseErrorPrompt() ?: run {
                         haltLoop(
                             service,
@@ -439,9 +421,6 @@ object AgentOrchestrator {
                 }
             } else if (aiResponse.startsWith("Error:") || aiResponse.startsWith("Waiting for model response")) {
                 consecutiveParseFailures = 0
-                withContext(Dispatchers.Main) { 
-                    service.updateOverlayStatus(aiResponse)
-                }
                 updateState(AgentState.WAITING_FOR_USER)
             } else {
                 // The model broke protocol — most commonly it answers a plain
@@ -449,9 +428,6 @@ object AgentOrchestrator {
                 // envelope. Re-anchor it and continue the loop instead of
                 // parking on an unrecoverable prose reply.
                 consecutiveParseFailures = 0
-                withContext(Dispatchers.Main) { 
-                    service.updateOverlayStatus("Re-anchoring agent protocol...") 
-                }
                 noteActivity("re-anchoring protocol drift")
                 val driftPrompt = buildProtocolDriftPrompt() ?: run {
                     haltLoop(
@@ -496,10 +472,8 @@ object AgentOrchestrator {
         prompt: String
     ): String {
         updateState(AgentState.WAITING_FOR_MUTATION)
-        withContext(Dispatchers.Main) { service.updateOverlayStatus("Waiting for AI completion...") }
         var aiResponse = scrapeLatestResponse(service)
         if (aiResponse.startsWith("Error:") && !isStopRequested()) {
-            withContext(Dispatchers.Main) { service.updateOverlayStatus("No response detected — re-sending prompt...") }
             service.executeToolCall("type_text", prompt)
             kotlinx.coroutines.delay(1000)
             service.executeToolCall("click_send")
@@ -550,10 +524,6 @@ object AgentOrchestrator {
     }
 
     private fun haltLoop(service: org.ravi.codeassist.AgentAccessibilityService, reason: String) {
-        val msg = "[Loop halted: $reason]"
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-            service.updateOverlayStatus(msg)
-        }
         updateState(AgentState.IDLE)
     }
     
@@ -578,11 +548,6 @@ object AgentOrchestrator {
                     ":::END_TRANSACTION_RESULT:::\nResolve the pending plan tasks, then terminate with a DONE-only response."
                 startLoop(gatePrompt)
                 return
-            }
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                val remaining = transcript.pendingPlanCount
-                val tail = if (transcript.planTasks.isEmpty()) "" else " Remaining: $remaining/${transcript.planTasks.size} plan tasks."
-                service?.updateOverlayStatus("Task Complete.$tail")
             }
             updateState(AgentState.IDLE)
             return
@@ -637,9 +602,6 @@ object AgentOrchestrator {
             val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
 
             if (aiResponse.contains(":::CODE" + "_ASSIST:::")) {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
-                    service.updateOverlayStatus("Envelope Detected. Parsing...") 
-                }
                 val freshCommands = mutableListOf<org.ravi.codeassist.CodeCommand>()
                 var duplicateEnvelopes = 0
                 val seenInScrape = mutableSetOf<String>()
@@ -653,14 +615,8 @@ object AgentOrchestrator {
                     consecutiveDriftRounds = 0
                     handleCommandRouting(freshCommands, workspaceRoot, service, sharedPref)
                 } else if (duplicateEnvelopes > 0) {
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
-                        service.updateOverlayStatus("Duplicate envelope skipped — already executed.")
-                    }
                     updateState(AgentState.WAITING_FOR_USER)
                 } else {
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
-                        service.updateOverlayStatus("Correcting Parse Error...") 
-                    }
                     val errorPrompt = buildParseErrorPrompt() ?: run {
                         haltLoop(service, "Repeatedly malformed envelopes. Check the [COMMAND]/[PATH]/[CONTENT] envelope syntax and start a new session.")
                         return@launch
@@ -670,14 +626,8 @@ object AgentOrchestrator {
             } else {
                 consecutiveParseFailures = 0
                 if (aiResponse.isBlank()) {
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
-                        service.updateOverlayStatus("Resumed. No envelope found.")
-                    }
                     updateState(AgentState.WAITING_FOR_USER)
                     return@launch
-                }
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { 
-                    service.updateOverlayStatus("Re-anchoring agent protocol...") 
                 }
                 val driftPrompt = buildProtocolDriftPrompt() ?: run {
                     haltLoop(service, "Repeatedly non-protocol output: the model keeps answering as a plain chatbot instead of the CodeAssist agent. Start a new session.")
@@ -714,9 +664,6 @@ object AgentOrchestrator {
         }
 
         if (validCommands.isEmpty() && validationFailures.isNotEmpty()) {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                service.updateOverlayStatus("Validation Failed...")
-            }
             val errorPrompt = buildString {
                 appendLine(":::CODE_ASSIST_TRANSACTION_ERROR:::")
                 appendLine("STATUS: PRE_EXECUTION_VALIDATION_FAILED")
@@ -761,13 +708,9 @@ object AgentOrchestrator {
 
         if (requiresConfirmation) {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                service.updateOverlayStatus("Awaiting User Confirmation...")
                 service.showConfirmationOverlay(actionCommands, root)
             }
         } else {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                service.updateOverlayStatus("Auto-Executing Commands...")
-            }
             val result = org.ravi.codeassist.TransactionManager.executeBatch(service, actionCommands, root)
             
             val prematureWarning = "\n[NOTE: Your DONE command was ignored. To maintain a stable execution loop, please evaluate the transaction results above first. If everything is correct, emit a new response containing ONLY the DONE command along with your summary.]"

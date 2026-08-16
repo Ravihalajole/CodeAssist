@@ -53,4 +53,10 @@
     <color name="ovl_stroke_red_soft">#55FF4D5A</color>
     <color name="ovl_card_red">#22FF4D5A</color>
 
+    <!-- Orb overlay specifics -->
+    <color name="ovl_track">#232329</color>
+    <color name="ovl_core_border">#17FFFFFF</color>
+    <color name="ovl_sheen">#26FFFFFF</color>
+    <color name="ovl_scrim_strong">#CC000000</color>
+
 </resources>

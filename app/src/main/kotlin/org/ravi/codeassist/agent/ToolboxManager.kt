@@ -85,13 +85,10 @@ object ToolboxManager {
                     val currentProfile = org.ravi.codeassist.agent.AgentOrchestrator.getActiveProfile()
                     if (service != null && currentProfile != null) {
                         org.ravi.codeassist.agent.AgentOrchestrator.updateState(org.ravi.codeassist.agent.AgentState.SCROLL_CONFIG_ACTIVE)
-                        service.updateOverlayStatus("Setting scroll zone...")
-                        
                         service.openScrollZonePickerOverlay(
                             profile = currentProfile,
                             onSaveCompleted = { left, top, right, bottom ->
                                 org.ravi.codeassist.agent.AgentOrchestrator.updateState(org.ravi.codeassist.agent.AgentState.IDLE)
-                                service.updateOverlayStatus("Scroll zone saved")
                                 android.widget.Toast.makeText(service, "Scroll boundaries applied!", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         )
@@ -192,7 +189,6 @@ object ToolboxManager {
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                         val msg = if (ok) "Workspace rolled back to $label." else "Rollback failed."
                         android.widget.Toast.makeText(service, msg, android.widget.Toast.LENGTH_SHORT).show()
-                        service.updateOverlayStatus(if (ok) "Workspace rolled back" else "Rollback failed")
                     }
                 }
             }

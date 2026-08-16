@@ -8,35 +8,31 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.widget.TextView
-import com.google.android.material.button.MaterialButton
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.ravi.codeassist.R
+import org.ravi.codeassist.agent.AgentState
 
 class AgentOverlayManager(private val context: Context) {
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var overlayView: View? = null
     private var orbView: CommandOrbView? = null
-    private var orbHitTarget: View? = null
-    private var chipView: View? = null
-    private var chipText: TextView? = null
-    private var chipJob: Job? = null
     private var radialOverlay: CommandRadialOverlay? = null
     private var isGenerating = false
     private var longPressRunnable: Runnable? = null
     private var longPressFired = false
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var stateJob: kotlinx.coroutines.Job? = null
 
     val isShowing: Boolean get() = overlayView != null
 
-    fun showOverlay(onStop: () -> Unit) {
+    fun showOverlay(stateFlow: StateFlow<AgentState>, onStop: () -> Unit) {
         if (overlayView != null) return
 
         val themedContext = ContextThemeWrapper(context, R.style.Theme_CodeAssist)
@@ -44,9 +40,9 @@ class AgentOverlayManager(private val context: Context) {
         val view = inflater.inflate(R.layout.layout_agent_overlay, null)
         overlayView = view
         orbView = view.findViewById(R.id.orbView)
-        orbHitTarget = view.findViewById(R.id.flOrbContainer)
-        chipView = view.findViewById(R.id.llStatusChip)
-        chipText = view.findViewById(R.id.tvStatusChip)
+
+        val density = context.resources.displayMetrics.density
+        val defaultY = (120 * density).toInt()
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -56,27 +52,28 @@ class AgentOverlayManager(private val context: Context) {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = 120
+            y = defaultY
         }
 
-        val sharedPref = context.getSharedPreferences("CodeAssistPrefs", android.content.Context.MODE_PRIVATE)
+        val sharedPref = context.getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
 
-        fun clampToScreen(x: Int, y: Int): Pair<Int, Int> {
-            val v = overlayView ?: return Pair(x, y)
+        fun clampToScreen(rawX: Int, rawY: Int): Pair<Int, Int> {
+            val v = overlayView ?: return Pair(rawX, rawY)
             val metrics = context.resources.displayMetrics
             val winW = v.width.coerceAtLeast(1)
             val winH = v.height.coerceAtLeast(1)
-            val maxLeft = (metrics.widthPixels - winW).coerceAtLeast(0)
-            val maxTop = (metrics.heightPixels - winH).coerceAtLeast(0)
-            val screenLeft = ((metrics.widthPixels - winW) / 2f + x).coerceIn(0f, maxLeft.toFloat())
-            val screenTop = (metrics.heightPixels - winH - y).coerceIn(0, maxTop)
-            val newX = (screenLeft - (metrics.widthPixels - winW) / 2f).toInt()
-            val newY = (metrics.heightPixels - winH - screenTop).toInt()
+            val maxTop = metrics.heightPixels - winH
+            val screenTop = (metrics.heightPixels - winH - rawY).coerceIn(0, maxTop)
+            val newY = metrics.heightPixels - winH - screenTop
+            val screenLeft = ((metrics.widthPixels - winW) / 2f + rawX)
+            val maxLeft = metrics.widthPixels - winW
+            val clampedLeft = screenLeft.coerceIn(0f, maxLeft.toFloat())
+            val newX = (clampedLeft - (metrics.widthPixels - winW) / 2f).toInt()
             return Pair(newX, newY)
         }
 
         params.x = sharedPref.getInt("OVERLAY_POS_X", 0)
-        params.y = sharedPref.getInt("OVERLAY_POS_Y", 120)
+        params.y = sharedPref.getInt("OVERLAY_POS_Y", defaultY)
 
         val touchSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop
         var initialX = 0
@@ -95,15 +92,13 @@ class AgentOverlayManager(private val context: Context) {
                     initialY = layoutParams.y
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
-                    if (isTouchOnOrb(event.x, event.y)) {
-                        longPressRunnable?.let { view.removeCallbacks(it) }
-                        val task = Runnable {
-                            longPressFired = true
-                            openRadial()
-                        }
-                        longPressRunnable = task
-                        view.postDelayed(task, 360)
+                    longPressRunnable?.let { view.removeCallbacks(it) }
+                    val task = Runnable {
+                        longPressFired = true
+                        openRadial()
                     }
+                    longPressRunnable = task
+                    view.postDelayed(task, 400)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -113,14 +108,12 @@ class AgentOverlayManager(private val context: Context) {
                         dragged = true
                         longPressRunnable?.let { view.removeCallbacks(it) }
                         longPressRunnable = null
-                        // BOTTOM gravity: increasing y moves the window up, so a
-                        // downward drag (dy > 0) must DECREASE y.
                         val (clampedX, clampedY) = clampToScreen(initialX + dx.toInt(), initialY - dy.toInt())
                         layoutParams.x = clampedX
                         layoutParams.y = clampedY
                         try {
                             windowManager.updateViewLayout(overlayView, layoutParams)
-                        } catch (e: Exception) {}
+                        } catch (_: Exception) {}
                     }
                     true
                 }
@@ -128,14 +121,14 @@ class AgentOverlayManager(private val context: Context) {
                     longPressRunnable?.let { view.removeCallbacks(it) }
                     longPressRunnable = null
                     sharedPref.edit().putInt("OVERLAY_POS_X", layoutParams.x).putInt("OVERLAY_POS_Y", layoutParams.y).apply()
-                    if (!dragged && !longPressFired && isTouchOnOrb(event.x, event.y)) {
+                    if (!dragged && !longPressFired) {
                         if (isGenerating) {
                             onStop()
                         } else {
                             org.ravi.codeassist.AgentAccessibilityService.instance?.resumeOrSync()
                         }
                     }
-                    false
+                    true
                 }
                 MotionEvent.ACTION_OUTSIDE -> {
                     radialOverlay?.dismiss()
@@ -146,12 +139,13 @@ class AgentOverlayManager(private val context: Context) {
         }
 
         windowManager.addView(overlayView, params)
-        scope.launch { updateStatusInternal() }
-    }
 
-    private fun isTouchOnOrb(x: Float, y: Float): Boolean {
-        val target = orbHitTarget ?: return false
-        return x >= target.left && x <= target.right && y >= target.top && y <= target.bottom
+        stateJob?.cancel()
+        stateJob = scope.launch {
+            stateFlow.collect { state ->
+                updateStatusInternal(state)
+            }
+        }
     }
 
     private fun openRadial() {
@@ -181,57 +175,25 @@ class AgentOverlayManager(private val context: Context) {
         radialOverlay = radial
     }
 
-    private data class OverlayUi(
-        val start: Int,
-        val generating: Boolean,
-        val pulse: Boolean
-    )
-
-    private fun overlayUiFor(state: org.ravi.codeassist.agent.AgentState): OverlayUi {
-        val executing = 0xFF34E0A1.toInt()
-        val working = 0xFFFFAD3F.toInt()
-        val failed = 0xFFFF4D5A.toInt()
-        val user = 0xFF4C8DFF.toInt()
-        val tools = 0xFFA06BF5.toInt()
-        val scroll = 0xFF4DD8E7.toInt()
-
+    private fun overlayUiFor(state: AgentState): Pair<Int, Boolean> {
         return when (state) {
-            is org.ravi.codeassist.agent.AgentState.IDLE -> OverlayUi(scroll, false, false)
-            is org.ravi.codeassist.agent.AgentState.ANALYZING_SCREEN -> OverlayUi(working, true, false)
-            is org.ravi.codeassist.agent.AgentState.AWAITING_LLM -> OverlayUi(working, true, false)
-            is org.ravi.codeassist.agent.AgentState.EXECUTING_ACTION -> OverlayUi(executing, true, false)
-            is org.ravi.codeassist.agent.AgentState.WAITING_FOR_MUTATION -> OverlayUi(working, true, false)
-            is org.ravi.codeassist.agent.AgentState.WAITING_FOR_USER -> OverlayUi(user, false, true)
-            is org.ravi.codeassist.agent.AgentState.ERROR -> OverlayUi(failed, false, true)
-            is org.ravi.codeassist.agent.AgentState.TOOLBOX_OPEN -> OverlayUi(tools, false, false)
-            is org.ravi.codeassist.agent.AgentState.SCROLL_CONFIG_ACTIVE -> OverlayUi(scroll, false, false)
+            is AgentState.IDLE -> Pair(ContextCompat.getColor(context, R.color.state_cyan), false)
+            is AgentState.ANALYZING_SCREEN -> Pair(ContextCompat.getColor(context, R.color.state_amber), true)
+            is AgentState.AWAITING_LLM -> Pair(ContextCompat.getColor(context, R.color.state_amber), true)
+            is AgentState.EXECUTING_ACTION -> Pair(ContextCompat.getColor(context, R.color.brand_mint), true)
+            is AgentState.WAITING_FOR_MUTATION -> Pair(ContextCompat.getColor(context, R.color.state_amber), true)
+            is AgentState.WAITING_FOR_USER -> Pair(ContextCompat.getColor(context, R.color.state_blue), false)
+            is AgentState.ERROR -> Pair(ContextCompat.getColor(context, R.color.state_red), false)
+            is AgentState.TOOLBOX_OPEN -> Pair(ContextCompat.getColor(context, R.color.state_violet), false)
+            is AgentState.SCROLL_CONFIG_ACTIVE -> Pair(ContextCompat.getColor(context, R.color.state_cyan), false)
         }
     }
 
-    private suspend fun updateStatusInternal() {
+    private fun updateStatusInternal(state: AgentState) {
         val orb = orbView ?: return
-        val state = org.ravi.codeassist.agent.AgentOrchestrator.state.value
-        val ui = overlayUiFor(state)
-        isGenerating = ui.generating
-        orb.applyUi(ui.start, ui.generating, ui.pulse)
-    }
-
-    fun updateStatus(status: String) {
-        if (overlayView == null) return
-        val chip = chipView ?: return
-        val text = chipText ?: return
-        chipJob?.cancel()
-        text.text = status
-        chip.animate().cancel()
-        chip.alpha = 0f
-        chip.visibility = View.VISIBLE
-        chip.animate().alpha(1f).setDuration(160).start()
-        chipJob = scope.launch {
-            delay(2800)
-            chip.animate().alpha(0f).setDuration(220).withEndAction {
-                chip.visibility = View.GONE
-            }.start()
-        }
+        val (color, generating) = overlayUiFor(state)
+        isGenerating = generating
+        orb.applyUi(color, generating, state is AgentState.WAITING_FOR_USER || state is AgentState.ERROR)
     }
 
     fun setOverlayVisibility(isVisible: Boolean) {
@@ -294,36 +256,34 @@ class AgentOverlayManager(private val context: Context) {
         container.addView(picker)
         scrollPickerContainer = container
 
+        val density = context.resources.displayMetrics.density
         val buttonContainer = android.widget.LinearLayout(themedContext).apply {
             orientation = android.widget.LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setBackgroundColor(androidx.core.content.ContextCompat.getColor(context, R.color.surf_raised))
-            setPadding(32, 16, 32, 16)
+            setBackgroundColor(ContextCompat.getColor(context, R.color.surf_raised))
+            setPadding((16 * density).toInt(), (8 * density).toInt(), (16 * density).toInt(), (8 * density).toInt())
         }
 
-        val btnSave = MaterialButton(themedContext).apply {
+        val btnSave = com.google.android.material.button.MaterialButton(themedContext).apply {
             text = "Save Bounds"
-            setBackgroundColor(androidx.core.content.ContextCompat.getColor(context, R.color.brand_mint))
-            setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.brand_on_accent))
+            setBackgroundColor(ContextCompat.getColor(context, R.color.brand_mint))
+            setTextColor(ContextCompat.getColor(context, R.color.brand_on_accent))
             setOnClickListener {
                 onSave(currentLeft, currentTop, currentRight, currentBottom)
                 hideScrollZonePicker()
             }
         }
 
-        val btnCancel = MaterialButton(themedContext, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+        val btnCancel = com.google.android.material.button.MaterialButton(themedContext, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
             text = "Cancel"
-            setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.text_hi))
-            strokeColor = android.content.res.ColorStateList.valueOf(
-                androidx.core.content.ContextCompat.getColor(context, R.color.text_mid)
-            )
-            val layoutParams = android.widget.LinearLayout.LayoutParams(
+            setTextColor(ContextCompat.getColor(context, R.color.text_hi))
+            val lp = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(0, 0, 32, 0)
+                marginEnd = (16 * density).toInt()
             }
-            this.layoutParams = layoutParams
+            this.layoutParams = lp
             setOnClickListener {
                 hideScrollZonePicker()
             }
@@ -337,7 +297,7 @@ class AgentOverlayManager(private val context: Context) {
             android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            setMargins(0, 0, 0, 240)
+            bottomMargin = (120 * density).toInt()
         }
         container.addView(buttonContainer, frameParams)
 
@@ -356,8 +316,8 @@ class AgentOverlayManager(private val context: Context) {
     }
 
     fun hideOverlay() {
-        chipJob?.cancel()
-        chipJob = null
+        stateJob?.cancel()
+        stateJob = null
         radialOverlay?.dismiss()
         radialOverlay = null
         hideScrollZonePicker()
@@ -368,9 +328,6 @@ class AgentOverlayManager(private val context: Context) {
         }
         overlayView = null
         orbView = null
-        orbHitTarget = null
-        chipView = null
-        chipText = null
     }
 
     fun destroy() {

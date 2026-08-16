@@ -2,7 +2,6 @@ package org.ravi.codeassist.ui
 
 import android.content.Context
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.graphics.PixelFormat
 import android.os.Handler
 import android.os.Looper
@@ -29,6 +28,7 @@ class CommandRadialOverlay(private val context: Context) {
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val handler = Handler(Looper.getMainLooper())
     private val themedContext = ContextThemeWrapper(context, R.style.Theme_CodeAssist)
+    private val density = context.resources.displayMetrics.density
 
     private var container: FrameLayout? = null
     private var exitButton: MaterialButton? = null
@@ -56,7 +56,7 @@ class CommandRadialOverlay(private val context: Context) {
         onExit: () -> Unit
     ) {
         dismiss()
-        val size = dp(240)
+        val size = dp(260)
         val center = (size / 2).toFloat()
 
         val root = FrameLayout(themedContext).apply {
@@ -80,11 +80,11 @@ class CommandRadialOverlay(private val context: Context) {
             ToolSpec("Exit", R.drawable.ic_close, red, onExit)
         )
 
-        val radius = dp(84f).toFloat()
+        val radius = dp(90).toFloat()
         tools.forEachIndexed { i, spec ->
             val angle = (PI.toFloat() / 2f) + (i - tools.size / 2f + 0.5f) * (2f * PI.toFloat() / tools.size)
             val x = cos(angle) * radius
-            val y = sin(angle) * radius - 8f * context.resources.displayMetrics.density
+            val y = sin(angle) * radius
             val isExit = i == tools.lastIndex
             val item = buildItem(spec, isExit)
             val lp = FrameLayout.LayoutParams(dp(52), dp(56)).apply {
@@ -104,12 +104,12 @@ class CommandRadialOverlay(private val context: Context) {
         val params = WindowManager.LayoutParams(
             size, size,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = (centerX - size / 2).coerceIn(0, (metrics.widthPixels - size).coerceAtLeast(0))
-            y = (centerY - size / 2 - dp(44)).coerceIn(0, (metrics.heightPixels - size).coerceAtLeast(0))
+            y = (centerY - size / 2).coerceIn(0, (metrics.heightPixels - size).coerceAtLeast(0))
         }
 
         root.setOnTouchListener { _, event ->
@@ -140,15 +140,13 @@ class CommandRadialOverlay(private val context: Context) {
 
     private fun buildItem(spec: ToolSpec, isExit: Boolean): View {
         val accent = spec.accent
-        val stroke = ColorUtils.setAlphaComponent(accent, 0x66)
         val raised = ContextCompat.getColor(context, R.color.surf_raised)
         val button = MaterialButton(themedContext, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-            icon = androidx.core.content.ContextCompat.getDrawable(context, spec.iconRes)
+            icon = ContextCompat.getDrawable(context, spec.iconRes)
             iconSize = dp(18)
             iconTint = ColorStateList.valueOf(accent)
             backgroundTintList = ColorStateList.valueOf(raised)
-            strokeColor = ColorStateList.valueOf(stroke)
-            strokeWidth = 1
+            strokeWidth = 0
             cornerRadius = dp(20)
             insetLeft = 0
             insetTop = 0
@@ -204,9 +202,9 @@ class CommandRadialOverlay(private val context: Context) {
         val label = exitLabel ?: return
         pendingExit = true
         val red = ContextCompat.getColor(context, R.color.state_red)
+        val white = ContextCompat.getColor(context, R.color.text_hi)
         button.backgroundTintList = ColorStateList.valueOf(red)
-        button.iconTint = ColorStateList.valueOf(Color.WHITE)
-        button.strokeColor = ColorStateList.valueOf(Color.WHITE)
+        button.iconTint = ColorStateList.valueOf(white)
         label.setTextColor(red)
         label.text = "Confirm?"
         val reset = Runnable {
@@ -215,7 +213,6 @@ class CommandRadialOverlay(private val context: Context) {
                 ContextCompat.getColor(context, R.color.surf_raised)
             )
             button.iconTint = ColorStateList.valueOf(red)
-            button.strokeColor = ColorStateList.valueOf(ColorUtils.setAlphaComponent(red, 0x66))
             label.setTextColor(red)
             label.text = "Exit"
         }
@@ -227,7 +224,6 @@ class CommandRadialOverlay(private val context: Context) {
         exitReset?.let { handler.removeCallbacks(it) }
         exitReset = null
         val root = container ?: return
-        container = null
         exitButton = null
         exitLabel = null
         pendingExit = false
@@ -238,6 +234,7 @@ class CommandRadialOverlay(private val context: Context) {
             .setDuration(160)
             .setInterpolator(DecelerateInterpolator())
             .withEndAction {
+                container = null
                 try {
                     windowManager.removeView(root)
                 } catch (_: Exception) {}
@@ -245,7 +242,7 @@ class CommandRadialOverlay(private val context: Context) {
             .start()
     }
 
-    private fun dp(v: Int): Int = (v * context.resources.displayMetrics.density).toInt()
+    private fun dp(v: Int): Int = (v * density).toInt()
 
-    private fun dp(v: Float): Int = (v * context.resources.displayMetrics.density).toInt()
+    private fun dp(v: Float): Int = (v * density).toInt()
 }
