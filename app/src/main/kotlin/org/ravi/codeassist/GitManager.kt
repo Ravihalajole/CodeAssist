@@ -784,8 +784,10 @@ object GitManager {
                     sb.append("  (entry count = ").append(entries.size).append(")\n")
                 }.onFailure { sb.append("  ERROR: ").append(it).append('\n') }
 
-                sb.append("PER-FILE (workspace listing):\n")
-                val files = workspaceRoot.listFiles()?.filter { it.isFile } ?: emptyList()
+                sb.append("PER-FILE (workspace listing, recursive):\n")
+                val files = mutableListOf<File>()
+                fun collect(d: File) { d.listFiles()?.forEach { if (it.isDirectory) collect(it) else files.add(it) } }
+                collect(workspaceRoot)
                 sb.append("  files = ").append(files.size).append(if (files.size > 60) " (showing first 60)\n" else "\n")
                 repo.newObjectInserter().use { inserter ->
                     files.take(60).forEach { file ->
