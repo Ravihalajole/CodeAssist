@@ -1028,6 +1028,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun showCommitDiffSheet(hash: String, message: String, changes: List<GitManager.FileChange>) {
         val sheet = com.google.android.material.bottomsheet.BottomSheetDialog(this)
+        sheet.behavior.isFitToContents = false
+        sheet.behavior.skipCollapsed = true
+        sheet.setOnShowListener {
+            sheet.behavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
+        }
         val sheetView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_commit_diff, null)
         val content = sheetView.findViewById<LinearLayout>(R.id.llCommitDiffContent)
         val title = sheetView.findViewById<TextView>(R.id.tvCommitDiffTitle)
