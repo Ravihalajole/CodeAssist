@@ -366,7 +366,7 @@ object GitManager {
 
     data class CommitInfo(val hash: String, val message: String, val author: String, val time: Long)
 
-    data class WorkspaceStatus(val isRepo: Boolean, val branch: String?, val isClean: Boolean, val changeCount: Int)
+    data class WorkspaceStatus(val isRepo: Boolean, val branch: String?, val isClean: Boolean, val changeCount: Int, val conflictCount: Int = 0)
 
     /**
      * Summarizes the workspace repository state (branch + working-tree cleanliness)
@@ -382,7 +382,7 @@ object GitManager {
                 val changeCount = status.uncommittedChanges.size +
                     status.added.size + status.modified.size +
                     status.removed.size + status.missing.size + status.untracked.size
-                WorkspaceStatus(true, branch, status.isClean, changeCount)
+                WorkspaceStatus(true, branch, status.isClean, changeCount, status.conflicting.size)
             }
         } catch (_: Exception) {
             WorkspaceStatus(false, null, true, 0)
@@ -549,6 +549,36 @@ object GitManager {
             }
         } catch (_: Exception) {
             emptyList()
+        }
+    }
+
+    /**
+     * Number of commits on the current [branch] not present on its configured
+     * upstream (remote-tracking ref from the last fetch), for the Push live
+     * status. Null when there's no repo, no upstream configured, or the
+     * comparison fails.
+     */
+    suspend fun commitsAhead(workspaceRoot: File, branch: String?): Int? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock null
+        if (branch.isNullOrBlank()) return@withLock null
+        try {
+            Git.open(repoRoot).use { git ->
+                val config = git.repository.config
+                val remoteName = config.getString("branch", branch, "remote") ?: return@use null
+                val mergeRef = config.getString("branch", branch, "merge") ?: return@use null
+                val upstream = git.repository.findRef("refs/remotes/$remoteName/${mergeRef.removePrefix("refs/heads/")}")?.objectId
+                    ?: return@use null
+                val head = git.repository.resolve("HEAD") ?: return@use null
+                org.eclipse.jgit.revwalk.RevWalk(git.repository).use { walk ->
+                    walk.markStart(walk.parseCommit(head))
+                    walk.markUninteresting(walk.parseCommit(upstream))
+                    var count = 0
+                    for (commit in walk) count++
+                    count
+                }
+            }
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -873,6 +903,20 @@ object GitManager {
             }
         } catch (e: Exception) {
             e.message ?: "Stash pop failed."
+        }
+    }
+
+    /**
+     * Number of stashes currently saved, for the Git Actions live status.
+     */
+    suspend fun stashCount(workspaceRoot: File): Int = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock 0
+        try {
+            Git.open(repoRoot).use { git ->
+                git.stashList().call().size
+            }
+        } catch (_: Exception) {
+            0
         }
     }
 

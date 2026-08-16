@@ -680,56 +680,138 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private class GitActionsContext(
+        val workspaceRoot: String?,
+        val overview: GitManager.ChangesOverview?,
+        val status: GitManager.WorkspaceStatus?,
+        val commits: List<GitManager.CommitInfo>,
+        val remotes: List<Pair<String, String>>,
+        val otherBranches: List<String>,
+        val stashCount: Int,
+        val checkpointCount: Int,
+        val commitsAhead: Int?
+    )
+
     private fun showGitActionsDialog() {
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
         lifecycleScope.launch(Dispatchers.IO) {
-            val overview = workspaceRoot?.let { GitManager.changesOverview(File(it)) }
-            val status = workspaceRoot?.let { GitManager.getWorkspaceStatus(File(it)) }
-            val commits = workspaceRoot?.let { GitManager.getCommitHistory(File(it)).take(20) } ?: emptyList()
-            val remotes = workspaceRoot?.let { GitManager.listRemoteDetails(File(it)) } ?: emptyList()
+            val rootFile = workspaceRoot?.let { File(it) }
+            val status = rootFile?.let { GitManager.getWorkspaceStatus(it) }
+            val branches = rootFile?.let { GitManager.listBranches(it) } ?: emptyList()
+            val currentBranch = status?.branch
+            val context = GitActionsContext(
+                workspaceRoot = workspaceRoot,
+                overview = rootFile?.let { GitManager.changesOverview(it) },
+                status = status,
+                commits = rootFile?.let { GitManager.getCommitHistory(it).take(20) } ?: emptyList(),
+                remotes = rootFile?.let { GitManager.listRemoteDetails(it) } ?: emptyList(),
+                otherBranches = branches.filterNot { it == currentBranch },
+                stashCount = rootFile?.let { GitManager.stashCount(it) } ?: 0,
+                checkpointCount = rootFile?.let { GitManager.listCheckpoints(it).size } ?: 0,
+                commitsAhead = rootFile?.let { GitManager.commitsAhead(it, currentBranch) }
+            )
             withContext(Dispatchers.Main) {
-                showGitActionsDialogContent(workspaceRoot, overview, status, commits, remotes)
+                showGitActionsDialogContent(context)
             }
         }
     }
 
-    private fun showGitActionsDialogContent(
-        workspaceRoot: String?,
-        overview: GitManager.ChangesOverview?,
-        status: GitManager.WorkspaceStatus?,
-        commits: List<GitManager.CommitInfo>,
-        remotes: List<Pair<String, String>>
-    ) {
+    private fun showGitActionsDialogContent(ctx: GitActionsContext) {
         val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_actions, null)
+        val hasWorkspace = !ctx.workspaceRoot.isNullOrEmpty()
         dialogView.findViewById<TextView>(R.id.tvGitDialogWorkspace).text =
-            workspaceRoot?.let { getString(R.string.git_actions_workspace_desc, it) }
+            ctx.workspaceRoot?.let { getString(R.string.git_actions_workspace_desc, it) }
                 ?: getString(R.string.workspace_not_set)
 
+        val overview = ctx.overview
+        val status = ctx.status
+        val commits = ctx.commits
         val allChanges = overview?.let { it.staged + it.unstaged + it.untracked } ?: emptyList()
         val totalAdded = allChanges.sumOf { it.added }
         val totalRemoved = allChanges.sumOf { it.removed }
         val headSummary = commits.firstOrNull()?.message?.lines()?.firstOrNull()?.trim().orEmpty()
+        val conflictCount = status?.conflictCount ?: 0
+        val hasChanges = allChanges.isNotEmpty()
+        val hasRemotes = ctx.remotes.isNotEmpty()
 
-        dialogView.findViewById<TextView>(R.id.tvGitCommitStatus).text = if (allChanges.isEmpty()) {
-            getString(R.string.git_status_clean)
-        } else {
-            getString(R.string.git_status_changes, allChanges.size, totalAdded, totalRemoved)
+        val dot = dialogView.findViewById<View>(R.id.vGitSummaryDot)
+        val summaryTitle = dialogView.findViewById<TextView>(R.id.tvGitSummaryTitle)
+        val summarySub = dialogView.findViewById<TextView>(R.id.tvGitSummarySub)
+        val branchLabel = status?.branch ?: getString(R.string.git_branch_detached)
+        when {
+            !hasWorkspace -> {
+                dot.background?.setTint(androidx.core.content.ContextCompat.getColor(this, R.color.text_mid))
+                summaryTitle.text = getString(R.string.git_summary_no_workspace)
+                summarySub.text = getString(R.string.workspace_not_set)
+            }
+            conflictCount > 0 -> {
+                dot.background?.setTint(androidx.core.content.ContextCompat.getColor(this, R.color.state_red))
+                summaryTitle.text = branchLabel
+                summarySub.text = getString(R.string.git_summary_conflicts, conflictCount)
+            }
+            hasChanges -> {
+                dot.background?.setTint(androidx.core.content.ContextCompat.getColor(this, R.color.state_amber))
+                summaryTitle.text = branchLabel
+                summarySub.text = getString(R.string.git_summary_changes, allChanges.size, totalAdded, totalRemoved)
+            }
+            else -> {
+                dot.background?.setTint(androidx.core.content.ContextCompat.getColor(this, R.color.state_green))
+                summaryTitle.text = branchLabel
+                summarySub.text = getString(R.string.git_summary_clean)
+            }
         }
-        dialogView.findViewById<TextView>(R.id.tvGitPushStatus).text =
-            getString(R.string.git_status_push, status?.branch ?: "?", if (allChanges.isEmpty()) "clean" else "${allChanges.size} pending")
+
+        dialogView.findViewById<TextView>(R.id.tvGitCommitStatus).text = when {
+            conflictCount > 0 -> getString(R.string.git_commit_conflicts, conflictCount)
+            !hasChanges -> getString(R.string.git_summary_clean)
+            else -> {
+                val staged = overview?.staged?.size ?: 0
+                if (staged > 0) {
+                    getString(R.string.git_status_changes_staged, allChanges.size, totalAdded, totalRemoved, staged)
+                } else {
+                    getString(R.string.git_status_changes, allChanges.size, totalAdded, totalRemoved)
+                }
+            }
+        }
+        val ahead = ctx.commitsAhead
+        dialogView.findViewById<TextView>(R.id.tvGitPushStatus).text = when {
+            !hasRemotes -> getString(R.string.no_remotes)
+            ahead == null -> getString(R.string.git_push_no_upstream)
+            ahead > 0 -> getString(R.string.git_push_ahead, ahead)
+            else -> getString(R.string.git_push_up_to_date)
+        }
+        dialogView.findViewById<TextView>(R.id.tvGitPullStatus).text =
+            if (hasRemotes) getString(R.string.git_pull_from, ctx.remotes.first().first)
+            else getString(R.string.no_remotes)
+        dialogView.findViewById<TextView>(R.id.tvGitFetchStatus).text =
+            if (hasRemotes) getString(R.string.git_fetch_remotes, ctx.remotes.size, ctx.remotes.joinToString(", ") { it.first })
+            else getString(R.string.no_remotes)
         dialogView.findViewById<TextView>(R.id.tvGitRevertStatus).text = getString(R.string.git_status_head, headSummary)
-        dialogView.findViewById<TextView>(R.id.tvGitResetStatus).text = headSummary.ifEmpty { "no commits yet" }
-        dialogView.findViewById<TextView>(R.id.tvGitBranchStatus).text = getString(R.string.git_status_branch, status?.branch ?: "—")
-        dialogView.findViewById<TextView>(R.id.tvGitPullStatus).text = getString(R.string.git_action_pull_desc)
-        dialogView.findViewById<TextView>(R.id.tvGitStashStatus).text = getString(R.string.git_action_stash_desc)
-        dialogView.findViewById<TextView>(R.id.tvGitStashPopStatus).text = getString(R.string.git_action_stash_pop_desc)
-        dialogView.findViewById<TextView>(R.id.tvGitCheckpointsStatus).text = getString(R.string.git_action_checkpoints_desc)
-        dialogView.findViewById<TextView>(R.id.tvGitFetchStatus).text = getString(R.string.git_action_fetch_desc)
-        dialogView.findViewById<TextView>(R.id.tvGitMergeStatus).text = getString(R.string.git_action_merge_desc)
-        dialogView.findViewById<TextView>(R.id.tvGitDiscardStatus).text = getString(R.string.git_action_discard_desc)
-        dialogView.findViewById<TextView>(R.id.tvGitRemotesStatus).text =
-            if (remotes.isEmpty()) getString(R.string.no_remotes) else getString(R.string.remotes_count, remotes.size)
+        dialogView.findViewById<TextView>(R.id.tvGitResetStatus).text = headSummary.ifEmpty { getString(R.string.git_summary_clean) }
+        dialogView.findViewById<TextView>(R.id.tvGitMergeStatus).text =
+            if (ctx.otherBranches.isNotEmpty()) getString(R.string.git_merge_branches, ctx.otherBranches.size)
+            else getString(R.string.git_merge_none)
+        dialogView.findViewById<TextView>(R.id.tvGitDiscardStatus).text =
+            if (hasChanges) getString(R.string.git_action_discard_desc) else getString(R.string.git_summary_clean)
+        dialogView.findViewById<TextView>(R.id.tvGitBranchStatus).text =
+            getString(R.string.git_status_branch, branchLabel)
+        dialogView.findViewById<TextView>(R.id.tvGitStashStatus).text =
+            if (ctx.stashCount > 0) getString(R.string.git_stash_saved, ctx.stashCount)
+            else getString(R.string.git_stash_none)
+        dialogView.findViewById<TextView>(R.id.tvGitStashPopStatus).text =
+            if (ctx.stashCount > 0) getString(R.string.git_stash_pop_ready)
+            else getString(R.string.git_stash_none)
+        dialogView.findViewById<TextView>(R.id.tvGitCheckpointsStatus).text =
+            if (ctx.checkpointCount > 0) getString(R.string.git_checkpoints_count, ctx.checkpointCount)
+            else getString(R.string.git_checkpoints_none)
+        dialogView.findViewById<TextView>(R.id.tvGitRemotesStatus).text = if (hasRemotes) {
+            val first = ctx.remotes.first()
+            val primary = "${first.first} · ${first.second}"
+            if (ctx.remotes.size > 1) "$primary\n" + getString(R.string.git_remotes_more, ctx.remotes.size - 1) else primary
+        } else {
+            getString(R.string.no_remotes)
+        }
 
         lateinit var dialog: android.app.Dialog
         dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
@@ -790,7 +872,45 @@ class MainActivity : AppCompatActivity() {
         }
         dialogView.findViewById<MaterialButton>(R.id.btnGitDialogClose).setOnClickListener { dialog.dismiss() }
 
+        applyGitRowAvailability(
+            dialogView,
+            hasWorkspace = hasWorkspace,
+            hasRemotes = hasRemotes,
+            hasChanges = hasChanges,
+            hasOtherBranches = ctx.otherBranches.isNotEmpty(),
+            hasStashes = ctx.stashCount > 0
+        )
+
         dialog.show()
+    }
+
+    private fun applyGitRowAvailability(
+        dialogView: View,
+        hasWorkspace: Boolean,
+        hasRemotes: Boolean,
+        hasChanges: Boolean,
+        hasOtherBranches: Boolean,
+        hasStashes: Boolean
+    ) {
+        setGitRowEnabled(dialogView, R.id.rowGitPush, hasWorkspace && hasRemotes)
+        setGitRowEnabled(dialogView, R.id.rowGitPull, hasWorkspace && hasRemotes)
+        setGitRowEnabled(dialogView, R.id.rowGitFetch, hasWorkspace && hasRemotes)
+        setGitRowEnabled(dialogView, R.id.rowGitCommit, hasWorkspace)
+        setGitRowEnabled(dialogView, R.id.rowGitRevert, hasWorkspace)
+        setGitRowEnabled(dialogView, R.id.rowGitReset, hasWorkspace)
+        setGitRowEnabled(dialogView, R.id.rowGitMerge, hasWorkspace && hasOtherBranches)
+        setGitRowEnabled(dialogView, R.id.rowGitDiscard, hasWorkspace && hasChanges)
+        setGitRowEnabled(dialogView, R.id.rowGitBranch, hasWorkspace)
+        setGitRowEnabled(dialogView, R.id.rowGitStash, hasWorkspace && hasChanges)
+        setGitRowEnabled(dialogView, R.id.rowGitStashPop, hasWorkspace && hasStashes)
+        setGitRowEnabled(dialogView, R.id.rowGitCheckpoints, hasWorkspace)
+        setGitRowEnabled(dialogView, R.id.rowGitRemotes, hasWorkspace)
+    }
+
+    private fun setGitRowEnabled(dialogView: View, rowId: Int, enabled: Boolean) {
+        val row = dialogView.findViewById<View>(rowId)
+        row.isEnabled = enabled
+        row.alpha = if (enabled) 1f else 0.45f
     }
 
     private fun commitPickerItems(commits: List<GitManager.CommitInfo>, defaultRef: String, defaultLabel: String): Pair<List<String>, List<String>> {

@@ -93,6 +93,32 @@
     <string name="git_status_head">HEAD: %1$s</string>
     <string name="git_status_branch">Current: %1$s</string>
 
+    <!-- Git Actions dialog -->
+    <string name="git_section_sync">Sync</string>
+    <string name="git_section_changes">Changes</string>
+    <string name="git_section_history">History</string>
+    <string name="git_section_repository">Repository</string>
+    <string name="git_summary_clean">Working tree clean</string>
+    <string name="git_summary_changes">%1$d changed files · +%2$d −%3$d</string>
+    <string name="git_summary_conflicts">%1$d conflicted file(s) — resolve before committing</string>
+    <string name="git_summary_no_workspace">No workspace selected</string>
+    <string name="git_status_changes_staged">%1$d files · +%2$d −%3$d · %4$d staged</string>
+    <string name="git_commit_conflicts">Resolve %1$d conflicted file(s) first</string>
+    <string name="git_branch_detached">Detached HEAD</string>
+    <string name="git_push_ahead">%1$d commit(s) to push</string>
+    <string name="git_push_up_to_date">Up to date with upstream</string>
+    <string name="git_push_no_upstream">No upstream branch set</string>
+    <string name="git_pull_from">Fetch and merge from %1$s</string>
+    <string name="git_fetch_remotes">%1$d remote(s): %2$s</string>
+    <string name="git_remotes_more">+%1$d more</string>
+    <string name="git_merge_branches">%1$d branch(es) to merge</string>
+    <string name="git_merge_none">No other local branches</string>
+    <string name="git_stash_saved">%1$d stash(es) saved</string>
+    <string name="git_stash_none">No stashes yet</string>
+    <string name="git_stash_pop_ready">Restore the latest stash</string>
+    <string name="git_checkpoints_count">%1$d session checkpoint(s)</string>
+    <string name="git_checkpoints_none">No checkpoints yet</string>
+
     <!-- Fetch -->
     <string name="git_action_fetch">Fetch</string>
     <string name="git_action_fetch_desc">Download remote refs without merging</string>
