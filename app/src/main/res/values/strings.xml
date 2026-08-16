@@ -39,10 +39,6 @@
     <string name="git_action_pull_desc">Fetch and merge remote changes into the current branch</string>
     <string name="git_action_branch">Switch Branch</string>
     <string name="git_action_branch_desc">Check out a different local branch</string>
-    <string name="git_action_stash">Stash Changes</string>
-    <string name="git_action_stash_desc">Save and reset modified, staged, and untracked files</string>
-    <string name="git_action_stash_pop">Restore Stash</string>
-    <string name="git_action_stash_pop_desc">Re-apply the most recently stashed changes</string>
     <string name="git_action_checkpoints">Checkpoints</string>
     <string name="git_action_checkpoints_desc">Undo to an earlier agent round or session start</string>
     <string name="git_action_diff">Diff</string>
@@ -75,10 +71,6 @@
     <string name="checkout_msg">Uncommitted changes will be carried over, or block the switch if they conflict with the target branch.</string>
     <string name="checkout_action">Switch</string>
     <string name="checkout_success">Now on branch %1$s</string>
-    <string name="stash_save_msg">Save all modified, staged, and untracked files and reset the working tree? Restore them later with \"Restore Stash\".</string>
-    <string name="stash_saved">Changes stashed.</string>
-    <string name="stash_pop_msg">Re-apply the most recently stashed changes and drop that stash?</string>
-    <string name="stash_restored">Stash restored.</string>
     <string name="checkpoint_session_start">Session start</string>
     <string name="checkpoint_round">Round %1$d</string>
     <string name="checkpoints_empty">No checkpoints yet. Checkpoints are created when the agent makes its first changes.</string>
@@ -115,9 +107,6 @@
     <string name="git_remotes_more">+%1$d more</string>
     <string name="git_merge_branches">%1$d branch(es) to merge</string>
     <string name="git_merge_none">No other local branches</string>
-    <string name="git_stash_saved">%1$d stash(es) saved</string>
-    <string name="git_stash_none">No stashes yet</string>
-    <string name="git_stash_pop_ready">Restore the latest stash</string>
     <string name="git_checkpoints_count">%1$d session checkpoint(s)</string>
     <string name="git_checkpoints_none">No checkpoints yet</string>
 

@@ -939,60 +939,6 @@ object GitManager {
     }
 
     /**
-     * Stashes all working-tree changes (including untracked files) with an
-     * optional [message]. Returns null on success, or a friendly error.
-     */
-    suspend fun stashChanges(workspaceRoot: File, message: String?): String? = gitMutex.withLock {
-        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
-        cleanupStaleLocks(workspaceRoot)
-        try {
-            Git.open(repoRoot).use { git ->
-                flushRepositoryCaches(git)
-                val command = git.stashCreate().setIncludeUntracked(true)
-                if (!message.isNullOrBlank()) command.setWorkingDirectoryMessage(message)
-                command.call() ?: return@withLock "Nothing to stash — the working tree is clean."
-                null
-            }
-        } catch (e: Exception) {
-            e.message ?: "Stash failed."
-        }
-    }
-
-    /**
-     * Restores the most recent stash and drops it. Returns null on success, or
-     * a friendly error (including "no stashes").
-     */
-    suspend fun popStash(workspaceRoot: File): String? = gitMutex.withLock {
-        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
-        cleanupStaleLocks(workspaceRoot)
-        try {
-            Git.open(repoRoot).use { git ->
-                flushRepositoryCaches(git)
-                if (git.stashList().call().isEmpty()) return@withLock "No stashes to restore."
-                git.stashApply().call()
-                git.stashDrop().call()
-                null
-            }
-        } catch (e: Exception) {
-            e.message ?: "Stash pop failed."
-        }
-    }
-
-    /**
-     * Number of stashes currently saved, for the Git Actions live status.
-     */
-    suspend fun stashCount(workspaceRoot: File): Int = gitMutex.withLock {
-        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock 0
-        try {
-            Git.open(repoRoot).use { git ->
-                git.stashList().call().size
-            }
-        } catch (_: Exception) {
-            0
-        }
-    }
-
-    /**
      * Everything the Git Actions dialog renders, computed in a single
      * repository open and a single status scan. The dialog previously
      * prefetched each field through its own `Git.open` (8 opens + 3 status
@@ -1008,7 +954,6 @@ object GitManager {
         val commits: List<CommitInfo>,
         val remotes: List<Pair<String, String>>,
         val branches: List<String>,
-        val stashCount: Int,
         val checkpointCount: Int,
         val commitsAhead: Int?
     )
@@ -1020,7 +965,7 @@ object GitManager {
                 repoExists = false, branch = null, clean = true, changeCount = 0, conflictCount = 0,
                 overview = ChangesOverview(emptyList(), emptyList(), emptyList(), emptyList()),
                 commits = emptyList(), remotes = emptyList(), branches = emptyList(),
-                stashCount = 0, checkpointCount = 0, commitsAhead = null
+                checkpointCount = 0, commitsAhead = null
             )
         }
         cleanupStaleLocks(workspaceRoot)
@@ -1040,7 +985,6 @@ object GitManager {
                         .sortedWith(compareByDescending<CommitInfo> { it.time }.thenByDescending { it.hash }),
                     remotes = remoteDetails(git),
                     branches = branchList(git),
-                    stashCount = runCatching { git.stashList().call().size }.getOrDefault(0),
                     checkpointCount = checkpointList(git).size,
                     commitsAhead = commitsAheadInternal(git, branch)
                 )
@@ -1050,7 +994,7 @@ object GitManager {
                 repoExists = false, branch = null, clean = true, changeCount = 0, conflictCount = 0,
                 overview = ChangesOverview(emptyList(), emptyList(), emptyList(), emptyList()),
                 commits = emptyList(), remotes = emptyList(), branches = emptyList(),
-                stashCount = 0, checkpointCount = 0, commitsAhead = null
+                checkpointCount = 0, commitsAhead = null
             )
         }
     }

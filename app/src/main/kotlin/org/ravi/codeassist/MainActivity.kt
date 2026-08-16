@@ -77,6 +77,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var logsAdapter: LogsAdapter
     private lateinit var logsProgress: com.google.android.material.progressindicator.LinearProgressIndicator
 
+    @Volatile
+    private var actionsSnapshotCache: Pair<String, GitManager.GitActionsSnapshot>? = null
+
     // Agentic Mode UI Elements
     private lateinit var cardHeaderActions: View
     private lateinit var btnHeaderAddProfile: MaterialButton
@@ -690,7 +693,6 @@ class MainActivity : AppCompatActivity() {
         val commits: List<GitManager.CommitInfo>,
         val remotes: List<Pair<String, String>>,
         val otherBranches: List<String>,
-        val stashCount: Int,
         val checkpointCount: Int,
         val commitsAhead: Int?
     )
@@ -698,24 +700,53 @@ class MainActivity : AppCompatActivity() {
     private fun showGitActionsDialog() {
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
+        val cached = workspaceRoot?.let { root ->
+            actionsSnapshotCache?.takeIf { it.first == root }?.second
+        }
+        if (cached != null) {
+            showGitActionsDialogContent(buildGitActionsContext(workspaceRoot, cached))
+            refreshActionsSnapshot(workspaceRoot)
+            return
+        }
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
         lifecycleScope.launch(Dispatchers.IO) {
             val snapshot = workspaceRoot?.let { GitManager.collectGitActionsSnapshot(File(it)) }
             withContext(Dispatchers.Main) {
-                val context = GitActionsContext(
-                    workspaceRoot = workspaceRoot,
-                    overview = snapshot?.overview,
-                    status = snapshot?.let {
-                        GitManager.WorkspaceStatus(it.repoExists, it.branch, it.clean, it.changeCount, it.conflictCount)
-                    },
-                    commits = snapshot?.commits?.take(20) ?: emptyList(),
-                    remotes = snapshot?.remotes ?: emptyList(),
-                    otherBranches = snapshot?.branches?.filterNot { it == snapshot.branch } ?: emptyList(),
-                    stashCount = snapshot?.stashCount ?: 0,
-                    checkpointCount = snapshot?.checkpointCount ?: 0,
-                    commitsAhead = snapshot?.commitsAhead
-                )
-                showGitActionsDialogContent(context)
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (snapshot != null) {
+                    actionsSnapshotCache = workspaceRoot to snapshot
+                    showGitActionsDialogContent(buildGitActionsContext(workspaceRoot, snapshot))
+                } else {
+                    showGitActionsDialogContent(
+                        GitActionsContext(null, null, null, emptyList(), emptyList(), emptyList(), 0, null)
+                    )
+                }
             }
+        }
+    }
+
+    private fun buildGitActionsContext(workspaceRoot: String?, snapshot: GitManager.GitActionsSnapshot): GitActionsContext {
+        return GitActionsContext(
+            workspaceRoot = workspaceRoot,
+            overview = snapshot.overview,
+            status = GitManager.WorkspaceStatus(
+                snapshot.repoExists, snapshot.branch, snapshot.clean, snapshot.changeCount, snapshot.conflictCount
+            ),
+            commits = snapshot.commits.take(20),
+            remotes = snapshot.remotes,
+            otherBranches = snapshot.branches.filterNot { it == snapshot.branch },
+            checkpointCount = snapshot.checkpointCount,
+            commitsAhead = snapshot.commitsAhead
+        )
+    }
+
+    private fun refreshActionsSnapshot(workspaceRoot: String?) {
+        if (workspaceRoot.isNullOrEmpty()) return
+        lifecycleScope.launch(Dispatchers.IO) {
+            val snapshot = GitManager.collectGitActionsSnapshot(File(workspaceRoot))
+            actionsSnapshotCache = workspaceRoot to snapshot
         }
     }
 
@@ -798,12 +829,6 @@ class MainActivity : AppCompatActivity() {
             if (hasChanges) getString(R.string.git_action_discard_desc) else getString(R.string.git_summary_clean)
         dialogView.findViewById<TextView>(R.id.tvGitBranchStatus).text =
             getString(R.string.git_status_branch, branchLabel)
-        dialogView.findViewById<TextView>(R.id.tvGitStashStatus).text =
-            if (ctx.stashCount > 0) getString(R.string.git_stash_saved, ctx.stashCount)
-            else getString(R.string.git_stash_none)
-        dialogView.findViewById<TextView>(R.id.tvGitStashPopStatus).text =
-            if (ctx.stashCount > 0) getString(R.string.git_stash_pop_ready)
-            else getString(R.string.git_stash_none)
         dialogView.findViewById<TextView>(R.id.tvGitCheckpointsStatus).text =
             if (ctx.checkpointCount > 0) getString(R.string.git_checkpoints_count, ctx.checkpointCount)
             else getString(R.string.git_checkpoints_none)
@@ -856,14 +881,6 @@ class MainActivity : AppCompatActivity() {
             dialog.dismiss()
             showBranchDialog()
         }
-        dialogView.findViewById<View>(R.id.rowGitStash).setOnClickListener {
-            dialog.dismiss()
-            confirmStashSave()
-        }
-        dialogView.findViewById<View>(R.id.rowGitStashPop).setOnClickListener {
-            dialog.dismiss()
-            confirmStashPop()
-        }
         dialogView.findViewById<View>(R.id.rowGitCheckpoints).setOnClickListener {
             dialog.dismiss()
             showCheckpointsDialog()
@@ -879,8 +896,7 @@ class MainActivity : AppCompatActivity() {
             hasWorkspace = hasWorkspace,
             hasRemotes = hasRemotes,
             hasChanges = hasChanges,
-            hasOtherBranches = ctx.otherBranches.isNotEmpty(),
-            hasStashes = ctx.stashCount > 0
+            hasOtherBranches = ctx.otherBranches.isNotEmpty()
         )
 
         dialog.show()
@@ -891,8 +907,7 @@ class MainActivity : AppCompatActivity() {
         hasWorkspace: Boolean,
         hasRemotes: Boolean,
         hasChanges: Boolean,
-        hasOtherBranches: Boolean,
-        hasStashes: Boolean
+        hasOtherBranches: Boolean
     ) {
         setGitRowEnabled(dialogView, R.id.rowGitPush, hasWorkspace && hasRemotes)
         setGitRowEnabled(dialogView, R.id.rowGitPull, hasWorkspace && hasRemotes)
@@ -903,8 +918,6 @@ class MainActivity : AppCompatActivity() {
         setGitRowEnabled(dialogView, R.id.rowGitMerge, hasWorkspace && hasOtherBranches)
         setGitRowEnabled(dialogView, R.id.rowGitDiscard, hasWorkspace && hasChanges)
         setGitRowEnabled(dialogView, R.id.rowGitBranch, hasWorkspace)
-        setGitRowEnabled(dialogView, R.id.rowGitStash, hasWorkspace && hasChanges)
-        setGitRowEnabled(dialogView, R.id.rowGitStashPop, hasWorkspace && hasStashes)
         setGitRowEnabled(dialogView, R.id.rowGitCheckpoints, hasWorkspace)
         setGitRowEnabled(dialogView, R.id.rowGitRemotes, hasWorkspace)
     }
@@ -1367,6 +1380,7 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this@MainActivity, getString(R.string.commit_success, paths.size), Toast.LENGTH_SHORT).show()
                     refreshLogsData()
                     refreshWorkspaceStatus(rootFile.absolutePath)
+                    refreshActionsSnapshot(rootFile.absolutePath)
                 } else {
                     Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
                 }
@@ -1407,6 +1421,7 @@ class MainActivity : AppCompatActivity() {
 
                 logsAdapter.updateData(postActionCommits)
                 tvEmptyLogs.visibility = if (postActionCommits.isEmpty()) View.VISIBLE else View.GONE
+                refreshActionsSnapshot(rootFile.absolutePath)
             }
         }
     }
@@ -1441,6 +1456,7 @@ class MainActivity : AppCompatActivity() {
 
                 logsAdapter.updateData(postActionCommits)
                 tvEmptyLogs.visibility = if (postActionCommits.isEmpty()) View.VISIBLE else View.GONE
+                refreshActionsSnapshot(rootFile.absolutePath)
             }
         }
     }
@@ -1474,6 +1490,7 @@ class MainActivity : AppCompatActivity() {
 
                 logsAdapter.updateData(postActionCommits)
                 tvEmptyLogs.visibility = if (postActionCommits.isEmpty()) View.VISIBLE else View.GONE
+                refreshActionsSnapshot(rootFile.absolutePath)
             }
         }
     }
@@ -1578,6 +1595,7 @@ class MainActivity : AppCompatActivity() {
                         .apply()
                     tvWorkspacePath.text = File(clonedPath).name
                     refreshWorkspaceStatus(clonedPath)
+                    refreshActionsSnapshot(clonedPath)
                     refreshLogsData()
                     Toast.makeText(this@MainActivity, getString(R.string.clone_success, clonedPath), Toast.LENGTH_LONG).show()
                 } else {
@@ -1686,6 +1704,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 refreshLogsData()
                 refreshWorkspaceStatus(rootFile.absolutePath)
+                refreshActionsSnapshot(rootFile.absolutePath)
             }
         }
     }
@@ -1769,6 +1788,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 refreshLogsData()
                 refreshWorkspaceStatus(rootFile.absolutePath)
+                refreshActionsSnapshot(rootFile.absolutePath)
             }
         }
     }
@@ -1884,77 +1904,12 @@ class MainActivity : AppCompatActivity() {
                 }
                 refreshLogsData()
                 refreshWorkspaceStatus(rootFile.absolutePath)
+                refreshActionsSnapshot(rootFile.absolutePath)
             }
         }
     }
 
     // --- STASH ---
-
-    private fun confirmStashSave() {
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.git_action_stash)
-            .setMessage(R.string.stash_save_msg)
-            .setPositiveButton(R.string.git_action_stash) { _, _ ->
-                val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
-                val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return@setPositiveButton
-                val rootFile = File(workspaceRoot)
-                val stamp = java.text.SimpleDateFormat("MMM dd hh:mm a", java.util.Locale.getDefault())
-                    .format(java.util.Date())
-                runStashSave(rootFile, "WIP $stamp")
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
-    private fun runStashSave(rootFile: File, message: String) {
-        logsProgress.visibility = View.VISIBLE
-        btnGitOptions.isEnabled = false
-
-        lifecycleScope.launch(Dispatchers.IO) {
-            val error = GitManager.stashChanges(rootFile, message)
-            withContext(Dispatchers.Main) {
-                logsProgress.visibility = View.GONE
-                btnGitOptions.isEnabled = true
-                if (error == null) {
-                    Toast.makeText(this@MainActivity, R.string.stash_saved, Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
-                }
-                refreshLogsData()
-                refreshWorkspaceStatus(rootFile.absolutePath)
-            }
-        }
-    }
-
-    private fun confirmStashPop() {
-        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.git_action_stash_pop)
-            .setMessage(R.string.stash_pop_msg)
-            .setPositiveButton(R.string.git_action_stash_pop) { _, _ ->
-                val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
-                val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return@setPositiveButton
-                val rootFile = File(workspaceRoot)
-                logsProgress.visibility = View.VISIBLE
-                btnGitOptions.isEnabled = false
-                lifecycleScope.launch(Dispatchers.IO) {
-                    val error = GitManager.popStash(rootFile)
-                    withContext(Dispatchers.Main) {
-                        logsProgress.visibility = View.GONE
-                        btnGitOptions.isEnabled = true
-                        if (error == null) {
-                            Toast.makeText(this@MainActivity, R.string.stash_restored, Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
-                        }
-                        refreshLogsData()
-                        refreshWorkspaceStatus(rootFile.absolutePath)
-                    }
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-        styleDestructivePositive(dialog)
-    }
 
     // --- CHECKPOINTS ---
 
@@ -2021,6 +1976,7 @@ class MainActivity : AppCompatActivity() {
                                         }
                                         refreshLogsData()
                                         refreshWorkspaceStatus(rootFile.absolutePath)
+                                        refreshActionsSnapshot(rootFile.absolutePath)
                                     }
                                 }
                             }
@@ -2111,6 +2067,7 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
                 }
                 refreshLogsData()
+                refreshActionsSnapshot(rootFile.absolutePath)
             }
         }
     }
@@ -2177,6 +2134,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 refreshLogsData()
                 refreshWorkspaceStatus(rootFile.absolutePath)
+                refreshActionsSnapshot(rootFile.absolutePath)
             }
         }
     }
@@ -2213,6 +2171,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 refreshLogsData()
                 refreshWorkspaceStatus(rootFile.absolutePath)
+                refreshActionsSnapshot(rootFile.absolutePath)
             }
         }
     }
