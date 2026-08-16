@@ -958,7 +958,7 @@ class MainActivity : AppCompatActivity() {
                                 val tv = TextView(this@MainActivity)
                                 tv.typeface = android.graphics.Typeface.MONOSPACE
                                 tv.setTextIsSelectable(true)
-                                tv.lineSpacingMultiplier = 1.15f
+                                tv.setLineSpacingMultiplier(1.15f)
                                 tv.setText(applyDiffColors(diff))
                                 content.addView(tv)
                             }

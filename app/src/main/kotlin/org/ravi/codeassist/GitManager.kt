@@ -6,7 +6,7 @@ import org.eclipse.jgit.api.errors.EmptyCommitException
 import org.eclipse.jgit.diff.DiffEntry
 import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.lib.RepositoryCache
-import org.eclipse.jgit.merge.MergeResult
+import org.eclipse.jgit.merge.MergeStatus
 import org.eclipse.jgit.transport.RefSpec
 import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.URIish
@@ -847,7 +847,7 @@ object GitManager {
             Git.open(repoRoot).use { git ->
                 flushRepositoryCaches(git)
                 val command = git.stashCreate().setIncludeUntracked(true)
-                if (!message.isNullOrBlank()) command.setMessage(message)
+                if (!message.isNullOrBlank()) command.setReflogMessage(message)
                 command.call() ?: return@withLock "Nothing to stash — the working tree is clean."
                 null
             }
@@ -986,10 +986,10 @@ object GitManager {
                 ensureMergeIdentity(git)
                 val result = git.merge().include(target).call()
                 when (result.mergeStatus) {
-                    MergeResult.MergeStatus.ALREADY_UP_TO_DATE,
-                    MergeResult.MergeStatus.FAST_FORWARD,
-                    MergeResult.MergeStatus.MERGED -> null
-                    MergeResult.MergeStatus.CONFLICTING -> {
+                    MergeStatus.ALREADY_UP_TO_DATE,
+                    MergeStatus.FAST_FORWARD,
+                    MergeStatus.MERGED -> null
+                    MergeStatus.CONFLICTING -> {
                         val files = result.conflicts?.keys?.joinToString(", ") ?: "unknown files"
                         "Merge conflicts in: $files. Resolve them before continuing."
                     }
@@ -1040,7 +1040,7 @@ object GitManager {
         try {
             Git.open(repoRoot).use { git ->
                 git.remoteList().call().map { config ->
-                    config.name to (config.uris.firstOrNull()?.toString() ?: "")
+                    config.name to (config.getURIs().firstOrNull()?.toString() ?: "")
                 }
             }
         } catch (_: Exception) {
