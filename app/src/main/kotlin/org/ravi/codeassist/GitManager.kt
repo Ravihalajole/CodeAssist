@@ -737,6 +737,88 @@ object GitManager {
     }
 
     /**
+     * Temporary on-device diagnostic for the "modified files not detected"
+     * investigation. Dumps what JGit actually sees for the workspace: the
+     * resolved repo root, HEAD, index entries, raw status buckets, the
+     * unstaged diff, and per-file index vs working-tree length/mtime/content
+     * comparisons. Safe to delete once the investigation closes.
+     */
+    suspend fun workspaceDiagnostics(workspaceRoot: File): String = gitMutex.withLock {
+        val sb = StringBuilder()
+        sb.append("WORKSPACE_ROOT = ").append(workspaceRoot.absolutePath).append('\n')
+        sb.append("  exists=").append(workspaceRoot.exists())
+            .append(" isDir=").append(workspaceRoot.isDirectory)
+            .append(" listFiles=").append(workspaceRoot.listFiles()?.size ?: -1).append('\n')
+        val repoRoot = repoRootFor(workspaceRoot)
+        if (repoRoot == null) {
+            sb.append("REPO ROOT: NONE — workspace is not inside any git repository, so nothing can be detected.\n")
+            return@withLock sb.toString()
+        }
+        sb.append("REPO ROOT = ").append(repoRoot.absolutePath).append('\n')
+        try {
+            Git.open(repoRoot).use { git ->
+                val repo = git.repository
+                val headId = repo.findRef("HEAD")?.leaf?.objectId
+                sb.append("HEAD = ").append(headId?.name() ?: "null").append('\n')
+                if (headId != null) {
+                    runCatching { sb.append("  head msg = ").append(repo.parseCommit(headId).shortMessage).append('\n') }
+                } else {
+                    sb.append("  (no commits yet)\n")
+                }
+                val dc = repo.readDirCache()
+                sb.append("INDEX entries = ").append(dc.entryCount).append('\n')
+
+                val status = git.status().call()
+                sb.append("STATUS modified = ").append(status.modified).append('\n')
+                sb.append("STATUS missing  = ").append(status.missing).append('\n')
+                sb.append("STATUS untracked= ").append(status.untracked.take(20)).append('\n')
+                sb.append("STATUS conflicting = ").append(status.conflicting).append('\n')
+
+                sb.append("DIFF unstaged (fixed iterator):\n")
+                runCatching {
+                    val entries = git.diff()
+                        .setNewTree(ContentCheckingFileTreeIterator(repo)).call()
+                    entries.forEach { e ->
+                        sb.append("  ").append(e.changeType).append(" ").append(e.newPath).append('\n')
+                    }
+                    sb.append("  (entry count = ").append(entries.size).append(")\n")
+                }.onFailure { sb.append("  ERROR: ").append(it).append('\n') }
+
+                sb.append("PER-FILE (workspace listing):\n")
+                val files = workspaceRoot.listFiles()?.filter { it.isFile } ?: emptyList()
+                sb.append("  files = ").append(files.size).append(if (files.size > 60) " (showing first 60)\n" else "\n")
+                repo.newObjectInserter().use { inserter ->
+                    files.take(60).forEach { file ->
+                            val rel = toRepoRelative(repoRoot, file)
+                            val entry = dc.getEntry(rel)
+                            sb.append("  ").append(rel).append(" | idx=")
+                            if (entry == null) {
+                                sb.append("NONE")
+                            } else {
+                                sb.append("len=").append(entry.length)
+                                    .append(" mtime=").append(entry.lastModifiedInstant)
+                            }
+                            sb.append(" | wf.len=").append(file.length())
+                            sb.append(" mtime=").append(file.lastModified())
+                            if (entry != null && file.length() <= 2 * 1024 * 1024) {
+                                runCatching {
+                                    val bytes = file.readBytes()
+                                    val id = inserter.insert(org.eclipse.jgit.lib.Constants.OBJ_BLOB, bytes)
+                                    sb.append(" | wfContent==index=").append(id == entry.objectId)
+                                        .append(" (read ").append(bytes.size).append(" bytes)")
+                                }.onFailure { sb.append(" | readErr=").append(it.javaClass.simpleName) }
+                            }
+                            sb.append('\n')
+                        }
+                    }
+                }
+        } catch (e: Exception) {
+            sb.append("DIAG ERROR: ").append(e).append('\n')
+        }
+        sb.toString()
+    }
+
+    /**
      * Builds the changes overview from a live status snapshot. Buckets are
      * independent: a failing bucket degrades to empty instead of blanking the
      * whole preview. The staged diff in particular throws NoHeadException in a
