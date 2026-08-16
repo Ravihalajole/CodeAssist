@@ -14,6 +14,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.widget.TextView
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -53,6 +54,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnExecutionHistory: MaterialButton
     private lateinit var tvGitIdentityStatus: TextView
     private lateinit var btnEditGitConfig: MaterialButton
+    private lateinit var tvGitCredStatus: TextView
+    private lateinit var btnManageGitCreds: MaterialButton
     private lateinit var rowPermAllFiles: View
     private lateinit var permStatusAllFiles: TextView
     private lateinit var rowPermAccessibility: View
@@ -275,6 +278,8 @@ class MainActivity : AppCompatActivity() {
         logsProgress = findViewById(R.id.logsProgress)
         tvGitIdentityStatus = findViewById(R.id.tvGitIdentityStatus)
         btnEditGitConfig = findViewById(R.id.btnEditGitConfig)
+        tvGitCredStatus = findViewById(R.id.tvGitCredStatus)
+        btnManageGitCreds = findViewById(R.id.btnManageGitCreds)
         rowPermAllFiles = findViewById(R.id.rowPermAllFiles)
         permStatusAllFiles = findViewById(R.id.permStatusAllFiles)
         rowPermAccessibility = findViewById(R.id.rowPermAccessibility)
@@ -490,6 +495,8 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
 
+        btnManageGitCreds.setOnClickListener { showCredentialProfilesDialog() }
+        refreshGitCredStatus()
         rowPermAllFiles.setOnClickListener { launchStorageSettingsIntent() }
         rowPermAccessibility.setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         rowPermNotifications.setOnClickListener { checkAndRequestNotificationPermission() }
@@ -944,8 +951,7 @@ class MainActivity : AppCompatActivity() {
         val tvParent = dialogView.findViewById<TextView>(R.id.tvCloneParent)
         val etBranch = dialogView.findViewById<TextInputEditText>(R.id.etCloneBranch)
         val etDepth = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etCloneDepth)
-        val etUsername = dialogView.findViewById<TextInputEditText>(R.id.etCloneUsername)
-        val etToken = dialogView.findViewById<TextInputEditText>(R.id.etCloneToken)
+        val etCred = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etCloneCred)
         cloneDialogParentLabel = tvParent
 
         tvParent.text = parentDir
@@ -953,8 +959,7 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.clone_depth_full), "1", "5", "20", "50", "100"
         ))
         etDepth.setText("1", false)
-        etUsername.setText(sharedPref.getString("GIT_USERNAME", null))
-        etToken.setText(sharedPref.getString("GIT_TOKEN", null))
+        configureCredDropdown(etCred)
 
         var lastSlug: String? = null
         etUrl.addTextChangedListener(object : TextWatcher {
@@ -994,12 +999,7 @@ class MainActivity : AppCompatActivity() {
                     getString(R.string.clone_depth_full) -> -1
                     else -> etDepth.text?.toString()?.trim()?.toIntOrNull() ?: -1
                 }
-                val username = etUsername.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }
-                val token = etToken.text?.toString()?.takeIf { it.isNotEmpty() }
-                sharedPref.edit()
-                    .putString("GIT_USERNAME", username ?: "")
-                    .putString("GIT_TOKEN", token ?: "")
-                    .apply()
+                val (username, token) = resolveCredProfile(etCred)
                 runClone(url, File(parentDir, folder), branch, depth, username, token)
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -1080,23 +1080,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showPushDialog(workspaceRoot: String, remotes: List<String>, branches: List<String>, currentBranch: String?) {
-        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_push, null)
         val etRemote = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etPushRemote)
         val etBranch = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etPushBranch)
-        val etUsername = dialogView.findViewById<TextInputEditText>(R.id.etPushUsername)
-        val etToken = dialogView.findViewById<TextInputEditText>(R.id.etPushToken)
+        val etCred = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etPushCred)
 
-        if (remotes.isNotEmpty()) {
-            etRemote.setSimpleItems(remotes.toTypedArray())
+        if (remotes.isNotEmpty()) {            etRemote.setSimpleItems(remotes.toTypedArray())
             etRemote.setText(if ("origin" in remotes) "origin" else remotes.first(), false)
         }
         if (branches.isNotEmpty()) {
             etBranch.setSimpleItems(branches.toTypedArray())
             etBranch.setText(currentBranch?.takeIf { it in branches } ?: branches.first(), false)
         }
-        etUsername.setText(sharedPref.getString("GIT_USERNAME", null))
-        etToken.setText(sharedPref.getString("GIT_TOKEN", null))
+        configureCredDropdown(etCred)
 
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle(R.string.push_title)
@@ -1104,8 +1100,7 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton(R.string.push_action) { _, _ ->
                 val remote = etRemote.text?.toString()?.trim().orEmpty()
                 val branch = etBranch.text?.toString()?.trim().orEmpty()
-                val username = etUsername.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }
-                val token = etToken.text?.toString()?.takeIf { it.isNotEmpty() }
+                val (username, token) = resolveCredProfile(etCred)
                 if (remote.isEmpty()) {
                     Toast.makeText(this, "Select or type a remote.", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
@@ -1114,10 +1109,6 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this, "Select a branch to push.", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
-                sharedPref.edit()
-                    .putString("GIT_USERNAME", username ?: "")
-                    .putString("GIT_TOKEN", token ?: "")
-                    .apply()
                 runPush(File(workspaceRoot), remote, branch, username, token)
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -1142,6 +1133,128 @@ class MainActivity : AppCompatActivity() {
                 refreshWorkspaceStatus(rootFile.absolutePath)
             }
         }
+    }
+
+    // --- GIT CREDENTIAL PROFILES ---
+
+    private fun refreshGitCredStatus() {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val active = GitCredentialProfiles.activeProfile(sharedPref)
+        tvGitCredStatus.text = if (active == null) {
+            getString(R.string.no_credentials_status)
+        } else {
+            "${active.name} (${active.username.ifEmpty { "no username" }})"
+        }
+    }
+
+    private fun configureCredDropdown(et: MaterialAutoCompleteTextView) {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val anonymous = getString(R.string.no_credentials)
+        val labels = GitCredentialProfiles.labels(sharedPref)
+        et.setSimpleItems(arrayOf(anonymous) + labels)
+        val active = GitCredentialProfiles.activeName(sharedPref)
+        et.setText(active?.takeIf { it in labels } ?: anonymous, false)
+    }
+
+    private fun resolveCredProfile(et: MaterialAutoCompleteTextView): Pair<String?, String?> {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val selected = et.text?.toString()?.trim().orEmpty()
+        if (selected.isEmpty() || selected == getString(R.string.no_credentials)) return null to null
+        val profile = GitCredentialProfiles.profiles(sharedPref).firstOrNull { it.name == selected } ?: return null to null
+        return profile.username.takeIf { it.isNotEmpty() } to profile.token.takeIf { it.isNotEmpty() }
+    }
+
+    private fun showCredentialProfilesDialog() {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_credentials, null)
+        val container = dialogView.findViewById<LinearLayout>(R.id.llCredProfiles)
+
+        fun render() {
+            container.removeAllViews()
+            val activeName = GitCredentialProfiles.activeName(sharedPref)
+            GitCredentialProfiles.profiles(sharedPref).forEach { profile ->
+                val item = android.view.LayoutInflater.from(this).inflate(R.layout.item_cred_profile, container, false)
+                item.findViewById<TextView>(R.id.tvCredName).text = profile.name
+                item.findViewById<TextView>(R.id.tvCredUsername).text = profile.username.ifEmpty { getString(R.string.no_credentials_status) }
+                item.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switchCredActive).isChecked = profile.name == activeName
+                item.setOnClickListener {
+                    GitCredentialProfiles.setActive(sharedPref, profile.name)
+                    render()
+                    refreshGitCredStatus()
+                }
+                item.findViewById<MaterialButton>(R.id.btnCredEdit).setOnClickListener {
+                    showCredentialEditor(profile) { render(); refreshGitCredStatus() }
+                }
+                item.findViewById<MaterialButton>(R.id.btnCredDelete).setOnClickListener {
+                    com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                        .setTitle(R.string.delete_profile_title)
+                        .setMessage(R.string.delete_profile_msg)
+                        .setPositiveButton(R.string.delete_button) { _, _ ->
+                            GitCredentialProfiles.remove(sharedPref, profile.name)
+                            render()
+                            refreshGitCredStatus()
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show()
+                }
+                container.addView(item)
+            }
+            if (GitCredentialProfiles.profiles(sharedPref).isEmpty()) {
+                val empty = TextView(this)
+                empty.text = getString(R.string.no_credentials_status)
+                empty.setTextAppearance(this, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+                val ta = theme.obtainStyledAttributes(intArrayOf(com.google.android.material.R.attr.colorOnSurfaceVariant))
+                empty.setTextColor(ta.getColor(0, android.graphics.Color.GRAY))
+                ta.recycle()
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                lp.setMargins(0, 16, 0, 16)
+                empty.layoutParams = lp
+                container.addView(empty)
+            }
+        }
+
+        render()
+
+        dialogView.findViewById<MaterialButton>(R.id.btnAddCredProfile).setOnClickListener {
+            showCredentialEditor(null) { render(); refreshGitCredStatus() }
+        }
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setView(dialogView)
+            .show()
+    }
+
+    private fun showCredentialEditor(existing: GitCredentialProfile?, onSaved: () -> Unit) {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_credential, null)
+        val etName = dialogView.findViewById<TextInputEditText>(R.id.etCredName)
+        val etUsername = dialogView.findViewById<TextInputEditText>(R.id.etCredUsername)
+        val etToken = dialogView.findViewById<TextInputEditText>(R.id.etCredToken)
+
+        etName.setText(existing?.name)
+        etUsername.setText(existing?.username)
+        etToken.setText(existing?.token)
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(if (existing == null) R.string.add_profile else R.string.edit_profile)
+            .setView(dialogView)
+            .setPositiveButton(R.string.save_profile) { _, _ ->
+                val name = etName.text?.toString()?.trim().orEmpty()
+                if (name.isEmpty()) {
+                    Toast.makeText(this, getString(R.string.profile_name_required), Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val username = etUsername.text?.toString()?.trim().orEmpty()
+                val token = etToken.text?.toString()?.trim().orEmpty()
+                GitCredentialProfiles.upsert(sharedPref, GitCredentialProfile(name, username, token))
+                onSaved()
+                refreshGitCredStatus()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     // --- NATIVE FILE PICKER LOGIC ---

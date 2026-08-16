@@ -34,6 +34,25 @@
     <string name="reset_hash_hint">Commit hash</string>
     <string name="reset_hash_help">Leave blank to reset to HEAD~1.</string>
 
+    <!-- Git credential profiles -->
+    <string name="git_credentials">Git Credentials</string>
+    <string name="git_credentials_desc">Saved username and token pairs for private repositories. Select one to use in Clone and Push.</string>
+    <string name="manage_button">Manage</string>
+    <string name="add_profile">Add profile</string>
+    <string name="no_credentials">Anonymous (no credentials)</string>
+    <string name="no_credentials_status">No profiles saved</string>
+    <string name="profile_name_hint">Profile name</string>
+    <string name="profile_name_help">A label you will pick from, e.g. "GitHub work".</string>
+    <string name="username_hint">Username</string>
+    <string name="token_hint">Token / password</string>
+    <string name="token_help">For GitHub use a personal access token (repo scope).</string>
+    <string name="save_profile">Save</string>
+    <string name="edit_profile">Edit profile</string>
+    <string name="delete_profile_title">Delete profile?</string>
+    <string name="delete_profile_msg">This removes the stored credentials for this profile.</string>
+    <string name="delete_button">Delete</string>
+    <string name="profile_name_required">Profile name is required.</string>
+
     <!-- Git clone dialog -->
     <string name="clone_button">Clone</string>
     <string name="clone_title">Clone Repository</string>
@@ -45,10 +64,8 @@
     <string name="clone_branch_help">Empty checks out the repository default branch.</string>
     <string name="clone_depth_label">Clone depth</string>
     <string name="clone_depth_full">Full history</string>
-    <string name="clone_creds_hint">Credentials (only for private repos)</string>
-    <string name="clone_username_hint">Username</string>
-    <string name="clone_token_hint">Token / password</string>
-    <string name="clone_token_help">For GitHub use a personal access token (repo scope). Leave blank for public repositories.</string>
+    <string name="credentials_label">Credentials</string>
+    <string name="credentials_help">Pick a saved profile, or use the anonymous option for public repositories.</string>
     <string name="clone_action">Clone</string>
     <string name="clone_success">Repository cloned to %1$s</string>
 
