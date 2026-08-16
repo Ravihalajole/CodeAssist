@@ -23,6 +23,17 @@
     <string name="git_action_push">Push to Remote</string>
     <string name="git_action_push_desc">Upload the current branch to a remote</string>
 
+    <!-- Git commit/revert/reset dialogs -->
+    <string name="commit_desc">Stages and commits all tracked and untracked changes in the workspace.</string>
+    <string name="commit_message_hint">Commit message</string>
+    <string name="commit_message_help">A checkpoint is recorded so you can undo later if needed.</string>
+    <string name="revert_desc">Appends a safe corrective commit that neutralizes the changes introduced by the target commit, while fully preserving history.</string>
+    <string name="revert_hash_hint">Commit hash</string>
+    <string name="revert_hash_help">Leave blank to revert the latest commit (HEAD).</string>
+    <string name="reset_desc">Hard-resets the workspace to the target commit, discarding every later commit and all uncommitted changes. This cannot be undone.</string>
+    <string name="reset_hash_hint">Commit hash</string>
+    <string name="reset_hash_help">Leave blank to reset to HEAD~1.</string>
+
     <!-- Git clone dialog -->
     <string name="clone_button">Clone</string>
     <string name="clone_title">Clone Repository</string>
@@ -33,7 +44,7 @@
     <string name="clone_branch_hint">Branch (optional)</string>
     <string name="clone_branch_help">Empty checks out the repository default branch.</string>
     <string name="clone_depth_label">Clone depth</string>
-    <string name="clone_depth_full">Full history (-1)</string>
+    <string name="clone_depth_full">Full history</string>
     <string name="clone_creds_hint">Credentials (only for private repos)</string>
     <string name="clone_username_hint">Username</string>
     <string name="clone_token_hint">Token / password</string>

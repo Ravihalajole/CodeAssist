@@ -771,31 +771,17 @@ class MainActivity : AppCompatActivity() {
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return
         val rootFile = File(workspaceRoot)
 
-        val input = com.google.android.material.textfield.TextInputEditText(this)
-        input.hint = "Leave blank for latest (HEAD)"
-        input.inputType = android.text.InputType.TYPE_CLASS_TEXT
-
-        val container = android.widget.FrameLayout(this)
-        val params = android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
-        )
-        val dp48 = (resources.displayMetrics.density * 48).toInt()
-        params.setMargins(dp48, 0, dp48, 0)
-        input.layoutParams = params
-        container.addView(input)
-
-        val explicitContext = "This will append a safe corrective commit that explicitly neutralizes and flips the modifications introduced by the target commit, while fully preserving history."
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_revert, null)
+        val input = dialogView.findViewById<TextInputEditText>(R.id.etRevertHash)
 
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle("Revert Commit")
-            .setMessage(explicitContext)
-            .setView(container)
-            .setPositiveButton("Revert") { _, _ ->
-                val hash = input.text?.toString()?.trim().takeIf { !it.isNullOrEmpty() } ?: "HEAD"
+            .setTitle(R.string.git_action_revert)
+            .setView(dialogView)
+            .setPositiveButton(R.string.git_action_revert) { _, _ ->
+                val hash = input.text?.toString()?.trim()?.takeIf { !it.isNullOrEmpty() } ?: "HEAD"
                 executeGitUndoAction(rootFile, hash)
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -804,57 +790,32 @@ class MainActivity : AppCompatActivity() {
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return
         val rootFile = File(workspaceRoot)
 
-        val input = com.google.android.material.textfield.TextInputEditText(this)
-        input.hint = "Leave blank for HEAD~1"
-        input.inputType = android.text.InputType.TYPE_CLASS_TEXT
-
-        val container = android.widget.FrameLayout(this)
-        val params = android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
-        )
-        val dp48 = (resources.displayMetrics.density * 48).toInt()
-        params.setMargins(dp48, 0, dp48, 0)
-        input.layoutParams = params
-        container.addView(input)
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_reset, null)
+        val input = dialogView.findViewById<TextInputEditText>(R.id.etResetHash)
 
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle("Hard Reset")
-            .setMessage("Enter the exact commit hash to reset to. If left blank, it defaults to HEAD~1 (which will discard the latest commit and all uncommitted changes).")
-            .setView(container)
-            .setPositiveButton("Reset") { _, _ ->
-                val hash = input.text?.toString()?.trim().takeIf { !it.isNullOrEmpty() } ?: "HEAD~1"
+            .setTitle(R.string.git_action_reset)
+            .setView(dialogView)
+            .setPositiveButton(R.string.git_action_reset) { _, _ ->
+                val hash = input.text?.toString()?.trim()?.takeIf { !it.isNullOrEmpty() } ?: "HEAD~1"
                 executeGitResetAction(rootFile, hash)
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
-            
+
     private fun showManualCommitDialog() {
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return
         val rootFile = File(workspaceRoot)
 
-        val input = com.google.android.material.textfield.TextInputEditText(this)
-        input.hint = "Commit message"
-        input.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
-        input.minLines = 3
-
-        val container = android.widget.FrameLayout(this)
-        val params = android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-            android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
-        )
-        val dp48 = (resources.displayMetrics.density * 48).toInt()
-        params.setMargins(dp48, 0, dp48, 0)
-        input.layoutParams = params
-        container.addView(input)
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_commit, null)
+        val input = dialogView.findViewById<TextInputEditText>(R.id.etCommitMessage)
 
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle("Manual Commit")
-            .setMessage("Stage and commit all tracked/untracked file changes in the workspace.")
-            .setView(container)
-            .setPositiveButton("Commit") { _, _ ->
+            .setTitle(R.string.git_action_commit)
+            .setView(dialogView)
+            .setPositiveButton(R.string.git_action_commit) { _, _ ->
                 val message = input.text?.toString()?.trim()
                 if (!message.isNullOrEmpty()) {
                     executeManualCommit(rootFile, message)
@@ -862,7 +823,7 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this, "Commit message cannot be empty.", Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -991,7 +952,7 @@ class MainActivity : AppCompatActivity() {
         etDepth.setSimpleItems(arrayOf(
             getString(R.string.clone_depth_full), "1", "5", "20", "50", "100"
         ))
-        etDepth.setText(getString(R.string.clone_depth_full), false)
+        etDepth.setText("1", false)
         etUsername.setText(sharedPref.getString("GIT_USERNAME", null))
         etToken.setText(sharedPref.getString("GIT_TOKEN", null))
 
