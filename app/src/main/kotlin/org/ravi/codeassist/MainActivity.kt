@@ -13,6 +13,7 @@ import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
+import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.LinearLayout
 import android.widget.Toast
@@ -682,11 +683,53 @@ class MainActivity : AppCompatActivity() {
     private fun showGitActionsDialog() {
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
-        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_actions, null)
+        lifecycleScope.launch(Dispatchers.IO) {
+            val overview = workspaceRoot?.let { GitManager.changesOverview(File(it)) }
+            val status = workspaceRoot?.let { GitManager.getWorkspaceStatus(File(it)) }
+            val commits = workspaceRoot?.let { GitManager.getCommitHistory(File(it)).take(20) } ?: emptyList()
+            val remotes = workspaceRoot?.let { GitManager.listRemoteDetails(File(it)) } ?: emptyList()
+            withContext(Dispatchers.Main) {
+                showGitActionsDialogContent(workspaceRoot, overview, status, commits, remotes)
+            }
+        }
+    }
 
-        val wsLabel = dialogView.findViewById<TextView>(R.id.tvGitDialogWorkspace)
-        wsLabel.text = workspaceRoot?.let { getString(R.string.git_actions_workspace_desc, it) }
-            ?: getString(R.string.workspace_not_set)
+    private fun showGitActionsDialogContent(
+        workspaceRoot: String?,
+        overview: GitManager.ChangesOverview?,
+        status: GitManager.WorkspaceStatus?,
+        commits: List<GitManager.CommitInfo>,
+        remotes: List<Pair<String, String>>
+    ) {
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_actions, null)
+        dialogView.findViewById<TextView>(R.id.tvGitDialogWorkspace).text =
+            workspaceRoot?.let { getString(R.string.git_actions_workspace_desc, it) }
+                ?: getString(R.string.workspace_not_set)
+
+        val allChanges = overview?.let { it.staged + it.unstaged + it.untracked } ?: emptyList()
+        val totalAdded = allChanges.sumOf { it.added }
+        val totalRemoved = allChanges.sumOf { it.removed }
+        val headSummary = commits.firstOrNull()?.message?.lines()?.firstOrNull()?.trim().orEmpty()
+
+        dialogView.findViewById<TextView>(R.id.tvGitCommitStatus).text = if (allChanges.isEmpty()) {
+            getString(R.string.git_status_clean)
+        } else {
+            getString(R.string.git_status_changes, allChanges.size, totalAdded, totalRemoved)
+        }
+        dialogView.findViewById<TextView>(R.id.tvGitPushStatus).text =
+            getString(R.string.git_status_push, status?.branch ?: "?", if (allChanges.isEmpty()) "clean" else "${allChanges.size} pending")
+        dialogView.findViewById<TextView>(R.id.tvGitRevertStatus).text = getString(R.string.git_status_head, headSummary)
+        dialogView.findViewById<TextView>(R.id.tvGitResetStatus).text = headSummary.ifEmpty { "no commits yet" }
+        dialogView.findViewById<TextView>(R.id.tvGitBranchStatus).text = getString(R.string.git_status_branch, status?.branch ?: "—")
+        dialogView.findViewById<TextView>(R.id.tvGitPullStatus).text = getString(R.string.git_action_pull_desc)
+        dialogView.findViewById<TextView>(R.id.tvGitStashStatus).text = getString(R.string.git_action_stash_desc)
+        dialogView.findViewById<TextView>(R.id.tvGitStashPopStatus).text = getString(R.string.git_action_stash_pop_desc)
+        dialogView.findViewById<TextView>(R.id.tvGitCheckpointsStatus).text = getString(R.string.git_action_checkpoints_desc)
+        dialogView.findViewById<TextView>(R.id.tvGitFetchStatus).text = getString(R.string.git_action_fetch_desc)
+        dialogView.findViewById<TextView>(R.id.tvGitMergeStatus).text = getString(R.string.git_action_merge_desc)
+        dialogView.findViewById<TextView>(R.id.tvGitDiscardStatus).text = getString(R.string.git_action_discard_desc)
+        dialogView.findViewById<TextView>(R.id.tvGitRemotesStatus).text =
+            if (remotes.isEmpty()) getString(R.string.no_remotes) else getString(R.string.remotes_count, remotes.size)
 
         lateinit var dialog: android.app.Dialog
         dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
@@ -697,21 +740,69 @@ class MainActivity : AppCompatActivity() {
             dialog.dismiss()
             openPushDialog()
         }
+        dialogView.findViewById<View>(R.id.rowGitPull).setOnClickListener {
+            dialog.dismiss()
+            openPullDialog()
+        }
+        dialogView.findViewById<View>(R.id.rowGitFetch).setOnClickListener {
+            dialog.dismiss()
+            openFetchDialog()
+        }
         dialogView.findViewById<View>(R.id.rowGitCommit).setOnClickListener {
             dialog.dismiss()
             showManualCommitDialog()
         }
         dialogView.findViewById<View>(R.id.rowGitRevert).setOnClickListener {
             dialog.dismiss()
-            handleGitUndoAction()
+            handleGitUndoAction(commits)
         }
         dialogView.findViewById<View>(R.id.rowGitReset).setOnClickListener {
             dialog.dismiss()
-            showResetDialog()
+            showResetDialog(commits)
+        }
+        dialogView.findViewById<View>(R.id.rowGitMerge).setOnClickListener {
+            dialog.dismiss()
+            showMergeDialog()
+        }
+        dialogView.findViewById<View>(R.id.rowGitDiscard).setOnClickListener {
+            dialog.dismiss()
+            confirmDiscardChanges()
+        }
+        dialogView.findViewById<View>(R.id.rowGitBranch).setOnClickListener {
+            dialog.dismiss()
+            showBranchDialog()
+        }
+        dialogView.findViewById<View>(R.id.rowGitStash).setOnClickListener {
+            dialog.dismiss()
+            confirmStashSave()
+        }
+        dialogView.findViewById<View>(R.id.rowGitStashPop).setOnClickListener {
+            dialog.dismiss()
+            confirmStashPop()
+        }
+        dialogView.findViewById<View>(R.id.rowGitCheckpoints).setOnClickListener {
+            dialog.dismiss()
+            showCheckpointsDialog()
+        }
+        dialogView.findViewById<View>(R.id.rowGitRemotes).setOnClickListener {
+            dialog.dismiss()
+            showRemotesDialog()
         }
         dialogView.findViewById<MaterialButton>(R.id.btnGitDialogClose).setOnClickListener { dialog.dismiss() }
 
         dialog.show()
+    }
+
+    private fun commitPickerItems(commits: List<GitManager.CommitInfo>, defaultRef: String, defaultLabel: String): Pair<List<String>, List<String>> {
+        val labels = mutableListOf<String>()
+        val refs = mutableListOf<String>()
+        labels += defaultLabel
+        refs += defaultRef
+        commits.forEach { commit ->
+            labels += "${commit.hash.take(7)} — ${commit.message.lines().firstOrNull()?.trim()?.take(56) ?: ""}"
+            refs += commit.hash
+        }
+        return labels to refs
     }
 
     private fun showExecutionHistoryDialog() {
@@ -770,41 +861,202 @@ class MainActivity : AppCompatActivity() {
             dialog.dismiss()
         }
 
+        val rowFiles = dialogView.findViewById<View>(R.id.rowCommitFiles)
+        val tvFiles = dialogView.findViewById<TextView>(R.id.tvDialogCommitFiles)
+        val btnDiff = dialogView.findViewById<MaterialButton>(R.id.btnDialogDiff)
+
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
+        if (workspaceRoot != null) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                val changes = GitManager.commitFileChanges(File(workspaceRoot), commit.hash)
+                withContext(Dispatchers.Main) {
+                    if (!changes.isNullOrEmpty() && dialog.isShowing) {
+                        val added = changes.sumOf { it.added }
+                        val removed = changes.sumOf { it.removed }
+                        val f = if (changes.size == 1) "file" else "files"
+                        tvFiles.text = "${changes.size} $f changed · +$added −$removed"
+                        rowFiles.visibility = View.VISIBLE
+                        btnDiff.visibility = View.VISIBLE
+                        val openDiff = {
+                            showCommitDiffSheet(commit.hash, commit.message, changes)
+                        }
+                        rowFiles.setOnClickListener { openDiff() }
+                        btnDiff.setOnClickListener { openDiff() }
+                    }
+                }
+            }
+        }
+
         dialog.show()
     }
 
-    private fun handleGitUndoAction() {
+    private fun showCommitDiffSheet(hash: String, message: String, changes: List<GitManager.FileChange>) {
+        val sheet = com.google.android.material.bottomsheet.BottomSheetDialog(this)
+        val sheetView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_commit_diff, null)
+        val content = sheetView.findViewById<LinearLayout>(R.id.llCommitDiffContent)
+        val title = sheetView.findViewById<TextView>(R.id.tvCommitDiffTitle)
+        val sub = sheetView.findViewById<TextView>(R.id.tvCommitDiffSub)
+        val back = sheetView.findViewById<MaterialButton>(R.id.btnCommitDiffBack)
+
+        title.text = getString(R.string.git_action_diff)
+        sub.text = "${hash.take(12)} · ${message.lines().firstOrNull()?.take(48) ?: ""}"
+        sheetView.findViewById<MaterialButton>(R.id.btnCommitDiffClose).setOnClickListener { sheet.dismiss() }
+
+        fun showFileList() {
+            back.visibility = View.GONE
+            title.text = getString(R.string.git_action_diff)
+            content.removeAllViews()
+            changes.forEach { change ->
+                val row = android.view.LayoutInflater.from(this).inflate(R.layout.item_git_change, content, false)
+                row.findViewById<View>(R.id.cbChangeSelect).visibility = View.GONE
+                val tvStatus = row.findViewById<TextView>(R.id.tvChangeStatus)
+                val tvPath = row.findViewById<TextView>(R.id.tvChangePath)
+                val tvStats = row.findViewById<TextView>(R.id.tvChangeStats)
+                tvStatus.text = when (change.status) {
+                    GitManager.ChangeStatus.ADDED -> "A"
+                    GitManager.ChangeStatus.MODIFIED -> "M"
+                    GitManager.ChangeStatus.DELETED -> "D"
+                    GitManager.ChangeStatus.RENAMED -> "R"
+                    else -> "M"
+                }
+                tvStatus.setTextColor(getColor(when (change.status) {
+                    GitManager.ChangeStatus.ADDED -> R.color.state_green
+                    GitManager.ChangeStatus.DELETED -> R.color.state_red
+                    else -> R.color.state_amber
+                }))
+                tvPath.text = change.path
+                tvStats.text = if (change.status == GitManager.ChangeStatus.DELETED) {
+                    "−${change.removed}"
+                } else {
+                    "+${change.added} −${change.removed}"
+                }
+                tvStats.setTextColor(getColor(if (change.added >= change.removed) R.color.state_green else R.color.state_red))
+                row.setOnClickListener {
+                    val workspaceRoot = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+                        .getString("WORKSPACE_ROOT", null)
+                    if (workspaceRoot == null) return@setOnClickListener
+                    content.removeAllViews()
+                    val loading = TextView(this)
+                    loading.text = getString(R.string.diff_loading)
+                    loading.setTextAppearance(this, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+                    loading.setPadding(0, 8, 0, 8)
+                    content.addView(loading)
+                    back.visibility = View.VISIBLE
+                    title.text = change.path
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        val diff = GitManager.fileDiff(File(workspaceRoot), hash, change.path)
+                        withContext(Dispatchers.Main) {
+                            content.removeAllViews()
+                            if (diff.isNullOrEmpty()) {
+                                val none = TextView(this@MainActivity)
+                                none.text = getString(R.string.diff_unavailable)
+                                none.setTextAppearance(this@MainActivity, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+                                none.setPadding(0, 8, 0, 8)
+                                content.addView(none)
+                            } else {
+                                val tv = TextView(this@MainActivity)
+                                tv.typeface = android.graphics.Typeface.MONOSPACE
+                                tv.setTextIsSelectable(true)
+                                tv.lineSpacingMultiplier = 1.15f
+                                tv.setText(applyDiffColors(diff))
+                                content.addView(tv)
+                            }
+                        }
+                    }
+                }
+                content.addView(row)
+            }
+        }
+
+        back.setOnClickListener { showFileList() }
+        showFileList()
+        sheet.setContentView(sheetView)
+        sheet.show()
+    }
+
+    private fun applyDiffColors(diff: String): android.text.SpannableString {
+        val maxLen = 20000
+        val capped = if (diff.length > maxLen) diff.substring(0, maxLen) + "\n… diff truncated" else diff
+        val spannable = android.text.SpannableString(capped)
+        val green = getColor(R.color.state_green)
+        val red = getColor(R.color.state_red)
+        val amber = getColor(R.color.state_amber)
+        val ta = theme.obtainStyledAttributes(intArrayOf(com.google.android.material.R.attr.colorOnSurfaceVariant))
+        val neutral = ta.getColor(0, android.graphics.Color.GRAY)
+        ta.recycle()
+        var idx = 0
+        for (line in capped.lines()) {
+            val start = idx
+            val end = start + line.length
+            val color = when {
+                line.startsWith("diff --git") || line.startsWith("+++") || line.startsWith("---") -> amber
+                line.startsWith("@@") -> amber
+                line.startsWith("+") && !line.startsWith("+++") -> green
+                line.startsWith("-") && !line.startsWith("---") -> red
+                line.startsWith("index ") || line.startsWith("new file") || line.startsWith("deleted file") -> neutral
+                else -> null
+            }
+            if (color != null) {
+                spannable.setSpan(
+                    android.text.style.ForegroundColorSpan(color), start, end,
+                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+            idx = end + 1
+        }
+        return spannable
+    }
+
+    private fun handleGitUndoAction(commits: List<GitManager.CommitInfo>) {
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return
         val rootFile = File(workspaceRoot)
 
         val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_revert, null)
-        val input = dialogView.findViewById<TextInputEditText>(R.id.etRevertHash)
+        val pick = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etRevertPick)
+        val headSummary = commits.firstOrNull()?.message?.lines()?.firstOrNull()?.trim().orEmpty()
+        val (labels, refs) = commitPickerItems(
+            commits,
+            defaultRef = "HEAD",
+            defaultLabel = if (headSummary.isEmpty()) "HEAD" else "HEAD — ${headSummary.take(56)}"
+        )
+        pick.setSimpleItems(labels.toTypedArray())
+        pick.setText(labels.first(), false)
 
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle(R.string.git_action_revert)
             .setView(dialogView)
             .setPositiveButton(R.string.git_action_revert) { _, _ ->
-                val hash = input.text?.toString()?.trim()?.takeIf { !it.isNullOrEmpty() } ?: "HEAD"
+                val idx = labels.indexOf(pick.text?.toString())
+                val hash = refs.getOrElse(idx) { "HEAD" }
                 executeGitUndoAction(rootFile, hash)
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
-    private fun showResetDialog() {
+    private fun showResetDialog(commits: List<GitManager.CommitInfo>) {
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return
         val rootFile = File(workspaceRoot)
 
         val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_reset, null)
-        val input = dialogView.findViewById<TextInputEditText>(R.id.etResetHash)
+        val pick = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etResetPick)
+        val (labels, refs) = commitPickerItems(
+            commits,
+            defaultRef = "HEAD~1",
+            defaultLabel = "HEAD~1 — previous commit"
+        )
+        pick.setSimpleItems(labels.toTypedArray())
+        pick.setText(labels.first(), false)
 
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle(R.string.git_action_reset)
             .setView(dialogView)
             .setPositiveButton(R.string.git_action_reset) { _, _ ->
-                val hash = input.text?.toString()?.trim()?.takeIf { !it.isNullOrEmpty() } ?: "HEAD~1"
+                val idx = labels.indexOf(pick.text?.toString())
+                val hash = refs.getOrElse(idx) { "HEAD~1" }
                 executeGitResetAction(rootFile, hash)
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -816,22 +1068,138 @@ class MainActivity : AppCompatActivity() {
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return
         val rootFile = File(workspaceRoot)
 
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+        lifecycleScope.launch(Dispatchers.IO) {
+            val overview = GitManager.changesOverview(rootFile)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                showCommitDialog(rootFile, overview)
+            }
+        }
+    }
+
+    private fun showCommitDialog(rootFile: File, overview: GitManager.ChangesOverview) {
         val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_commit, null)
+        val groups = dialogView.findViewById<LinearLayout>(R.id.llCommitChangeGroups)
+        val summary = dialogView.findViewById<TextView>(R.id.tvCommitChangeSummary)
         val input = dialogView.findViewById<TextInputEditText>(R.id.etCommitMessage)
+        val selected = mutableMapOf<String, Boolean>()
+
+        val all = overview.staged + overview.unstaged + overview.untracked
+        val totalAdded = all.sumOf { it.added }
+        val totalRemoved = all.sumOf { it.removed }
+        val fileName = if (all.size == 1) "file" else "files"
+        summary.text = "${all.size} $fileName · +$totalAdded −$totalRemoved"
+
+        fun addGroup(title: String, changes: List<GitManager.FileChange>, selectable: Boolean) {
+            if (changes.isEmpty()) return
+            val header = android.view.LayoutInflater.from(this).inflate(R.layout.item_git_change_group, groups, false)
+            header.findViewById<TextView>(R.id.tvGroupName).text = title
+            header.findViewById<TextView>(R.id.tvGroupCount).text = changes.size.toString()
+            groups.addView(header)
+            changes.forEach { change -> addChangeRow(groups, selected, change, selectable) }
+        }
+
+        addGroup(getString(R.string.commit_group_staged), overview.staged, true)
+        addGroup(getString(R.string.commit_group_unstaged), overview.unstaged, true)
+        addGroup(getString(R.string.commit_group_untracked), overview.untracked, true)
+        addGroup(getString(R.string.commit_group_conflicts), overview.conflicts.map { path ->
+            GitManager.FileChange(path, GitManager.ChangeStatus.CONFLICTED, 0, 0)
+        }, false)
+
+        if (all.isEmpty()) {
+            val empty = TextView(this)
+            empty.text = getString(R.string.commit_no_changes)
+            empty.setTextAppearance(this, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+            val ta = theme.obtainStyledAttributes(intArrayOf(com.google.android.material.R.attr.colorOnSurfaceVariant))
+            empty.setTextColor(ta.getColor(0, android.graphics.Color.GRAY))
+            ta.recycle()
+            empty.setPadding(0, 8, 0, 8)
+            groups.addView(empty)
+        }
 
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle(R.string.git_action_commit)
             .setView(dialogView)
             .setPositiveButton(R.string.git_action_commit) { _, _ ->
                 val message = input.text?.toString()?.trim()
-                if (!message.isNullOrEmpty()) {
-                    executeManualCommit(rootFile, message)
-                } else {
+                if (message.isNullOrEmpty()) {
                     Toast.makeText(this, "Commit message cannot be empty.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
                 }
+                val paths = selected.filterValues { it }.keys.toList()
+                if (paths.isEmpty()) {
+                    Toast.makeText(this, "Select at least one file to commit.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                runCommitSelected(rootFile, paths, message)
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    private fun addChangeRow(
+        groups: LinearLayout,
+        selected: MutableMap<String, Boolean>,
+        change: GitManager.FileChange,
+        selectable: Boolean
+    ) {
+        val row = android.view.LayoutInflater.from(this).inflate(R.layout.item_git_change, groups, false)
+        val cb = row.findViewById<com.google.android.material.checkbox.MaterialCheckBox>(R.id.cbChangeSelect)
+        val tvStatus = row.findViewById<TextView>(R.id.tvChangeStatus)
+        val tvPath = row.findViewById<TextView>(R.id.tvChangePath)
+        val tvStats = row.findViewById<TextView>(R.id.tvChangeStats)
+
+        val code = when (change.status) {
+            GitManager.ChangeStatus.ADDED -> "A"
+            GitManager.ChangeStatus.MODIFIED -> "M"
+            GitManager.ChangeStatus.DELETED -> "D"
+            GitManager.ChangeStatus.RENAMED -> "R"
+            GitManager.ChangeStatus.UNTRACKED -> "U"
+            GitManager.ChangeStatus.CONFLICTED -> "C"
+        }
+        val statusColor = when (change.status) {
+            GitManager.ChangeStatus.ADDED, GitManager.ChangeStatus.UNTRACKED -> R.color.state_green
+            GitManager.ChangeStatus.DELETED, GitManager.ChangeStatus.CONFLICTED -> R.color.state_red
+            else -> R.color.state_amber
+        }
+        tvStatus.text = code
+        tvStatus.setTextColor(getColor(statusColor))
+        tvPath.text = change.path
+        tvStats.text = if (change.status == GitManager.ChangeStatus.DELETED) {
+            "−${change.removed}"
+        } else {
+            "+${change.added} −${change.removed}"
+        }
+        tvStats.setTextColor(getColor(if (change.added >= change.removed) R.color.state_green else R.color.state_red))
+
+        cb.isEnabled = selectable
+        cb.isChecked = selectable
+        selected[change.path] = selectable
+        cb.setOnCheckedChangeListener { _, isChecked -> selected[change.path] = isChecked }
+        groups.addView(row)
+    }
+
+    private fun runCommitSelected(rootFile: File, paths: List<String>, message: String) {
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val error = GitManager.commitSelected(rootFile, paths, message)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (error == null) {
+                    Toast.makeText(this@MainActivity, getString(R.string.commit_success, paths.size), Toast.LENGTH_SHORT).show()
+                    refreshLogsData()
+                    refreshWorkspaceStatus(rootFile.absolutePath)
+                } else {
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     private fun executeManualCommit(rootFile: File, message: String) {
@@ -1131,6 +1499,698 @@ class MainActivity : AppCompatActivity() {
                 }
                 refreshLogsData()
                 refreshWorkspaceStatus(rootFile.absolutePath)
+            }
+        }
+    }
+
+    // --- GIT PULL ---
+
+    private fun openPullDialog() {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
+        if (workspaceRoot.isNullOrEmpty()) {
+            Toast.makeText(this, getString(R.string.pull_no_workspace), Toast.LENGTH_SHORT).show()
+            return
+        }
+        val rootFile = File(workspaceRoot)
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val isRepo = GitManager.isGitInitialized(rootFile)
+            val remotes = GitManager.listRemotes(rootFile)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (!isRepo) {
+                    Toast.makeText(this@MainActivity, getString(R.string.pull_not_repo), Toast.LENGTH_SHORT).show()
+                } else if (remotes.isEmpty()) {
+                    Toast.makeText(this@MainActivity, "No remotes configured. Configure a remote first.", Toast.LENGTH_LONG).show()
+                } else {
+                    showPullDialog(rootFile, remotes)
+                }
+            }
+        }
+    }
+
+    private fun showPullDialog(rootFile: File, remotes: List<String>) {
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_pull, null)
+        val etRemote = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etPullRemote)
+        val etCred = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etPullCred)
+
+        if (remotes.isNotEmpty()) {
+            etRemote.setSimpleItems(remotes.toTypedArray())
+            etRemote.setText(if ("origin" in remotes) "origin" else remotes.first(), false)
+        }
+        configureCredDropdown(etCred, defaultActive = true)
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.pull_title)
+            .setView(dialogView)
+            .setPositiveButton(R.string.pull_action) { _, _ ->
+                val remote = etRemote.text?.toString()?.trim().orEmpty()
+                if (remote.isEmpty()) {
+                    Toast.makeText(this, "Select or type a remote.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val (username, token) = resolveCredProfile(etCred)
+                runPull(rootFile, remote, username, token)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun runPull(rootFile: File, remote: String, username: String?, token: String?) {
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val error = GitManager.pullFromRemote(rootFile, remote, username, token)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (error == null) {
+                    Toast.makeText(this@MainActivity, getString(R.string.pull_success), Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                }
+                refreshLogsData()
+                refreshWorkspaceStatus(rootFile.absolutePath)
+            }
+        }
+    }
+
+    // --- GIT BRANCH SWITCHER ---
+
+    private fun showBranchDialog() {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return
+        val rootFile = File(workspaceRoot)
+
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+        lifecycleScope.launch(Dispatchers.IO) {
+            val branches = GitManager.listBranches(rootFile)
+            val current = GitManager.getWorkspaceStatus(rootFile).branch
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (branches.isEmpty()) {
+                    Toast.makeText(this@MainActivity, "No local branches found.", Toast.LENGTH_SHORT).show()
+                    return@withContext
+                }
+                val dialogView = android.view.LayoutInflater.from(this@MainActivity)
+                    .inflate(R.layout.dialog_git_branch, null)
+                val container = dialogView.findViewById<LinearLayout>(R.id.llBranchList)
+                lateinit var dialog: android.app.Dialog
+
+                dialogView.findViewById<MaterialButton>(R.id.btnNewBranch).setOnClickListener {
+                    dialog.dismiss()
+                    showCreateBranchDialog(rootFile)
+                }
+
+                branches.forEach { branch ->
+                    val row = android.view.LayoutInflater.from(this@MainActivity)
+                        .inflate(R.layout.item_branch, container, false)
+                    val rb = row.findViewById<com.google.android.material.radiobutton.MaterialRadioButton>(R.id.rbBranchActive)
+                    val tv = row.findViewById<TextView>(R.id.tvBranchName)
+                    val btnDelete = row.findViewById<ImageButton>(R.id.btnBranchDelete)
+                    val isCurrent = branch == current
+                    tv.text = if (isCurrent) "$branch  (current)" else branch
+                    rb.isChecked = isCurrent
+                    rb.isEnabled = !isCurrent
+                    if (isCurrent) {
+                        btnDelete.visibility = View.GONE
+                    } else {
+                        btnDelete.setOnClickListener {
+                            com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
+                                .setTitle(getString(R.string.branch_delete_title, branch))
+                                .setMessage(R.string.branch_delete_msg)
+                                .setPositiveButton(R.string.branch_delete_action) { _, _ ->
+                                    runDeleteBranch(rootFile, branch)
+                                }
+                                .setNegativeButton(android.R.string.cancel, null)
+                                .show()
+                        }
+                    }
+                    row.setOnClickListener {
+                        if (isCurrent) return@setOnClickListener
+                        dialog.dismiss()
+                        com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
+                            .setTitle(getString(R.string.checkout_title, branch))
+                            .setMessage(R.string.checkout_msg)
+                            .setPositiveButton(R.string.checkout_action) { _, _ ->
+                                runCheckout(rootFile, branch)
+                            }
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show()
+                    }
+                    container.addView(row)
+                }
+
+                dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
+                    .setView(dialogView)
+                    .create()
+                dialog.show()
+            }
+        }
+    }
+
+    private fun runCheckout(rootFile: File, branch: String) {
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val error = GitManager.checkoutBranch(rootFile, branch)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (error == null) {
+                    Toast.makeText(this@MainActivity, getString(R.string.checkout_success, branch), Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                }
+                refreshLogsData()
+                refreshWorkspaceStatus(rootFile.absolutePath)
+            }
+        }
+    }
+
+    // --- STASH ---
+
+    private fun confirmStashSave() {
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.git_action_stash)
+            .setMessage(R.string.stash_save_msg)
+            .setPositiveButton(R.string.git_action_stash) { _, _ ->
+                val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+                val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return@setPositiveButton
+                val rootFile = File(workspaceRoot)
+                val stamp = java.text.SimpleDateFormat("MMM dd hh:mm a", java.util.Locale.getDefault())
+                    .format(java.util.Date())
+                runStashSave(rootFile, "WIP $stamp")
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun runStashSave(rootFile: File, message: String) {
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val error = GitManager.stashChanges(rootFile, message)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (error == null) {
+                    Toast.makeText(this@MainActivity, R.string.stash_saved, Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                }
+                refreshLogsData()
+                refreshWorkspaceStatus(rootFile.absolutePath)
+            }
+        }
+    }
+
+    private fun confirmStashPop() {
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.git_action_stash_pop)
+            .setMessage(R.string.stash_pop_msg)
+            .setPositiveButton(R.string.git_action_stash_pop) { _, _ ->
+                val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+                val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return@setPositiveButton
+                val rootFile = File(workspaceRoot)
+                logsProgress.visibility = View.VISIBLE
+                btnGitOptions.isEnabled = false
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val error = GitManager.popStash(rootFile)
+                    withContext(Dispatchers.Main) {
+                        logsProgress.visibility = View.GONE
+                        btnGitOptions.isEnabled = true
+                        if (error == null) {
+                            Toast.makeText(this@MainActivity, R.string.stash_restored, Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                        }
+                        refreshLogsData()
+                        refreshWorkspaceStatus(rootFile.absolutePath)
+                    }
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    // --- CHECKPOINTS ---
+
+    private fun showCheckpointsDialog() {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return
+        val rootFile = File(workspaceRoot)
+
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+        lifecycleScope.launch(Dispatchers.IO) {
+            val checkpoints = GitManager.listCheckpoints(rootFile)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                val dialogView = android.view.LayoutInflater.from(this@MainActivity)
+                    .inflate(R.layout.dialog_git_checkpoints, null)
+                val container = dialogView.findViewById<LinearLayout>(R.id.llCheckpoints)
+
+                if (checkpoints.isEmpty()) {
+                    val empty = TextView(this@MainActivity)
+                    empty.text = getString(R.string.checkpoints_empty)
+                    empty.setTextAppearance(this@MainActivity, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+                    val ta = theme.obtainStyledAttributes(intArrayOf(com.google.android.material.R.attr.colorOnSurfaceVariant))
+                    empty.setTextColor(ta.getColor(0, android.graphics.Color.GRAY))
+                    ta.recycle()
+                    empty.setPadding(0, 8, 0, 8)
+                    container.addView(empty)
+                }
+
+                checkpoints.forEach { cp ->
+                    val item = android.view.LayoutInflater.from(this@MainActivity)
+                        .inflate(R.layout.item_checkpoint, container, false)
+                    item.findViewById<TextView>(R.id.tvCheckpointLabel).text =
+                        if (cp.round == 0) getString(R.string.checkpoint_session_start) else getString(R.string.checkpoint_round, cp.round)
+                    item.findViewById<TextView>(R.id.tvCheckpointMessage).text = cp.message
+                    item.findViewById<TextView>(R.id.tvCheckpointTime).text =
+                        java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault())
+                            .format(java.util.Date(cp.time))
+                    item.findViewById<MaterialButton>(R.id.btnCheckpointReset).setOnClickListener {
+                        com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
+                            .setTitle(R.string.checkpoint_reset_title)
+                            .setMessage(getString(R.string.checkpoint_reset_msg, cp.tag))
+                            .setPositiveButton(R.string.checkpoint_reset_action) { _, _ ->
+                                logsProgress.visibility = View.VISIBLE
+                                btnGitOptions.isEnabled = false
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    val ok = GitManager.resetHardToCommit(rootFile, cp.tag)
+                                    withContext(Dispatchers.Main) {
+                                        logsProgress.visibility = View.GONE
+                                        btnGitOptions.isEnabled = true
+                                        if (ok) {
+                                            Toast.makeText(this@MainActivity, R.string.checkpoint_reset_done, Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(this@MainActivity, R.string.checkpoint_reset_failed, Toast.LENGTH_LONG).show()
+                                        }
+                                        refreshLogsData()
+                                        refreshWorkspaceStatus(rootFile.absolutePath)
+                                    }
+                                }
+                            }
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show()
+                    }
+                    container.addView(item)
+                }
+
+                com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
+                    .setView(dialogView)
+                    .show()
+            }
+        }
+    }
+
+    // --- GIT FETCH ---
+
+    private fun openFetchDialog() {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
+        if (workspaceRoot.isNullOrEmpty()) {
+            Toast.makeText(this, getString(R.string.pull_no_workspace), Toast.LENGTH_SHORT).show()
+            return
+        }
+        val rootFile = File(workspaceRoot)
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val remotes = GitManager.listRemotes(rootFile)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (remotes.isEmpty()) {
+                    Toast.makeText(this@MainActivity, R.string.no_remotes, Toast.LENGTH_LONG).show()
+                } else {
+                    showFetchDialog(rootFile, remotes)
+                }
+            }
+        }
+    }
+
+    private fun showFetchDialog(rootFile: File, remotes: List<String>) {
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_fetch, null)
+        val etRemote = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etFetchRemote)
+        val etCred = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etFetchCred)
+
+        etRemote.setSimpleItems(remotes.toTypedArray())
+        etRemote.setText(if ("origin" in remotes) "origin" else remotes.first(), false)
+        configureCredDropdown(etCred, defaultActive = true)
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.fetch_title)
+            .setView(dialogView)
+            .setPositiveButton(R.string.fetch_action) { _, _ ->
+                val remote = etRemote.text?.toString()?.trim().orEmpty()
+                if (remote.isEmpty()) {
+                    Toast.makeText(this, "Select or type a remote.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val (username, token) = resolveCredProfile(etCred)
+                runFetch(rootFile, remote, username, token)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun runFetch(rootFile: File, remote: String, username: String?, token: String?) {
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val error = GitManager.fetchRemote(rootFile, remote, username, token)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (error == null) {
+                    Toast.makeText(this@MainActivity, R.string.fetch_success, Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                }
+                refreshLogsData()
+            }
+        }
+    }
+
+    // --- GIT MERGE ---
+
+    private fun showMergeDialog() {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return
+        val rootFile = File(workspaceRoot)
+
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+        lifecycleScope.launch(Dispatchers.IO) {
+            val branches = GitManager.listBranches(rootFile)
+            val current = GitManager.getWorkspaceStatus(rootFile).branch
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                val candidates = branches.filter { it != current }
+                if (candidates.isEmpty()) {
+                    Toast.makeText(this@MainActivity, R.string.merge_no_branches, Toast.LENGTH_SHORT).show()
+                    return@withContext
+                }
+                val dialogView = android.view.LayoutInflater.from(this@MainActivity)
+                    .inflate(R.layout.dialog_git_merge, null)
+                val pick = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etMergeBranch)
+                pick.setSimpleItems(candidates.toTypedArray())
+                pick.setText(candidates.first(), false)
+
+                com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
+                    .setTitle(R.string.git_action_merge)
+                    .setView(dialogView)
+                    .setPositiveButton(R.string.merge_action) { _, _ ->
+                        val idx = candidates.indexOf(pick.text?.toString())
+                        val branch = candidates.getOrElse(idx) { return@setPositiveButton }
+                        runMerge(rootFile, branch)
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+        }
+    }
+
+    private fun runMerge(rootFile: File, branch: String) {
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val error = GitManager.mergeBranch(rootFile, branch)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (error == null) {
+                    Toast.makeText(this@MainActivity, getString(R.string.merge_success, branch), Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                }
+                refreshLogsData()
+                refreshWorkspaceStatus(rootFile.absolutePath)
+            }
+        }
+    }
+
+    // --- DISCARD WORKING CHANGES ---
+
+    private fun confirmDiscardChanges() {
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.git_action_discard)
+            .setMessage(R.string.discard_msg)
+            .setPositiveButton(R.string.discard_action) { _, _ ->
+                val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+                val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return@setPositiveButton
+                runDiscardChanges(File(workspaceRoot))
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun runDiscardChanges(rootFile: File) {
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val error = GitManager.discardWorkingChanges(rootFile)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (error == null) {
+                    Toast.makeText(this@MainActivity, R.string.discard_done, Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                }
+                refreshLogsData()
+                refreshWorkspaceStatus(rootFile.absolutePath)
+            }
+        }
+    }
+
+    // --- GIT REMOTES ---
+
+    private fun showRemotesDialog() {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return
+        val rootFile = File(workspaceRoot)
+
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+        lifecycleScope.launch(Dispatchers.IO) {
+            val details = GitManager.listRemoteDetails(rootFile)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                val dialogView = android.view.LayoutInflater.from(this@MainActivity)
+                    .inflate(R.layout.dialog_git_remotes, null)
+                val container = dialogView.findViewById<LinearLayout>(R.id.llRemotes)
+                lateinit var dialog: android.app.Dialog
+
+                if (details.isEmpty()) {
+                    val empty = TextView(this@MainActivity)
+                    empty.text = getString(R.string.remotes_empty)
+                    empty.setTextAppearance(this@MainActivity, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+                    val ta = theme.obtainStyledAttributes(intArrayOf(com.google.android.material.R.attr.colorOnSurfaceVariant))
+                    empty.setTextColor(ta.getColor(0, android.graphics.Color.GRAY))
+                    ta.recycle()
+                    empty.setPadding(0, 8, 0, 8)
+                    container.addView(empty)
+                }
+
+                details.forEach { (name, url) ->
+                    val item = android.view.LayoutInflater.from(this@MainActivity)
+                        .inflate(R.layout.item_remote, container, false)
+                    item.findViewById<TextView>(R.id.tvRemoteName).text = name
+                    item.findViewById<TextView>(R.id.tvRemoteUrl).text = url.ifEmpty { getString(R.string.no_url) }
+                    item.findViewById<ImageButton>(R.id.btnRemoteEdit).setOnClickListener {
+                        dialog.dismiss()
+                        showRemoteEditDialog(rootFile, name to url)
+                    }
+                    item.findViewById<ImageButton>(R.id.btnRemoteRemove).setOnClickListener {
+                        com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
+                            .setTitle(R.string.remove_remote_title)
+                            .setMessage(getString(R.string.remove_remote_msg, name))
+                            .setPositiveButton(R.string.remove_remote_action) { _, _ ->
+                                runRemoveRemote(rootFile, name)
+                            }
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show()
+                    }
+                    container.addView(item)
+                }
+
+                dialogView.findViewById<MaterialButton>(R.id.btnAddRemote).setOnClickListener {
+                    dialog.dismiss()
+                    showRemoteEditDialog(rootFile, null)
+                }
+
+                dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
+                    .setView(dialogView)
+                    .create()
+                dialog.show()
+            }
+        }
+    }
+
+    private fun showRemoteEditDialog(rootFile: File, existing: Pair<String, String>?) {
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_remote_edit, null)
+        val etName = dialogView.findViewById<TextInputEditText>(R.id.etRemoteName)
+        val etUrl = dialogView.findViewById<TextInputEditText>(R.id.etRemoteUrl)
+
+        if (existing != null) {
+            etName.setText(existing.first)
+            etName.isEnabled = false
+            etUrl.setText(existing.second)
+        }
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(if (existing == null) R.string.add_remote_title else R.string.edit_remote_title)
+            .setView(dialogView)
+            .setPositiveButton(R.string.save_remote) { _, _ ->
+                val name = etName.text?.toString()?.trim().orEmpty()
+                val url = etUrl.text?.toString()?.trim().orEmpty()
+                if (existing == null) {
+                    runAddRemote(rootFile, name, url)
+                } else {
+                    runSetRemoteUrl(rootFile, name, url)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun runAddRemote(rootFile: File, name: String, url: String) {
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val error = GitManager.addRemote(rootFile, name, url)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (error == null) {
+                    Toast.makeText(this@MainActivity, R.string.remote_added, Toast.LENGTH_SHORT).show()
+                    showRemotesDialog()
+                } else {
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun runSetRemoteUrl(rootFile: File, name: String, url: String) {
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val error = GitManager.setRemoteUrl(rootFile, name, url)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (error == null) {
+                    Toast.makeText(this@MainActivity, R.string.remote_updated, Toast.LENGTH_SHORT).show()
+                    showRemotesDialog()
+                } else {
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun runRemoveRemote(rootFile: File, name: String) {
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val error = GitManager.removeRemote(rootFile, name)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (error == null) {
+                    Toast.makeText(this@MainActivity, R.string.remote_removed, Toast.LENGTH_SHORT).show()
+                    showRemotesDialog()
+                } else {
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    // --- BRANCH CREATE / DELETE ---
+
+    private fun showCreateBranchDialog(rootFile: File) {
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_create_branch, null)
+        val etName = dialogView.findViewById<TextInputEditText>(R.id.etBranchName)
+        val cbCheckout = dialogView.findViewById<com.google.android.material.checkbox.MaterialCheckBox>(R.id.cbBranchCheckout)
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.branch_new)
+            .setView(dialogView)
+            .setPositiveButton(R.string.branch_new_action) { _, _ ->
+                val name = etName.text?.toString()?.trim()
+                if (name.isNullOrEmpty()) {
+                    Toast.makeText(this, R.string.branch_name_empty, Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                runCreateBranch(rootFile, name, cbCheckout.isChecked)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun runCreateBranch(rootFile: File, name: String, switchTo: Boolean) {
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val error = GitManager.createBranch(rootFile, name)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (error == null) {
+                    Toast.makeText(this@MainActivity, getString(R.string.branch_created, name), Toast.LENGTH_SHORT).show()
+                    if (switchTo) {
+                        runCheckout(rootFile, name)
+                    } else {
+                        showBranchDialog()
+                    }
+                } else {
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun runDeleteBranch(rootFile: File, branch: String) {
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val error = GitManager.deleteBranch(rootFile, branch)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (error == null) {
+                    Toast.makeText(this@MainActivity, getString(R.string.branch_deleted, branch), Toast.LENGTH_SHORT).show()
+                    showBranchDialog()
+                } else {
+                    Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
+                }
             }
         }
     }

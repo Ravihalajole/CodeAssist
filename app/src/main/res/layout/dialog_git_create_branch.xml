@@ -13,23 +13,31 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/reset_desc"
+            android:text="@string/branch_new_desc"
             android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="@color/state_red"
+            android:textColor="?attr/colorOnSurfaceVariant"
             android:layout_marginBottom="16dp"/>
 
         <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/reset_pick_hint"
-            app:helperText="@string/reset_pick_help">
-            <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                android:id="@+id/etResetPick"
+            android:hint="@string/branch_new_name_hint"
+            app:helperText="@string/branch_new_name_help">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etBranchName"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="none"
+                android:inputType="text"
                 android:maxLines="1"/>
         </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/cbBranchCheckout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:checked="true"
+            android:text="@string/branch_new_checkout"/>
     </LinearLayout>
 </ScrollView>

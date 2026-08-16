@@ -13,19 +13,34 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/reset_desc"
+            android:text="@string/pull_desc"
             android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="@color/state_red"
+            android:textColor="?attr/colorOnSurfaceVariant"
             android:layout_marginBottom="16dp"/>
 
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/reset_pick_hint"
-            app:helperText="@string/reset_pick_help">
+            android:hint="@string/push_remote_hint"
+            app:helperText="@string/pull_remote_help"
+            android:layout_marginBottom="16dp">
             <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                android:id="@+id/etResetPick"
+                android:id="@+id/etPullRemote"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textUri"
+                android:maxLines="1"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/credentials_label"
+            app:helperText="@string/credentials_help">
+            <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                android:id="@+id/etPullCred"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="none"

@@ -34,6 +34,132 @@
     <string name="reset_hash_hint">Commit hash</string>
     <string name="reset_hash_help">Leave blank to reset to HEAD~1.</string>
 
+    <!-- Extended git actions -->
+    <string name="git_action_pull">Pull</string>
+    <string name="git_action_pull_desc">Fetch and merge remote changes into the current branch</string>
+    <string name="git_action_branch">Switch Branch</string>
+    <string name="git_action_branch_desc">Check out a different local branch</string>
+    <string name="git_action_stash">Stash Changes</string>
+    <string name="git_action_stash_desc">Save and reset modified, staged, and untracked files</string>
+    <string name="git_action_stash_pop">Restore Stash</string>
+    <string name="git_action_stash_pop_desc">Re-apply the most recently stashed changes</string>
+    <string name="git_action_checkpoints">Checkpoints</string>
+    <string name="git_action_checkpoints_desc">Undo to an earlier agent round or session start</string>
+    <string name="git_action_diff">Diff</string>
+    <string name="branch_switcher">Branch Switcher</string>
+    <string name="branch_switcher_desc">Tap a branch to check it out. Uncommitted changes are carried over when possible.</string>
+    <string name="checkpoints_title">Checkpoints</string>
+    <string name="checkpoints_desc">Hard-reset the workspace back to an earlier agent checkpoint.</string>
+    <string name="reset_to_here">Reset</string>
+    <string name="pull_desc">Fetches the remote and merges it into the current branch.</string>
+    <string name="pull_remote_help">Uses the current branch\'s configured tracking remote by default.</string>
+    <string name="pull_title">Pull from Remote</string>
+    <string name="pull_action">Pull</string>
+    <string name="pull_success">Pulled successfully.</string>
+    <string name="pull_no_workspace">Select a workspace first.</string>
+    <string name="pull_not_repo">Workspace is not a Git repository.</string>
+    <string name="commit_changes_label">Changes</string>
+    <string name="commit_group_staged">Staged</string>
+    <string name="commit_group_unstaged">Unstaged</string>
+    <string name="commit_group_untracked">Untracked</string>
+    <string name="commit_group_conflicts">Conflicts</string>
+    <string name="commit_no_changes">No changes to commit.</string>
+    <string name="commit_success">Committed %1$d file(s).</string>
+    <string name="diff_loading">Loading diff…</string>
+    <string name="diff_unavailable">Diff unavailable for this file.</string>
+    <string name="revert_pick_hint">Commit to revert</string>
+    <string name="revert_pick_help">HEAD appends a corrective commit for the latest commit.</string>
+    <string name="reset_pick_hint">Commit to reset to</string>
+    <string name="reset_pick_help">HEAD~1 discards the latest commit and all uncommitted changes.</string>
+    <string name="checkout_title">Switch to %1$s?</string>
+    <string name="checkout_msg">Uncommitted changes will be carried over, or block the switch if they conflict with the target branch.</string>
+    <string name="checkout_action">Switch</string>
+    <string name="checkout_success">Now on branch %1$s</string>
+    <string name="stash_save_msg">Save all modified, staged, and untracked files and reset the working tree? Restore them later with \"Restore Stash\".</string>
+    <string name="stash_saved">Changes stashed.</string>
+    <string name="stash_pop_msg">Re-apply the most recently stashed changes and drop that stash?</string>
+    <string name="stash_restored">Stash restored.</string>
+    <string name="checkpoint_session_start">Session start</string>
+    <string name="checkpoint_round">Round %1$d</string>
+    <string name="checkpoints_empty">No checkpoints yet. Checkpoints are created when the agent makes its first changes.</string>
+    <string name="checkpoint_reset_title">Reset to checkpoint?</string>
+    <string name="checkpoint_reset_msg">Hard-reset the workspace to %1$s? Every later commit and all uncommitted changes will be discarded.</string>
+    <string name="checkpoint_reset_action">Reset</string>
+    <string name="checkpoint_reset_done">Reset to checkpoint.</string>
+    <string name="checkpoint_reset_failed">Could not reset to checkpoint.</string>
+    <string name="git_status_clean">Clean working tree</string>
+    <string name="git_status_changes">%1$d files · +%2$d −%3$d</string>
+    <string name="git_status_push">%1$s · %2$s</string>
+    <string name="git_status_head">HEAD: %1$s</string>
+    <string name="git_status_branch">Current: %1$s</string>
+
+    <!-- Fetch -->
+    <string name="git_action_fetch">Fetch</string>
+    <string name="git_action_fetch_desc">Download remote refs without merging</string>
+    <string name="fetch_title">Fetch from Remote</string>
+    <string name="fetch_desc">Downloads the remote\'s refs and objects so local branches can track and compare against them. Does not modify your working tree.</string>
+    <string name="fetch_remote_help">Fetches into FETCH_HEAD for this remote.</string>
+    <string name="fetch_action">Fetch</string>
+    <string name="fetch_success">Fetch complete.</string>
+
+    <!-- Merge -->
+    <string name="git_action_merge">Merge Branch</string>
+    <string name="git_action_merge_desc">Merge another local branch into the current one</string>
+    <string name="merge_desc">Integrates the commits of the selected branch into the current branch.</string>
+    <string name="merge_branch_hint">Branch to merge</string>
+    <string name="merge_branch_help">Only local branches are listed.</string>
+    <string name="merge_action">Merge</string>
+    <string name="merge_success">Merged %1$s into current branch.</string>
+    <string name="merge_no_branches">No other local branches to merge.</string>
+
+    <!-- Discard working changes -->
+    <string name="git_action_discard">Discard Changes</string>
+    <string name="git_action_discard_desc">Revert all staged and unstaged edits to HEAD</string>
+    <string name="discard_msg">Discard all modified and staged changes, restoring every tracked file to HEAD? Untracked files are left in place. This cannot be undone.</string>
+    <string name="discard_action">Discard</string>
+    <string name="discard_done">Working tree restored to HEAD.</string>
+
+    <!-- Remotes -->
+    <string name="git_action_remotes">Remotes</string>
+    <string name="git_action_remotes_desc">Add, edit, or remove configured remotes</string>
+    <string name="no_remotes">No remotes configured.</string>
+    <string name="remotes_count">%1$d remote(s)</string>
+    <string name="remotes_title">Remotes</string>
+    <string name="remotes_desc">Add, edit the URL of, or remove the remotes used for push, pull, and fetch.</string>
+    <string name="remotes_empty">No remotes configured yet. Add one to start pushing and pulling.</string>
+    <string name="no_url">(no URL)</string>
+    <string name="add_remote">Add Remote</string>
+    <string name="add_remote_title">Add Remote</string>
+    <string name="edit_remote_title">Edit Remote</string>
+    <string name="save_remote">Save</string>
+    <string name="remote_name_hint">Remote name</string>
+    <string name="remote_url_hint">Remote URL</string>
+    <string name="remote_url_help">HTTPS or SSH URL of the remote repository.</string>
+    <string name="remote_added">Remote added.</string>
+    <string name="remote_updated">Remote URL updated.</string>
+    <string name="remote_removed">Remote removed.</string>
+    <string name="remote_edit">Edit remote</string>
+    <string name="remote_remove">Remove remote</string>
+    <string name="remove_remote_title">Remove remote?</string>
+    <string name="remove_remote_msg">Remove the remote \"%1$s\"? Its URL is only removed from this repository\'s config — nothing is pushed or deleted remotely.</string>
+    <string name="remove_remote_action">Remove</string>
+    <string name="remote_edit_desc">The remote name is a short handle; the URL is where git actually talks.</string>
+
+    <!-- Branch create / delete -->
+    <string name="branch_new">New Branch</string>
+    <string name="branch_new_desc">Creates a new branch from the current commit. The working tree is carried over unchanged.</string>
+    <string name="branch_new_name_hint">Branch name</string>
+    <string name="branch_new_name_help">e.g. feature/login or fix/typo</string>
+    <string name="branch_new_checkout">Switch to the new branch</string>
+    <string name="branch_new_action">Create</string>
+    <string name="branch_created">Branch %1$s created.</string>
+    <string name="branch_name_empty">Branch name cannot be empty.</string>
+    <string name="branch_delete">Delete branch</string>
+    <string name="branch_delete_title">Delete branch %1$s?</string>
+    <string name="branch_delete_msg">The branch is deleted locally. Unmerged branches are refused to protect work that has not been merged anywhere.</string>
+    <string name="branch_delete_action">Delete</string>
+    <string name="branch_deleted">Branch %1$s deleted.</string>
+
     <!-- Git credential profiles -->
     <string name="git_credentials">Git Credentials</string>
     <string name="git_credentials_desc">Saved username and token pairs for private repositories. Select one to use in Clone and Push.</string>

@@ -13,22 +13,36 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/revert_desc"
+            android:text="@string/remote_edit_desc"
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:textColor="?attr/colorOnSurfaceVariant"
             android:layout_marginBottom="16dp"/>
 
         <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/revert_pick_hint"
-            app:helperText="@string/revert_pick_help">
-            <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                android:id="@+id/etRevertPick"
+            android:hint="@string/remote_name_hint"
+            android:layout_marginBottom="16dp">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etRemoteName"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="none"
+                android:inputType="text"
+                android:maxLines="1"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/remote_url_hint"
+            app:helperText="@string/remote_url_help">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etRemoteUrl"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textUri"
                 android:maxLines="1"/>
         </com.google.android.material.textfield.TextInputLayout>
     </LinearLayout>

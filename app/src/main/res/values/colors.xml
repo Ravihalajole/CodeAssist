@@ -29,6 +29,7 @@
     <color name="state_cyan">#4DD8E7</color>
     <color name="state_violet">#A06BF5</color>
     <color name="state_blue">#4C8DFF</color>
+    <color name="state_green">#3DDC84</color>
     <color name="state_red">#FF4D5A</color>
     <color name="state_red_dark">#D50000</color>
     <color name="state_amber">#FFAD3F</color>

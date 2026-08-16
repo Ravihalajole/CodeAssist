@@ -6,8 +6,10 @@ import org.eclipse.jgit.api.errors.EmptyCommitException
 import org.eclipse.jgit.diff.DiffEntry
 import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.lib.RepositoryCache
+import org.eclipse.jgit.merge.MergeResult
 import org.eclipse.jgit.transport.RefSpec
 import org.eclipse.jgit.transport.RemoteRefUpdate
+import org.eclipse.jgit.transport.URIish
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.eclipse.jgit.treewalk.CanonicalTreeParser
 import kotlinx.coroutines.sync.Mutex
@@ -614,6 +616,495 @@ object GitManager {
                 "Remote branch has newer commits — pull/merge first."
             update.message.isNullOrBlank() -> "Push rejected ($status)."
             else -> "Push rejected ($status): ${update.message}"
+        }
+    }
+
+    // --- DIFF ENGINE ---
+
+    enum class ChangeStatus { ADDED, MODIFIED, DELETED, RENAMED, UNTRACKED, CONFLICTED }
+
+    data class FileChange(
+        val path: String,
+        val status: ChangeStatus,
+        val added: Int,
+        val removed: Int
+    )
+
+    data class ChangesOverview(
+        val staged: List<FileChange>,
+        val unstaged: List<FileChange>,
+        val untracked: List<FileChange>,
+        val conflicts: List<String>
+    )
+
+    /**
+     * Working-tree status split into staged / unstaged / untracked buckets,
+     * each with per-file added/removed line counts. Drives the commit dialog's
+     * preview and the live status lines in the Git Actions menu. Untracked
+     * files get an approximate added count from their line count.
+     */
+    suspend fun changesOverview(workspaceRoot: File): ChangesOverview = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot)
+            ?: return@withLock ChangesOverview(emptyList(), emptyList(), emptyList(), emptyList())
+        try {
+            Git.open(repoRoot).use { git ->
+                val status = git.status().call()
+                val untracked = status.untracked.map { path ->
+                    val lines = runCatching {
+                        File(repoRoot, path).readText().count { it == '\n' }
+                    }.getOrDefault(0)
+                    FileChange(path, ChangeStatus.UNTRACKED, lines, 0)
+                }
+                ChangesOverview(
+                    staged = diffStats(git, cached = true),
+                    unstaged = diffStats(git, cached = false),
+                    untracked = untracked,
+                    conflicts = status.conflicting.toList()
+                )
+            }
+        } catch (_: Exception) {
+            ChangesOverview(emptyList(), emptyList(), emptyList(), emptyList())
+        }
+    }
+
+    /**
+     * Stats (added/removed lines per file) for either the staged diff
+     * (HEAD vs index, [cached] = true) or the unstaged diff (index vs
+     * working tree, [cached] = false).
+     */
+    private fun diffStats(git: Git, cached: Boolean): List<FileChange> {
+        val formatter = DiffFormatter(java.io.ByteArrayOutputStream())
+        try {
+            formatter.setRepository(git.repository)
+            formatter.setDetectRenames(true)
+            val command = git.diff()
+            if (cached) command.setCached(true)
+            val diff = command.call()
+            return git.repository.newObjectReader().use { reader ->
+                diff.map { entry ->
+                    val edits = formatter.toFileHeader(entry).toEditList()
+                    FileChange(
+                        path = if (entry.changeType == DiffEntry.ChangeType.DELETE) entry.oldPath else entry.newPath,
+                        status = entry.changeStatus(),
+                        added = edits.sumOf { it.endB - it.beginB },
+                        removed = edits.sumOf { it.endA - it.beginA }
+                    )
+                }
+            }
+        } finally {
+            formatter.close()
+        }
+    }
+
+    /**
+     * Per-file change stats of an existing [hash] commit (against its parent).
+     * Root commits diff against an empty tree. Null when the repo/commit is
+     * missing or diffing fails.
+     */
+    suspend fun commitFileChanges(workspaceRoot: File, hash: String): List<FileChange>? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock null
+        try {
+            Git.open(repoRoot).use { git ->
+                val commit = runCatching {
+                    git.log().add(git.repository.resolve(hash)).setMaxCount(1).call().asSequence().firstOrNull()
+                }.getOrNull() ?: return@withLock null
+                git.repository.newObjectReader().use { reader ->
+                    val parent = commit.parents.firstOrNull()
+                    val formatter = DiffFormatter(java.io.ByteArrayOutputStream())
+                    try {
+                        formatter.setRepository(git.repository)
+                        val diff = if (parent != null) {
+                            git.diff()
+                                .setOldTree(CanonicalTreeParser(null, reader, parent.tree.id))
+                                .setNewTree(CanonicalTreeParser(null, reader, commit.tree.id))
+                                .call()
+                        } else {
+                            git.diff().setNewTree(CanonicalTreeParser(null, reader, commit.tree.id)).call()
+                        }
+                        diff.map { entry ->
+                            val edits = formatter.toFileHeader(entry).toEditList()
+                            FileChange(
+                                path = if (entry.changeType == DiffEntry.ChangeType.DELETE) entry.oldPath else entry.newPath,
+                                status = entry.changeStatus(),
+                                added = edits.sumOf { it.endB - it.beginB },
+                                removed = edits.sumOf { it.endA - it.beginA }
+                            )
+                        }
+                    } finally {
+                        formatter.close()
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Full textual diff of a single [path] inside commit [hash] (3 lines of
+     * context). Null when the repo/commit/path is missing.
+     */
+    suspend fun fileDiff(workspaceRoot: File, hash: String, path: String): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock null
+        try {
+            Git.open(repoRoot).use { git ->
+                val commit = runCatching {
+                    git.log().add(git.repository.resolve(hash)).setMaxCount(1).call().asSequence().firstOrNull()
+                }.getOrNull() ?: return@withLock null
+                git.repository.newObjectReader().use { reader ->
+                    val parent = commit.parents.firstOrNull()
+                    val formatter = DiffFormatter(java.io.ByteArrayOutputStream())
+                    try {
+                        formatter.setRepository(git.repository)
+                        formatter.setContext(3)
+                        val diff = if (parent != null) {
+                            git.diff()
+                                .setOldTree(CanonicalTreeParser(null, reader, parent.tree.id))
+                                .setNewTree(CanonicalTreeParser(null, reader, commit.tree.id))
+                                .call()
+                        } else {
+                            git.diff().setNewTree(CanonicalTreeParser(null, reader, commit.tree.id)).call()
+                        }
+                        val entry = diff.firstOrNull {
+                            (if (it.changeType == DiffEntry.ChangeType.DELETE) it.oldPath else it.newPath) == path
+                        } ?: return@withLock null
+                        formatter.toFileHeader(entry).toString()
+                    } finally {
+                        formatter.close()
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun DiffEntry.changeStatus(): ChangeStatus = when (changeType) {
+        DiffEntry.ChangeType.ADD -> ChangeStatus.ADDED
+        DiffEntry.ChangeType.DELETE -> ChangeStatus.DELETED
+        DiffEntry.ChangeType.RENAME -> ChangeStatus.RENAMED
+        DiffEntry.ChangeType.COPY -> ChangeStatus.ADDED
+        else -> ChangeStatus.MODIFIED
+    }
+
+    // --- EXTENDED GIT ACTIONS ---
+
+    /**
+     * Stages only [paths] (repo-relative, e.g. from a status call) and commits
+     * them with [message]. Deletions are staged via `git add` semantics. Returns
+     * null on success, or a friendly error message.
+     */
+    suspend fun commitSelected(workspaceRoot: File, paths: List<String>, message: String): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
+        val trimmed = message.trim()
+        if (trimmed.isEmpty()) return@withLock "Commit message cannot be empty."
+        if (paths.isEmpty()) return@withLock "No files selected to commit."
+        cleanupStaleLocks(workspaceRoot)
+        try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                paths.forEach { path -> git.add().addFilepattern(path).call() }
+                git.commit()
+                    .setMessage(trimmed)
+                    .setAuthor(AUTHOR_NAME, AUTHOR_EMAIL)
+                    .setCommitter(AUTHOR_NAME, AUTHOR_EMAIL)
+                    .call()
+                null
+            }
+        } catch (_: EmptyCommitException) {
+            "Nothing to commit — the selected files are already up to date."
+        } catch (e: Exception) {
+            e.message ?: "Commit failed."
+        }
+    }
+
+    /**
+     * Checks out an existing local [branch]. Returns null on success, or a
+     * friendly error (e.g. uncommitted conflicts).
+     */
+    suspend fun checkoutBranch(workspaceRoot: File, branch: String): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
+        cleanupStaleLocks(workspaceRoot)
+        try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                git.checkout().setName(branch).call()
+                null
+            }
+        } catch (e: Exception) {
+            "Checkout failed: ${e.message ?: "unknown error"}"
+        }
+    }
+
+    /**
+     * Stashes all working-tree changes (including untracked files) with an
+     * optional [message]. Returns null on success, or a friendly error.
+     */
+    suspend fun stashChanges(workspaceRoot: File, message: String?): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
+        cleanupStaleLocks(workspaceRoot)
+        try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                val command = git.stashCreate().setIncludeUntracked(true)
+                if (!message.isNullOrBlank()) command.setMessage(message)
+                command.call() ?: return@withLock "Nothing to stash — the working tree is clean."
+                null
+            }
+        } catch (e: Exception) {
+            e.message ?: "Stash failed."
+        }
+    }
+
+    /**
+     * Restores the most recent stash and drops it. Returns null on success, or
+     * a friendly error (including "no stashes").
+     */
+    suspend fun popStash(workspaceRoot: File): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
+        cleanupStaleLocks(workspaceRoot)
+        try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                if (git.stashList().call().isEmpty()) return@withLock "No stashes to restore."
+                git.stashApply().call()
+                git.stashDrop().call()
+                null
+            }
+        } catch (e: Exception) {
+            e.message ?: "Stash pop failed."
+        }
+    }
+
+    /**
+     * Pulls (fetch + merge) the current branch from [remote]. Shallow clones
+     * are unshallowed first. Returns null on success, or a friendly error.
+     */
+    suspend fun pullFromRemote(workspaceRoot: File, remote: String, username: String?, password: String?): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
+        cleanupStaleLocks(workspaceRoot)
+        try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                if (File(repoRoot, ".git/shallow").exists()) {
+                    git.fetch().setRemote(remote).setDepth(0).call()
+                }
+                val command = git.pull().setRemote(remote)
+                if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
+                    command.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, password))
+                }
+                val result = command.call()
+                if (result.isSuccessful) null
+                else "Pull failed${result.fetchedFrom?.let { " from $it" } ?: ""}."
+            }
+        } catch (e: Exception) {
+            e.message ?: "Pull failed."
+        }
+    }
+
+    /**
+     * Fetches refs from a [remote] into FETCH_HEAD without merging. Shallow
+     * clones are unshallowed first. Returns null on success, or a friendly
+     * error.
+     */
+    suspend fun fetchRemote(workspaceRoot: File, remote: String, username: String?, password: String?): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
+        cleanupStaleLocks(workspaceRoot)
+        try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                if (File(repoRoot, ".git/shallow").exists()) {
+                    git.fetch().setRemote(remote).setDepth(0).call()
+                }
+                val command = git.fetch().setRemote(remote)
+                if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
+                    command.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, password))
+                }
+                command.call()
+                null
+            }
+        } catch (e: Exception) {
+            e.message ?: "Fetch failed."
+        }
+    }
+
+    // --- BRANCH / MERGE / RESET OPS ---
+
+    /**
+     * Creates a new local branch named [name] from [startRef] (default HEAD).
+     * Returns null on success, or a friendly error.
+     */
+    suspend fun createBranch(workspaceRoot: File, name: String, startRef: String = "HEAD"): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return@withLock "Branch name cannot be empty."
+        cleanupStaleLocks(workspaceRoot)
+        try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                git.branchCreate().setName(trimmed).setStartPoint(startRef).call()
+                null
+            }
+        } catch (e: Exception) {
+            e.message ?: "Failed to create branch."
+        }
+    }
+
+    /**
+     * Deletes a local [branch]. Refuses to delete the current branch or an
+     * unmerged one (force = false). Returns null on success, or a friendly
+     * error.
+     */
+    suspend fun deleteBranch(workspaceRoot: File, branch: String): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
+        cleanupStaleLocks(workspaceRoot)
+        try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                git.branchDelete().setBranchNames(branch).setForce(false).call()
+                null
+            }
+        } catch (e: Exception) {
+            e.message ?: "Failed to delete branch."
+        }
+    }
+
+    /**
+     * Merges another local [branch] into the current branch. Returns null on
+     * success (including fast-forward and already-up-to-date), or a friendly
+     * error on conflicts or failure. Merge commits fall back to the
+     * CodeAssist identity only when the repo has no user configured.
+     */
+    suspend fun mergeBranch(workspaceRoot: File, branch: String): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
+        cleanupStaleLocks(workspaceRoot)
+        try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                val target = git.repository.resolve("refs/heads/$branch")
+                    ?: return@withLock "Branch '$branch' not found."
+                ensureMergeIdentity(git)
+                val result = git.merge().include(target).call()
+                when (result.mergeStatus) {
+                    MergeResult.MergeStatus.ALREADY_UP_TO_DATE,
+                    MergeResult.MergeStatus.FAST_FORWARD,
+                    MergeResult.MergeStatus.MERGED -> null
+                    MergeResult.MergeStatus.CONFLICTING -> {
+                        val files = result.conflicts?.keys?.joinToString(", ") ?: "unknown files"
+                        "Merge conflicts in: $files. Resolve them before continuing."
+                    }
+                    else -> "Merge failed (${result.mergeStatus})."
+                }
+            }
+        } catch (e: Exception) {
+            e.message ?: "Merge failed."
+        }
+    }
+
+    /**
+     * Discards all staged and unstaged changes, restoring the working tree to
+     * HEAD. Untracked files are left in place. Returns null on success, or a
+     * friendly error.
+     */
+    suspend fun discardWorkingChanges(workspaceRoot: File): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
+        cleanupStaleLocks(workspaceRoot)
+        try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                git.reset().setMode(ResetCommand.ResetType.HARD).call()
+                null
+            }
+        } catch (e: Exception) {
+            e.message ?: "Failed to discard changes."
+        }
+    }
+
+    private fun ensureMergeIdentity(git: Git) {
+        val config = git.repository.config
+        if (config.getString("user", null, "name").isNullOrBlank() ||
+            config.getString("user", null, "email").isNullOrBlank()) {
+            config.setString("user", null, "name", AUTHOR_NAME)
+            config.setString("user", null, "email", AUTHOR_EMAIL)
+            config.save()
+        }
+    }
+
+    // --- REMOTE MANAGEMENT ---
+
+    /**
+     * Name + URL pairs for every configured remote. Drives the Remotes dialog.
+     */
+    suspend fun listRemoteDetails(workspaceRoot: File): List<Pair<String, String>> = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock emptyList()
+        try {
+            Git.open(repoRoot).use { git ->
+                git.remoteList().call().map { config ->
+                    config.name to (config.uris.firstOrNull()?.toString() ?: "")
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * Adds a new remote named [name] pointing at [url]. Returns null on
+     * success, or a friendly error.
+     */
+    suspend fun addRemote(workspaceRoot: File, name: String, url: String): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
+        val trimmedName = name.trim()
+        val trimmedUrl = url.trim()
+        if (trimmedName.isEmpty()) return@withLock "Remote name cannot be empty."
+        if (trimmedUrl.isEmpty()) return@withLock "Remote URL cannot be empty."
+        cleanupStaleLocks(workspaceRoot)
+        try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                git.remoteAdd().setName(trimmedName).setUri(URIish(trimmedUrl)).call()
+                null
+            }
+        } catch (e: Exception) {
+            e.message ?: "Failed to add remote."
+        }
+    }
+
+    /**
+     * Removes a configured remote by [name]. Returns null on success, or a
+     * friendly error.
+     */
+    suspend fun removeRemote(workspaceRoot: File, name: String): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
+        cleanupStaleLocks(workspaceRoot)
+        try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                git.remoteRemove().setRemoteName(name).call()
+                null
+            }
+        } catch (e: Exception) {
+            e.message ?: "Failed to remove remote."
+        }
+    }
+
+    /**
+     * Updates the URL of an existing remote [name]. Returns null on success,
+     * or a friendly error.
+     */
+    suspend fun setRemoteUrl(workspaceRoot: File, name: String, url: String): String? = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
+        val trimmedUrl = url.trim()
+        if (trimmedUrl.isEmpty()) return@withLock "Remote URL cannot be empty."
+        cleanupStaleLocks(workspaceRoot)
+        try {
+            Git.open(repoRoot).use { git ->
+                flushRepositoryCaches(git)
+                git.remoteSetUrl().setRemoteName(name).setRemoteUri(URIish(trimmedUrl)).call()
+                null
+            }
+        } catch (e: Exception) {
+            e.message ?: "Failed to update remote URL."
         }
     }
 }
