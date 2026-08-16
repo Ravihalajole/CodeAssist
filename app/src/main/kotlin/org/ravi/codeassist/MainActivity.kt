@@ -861,6 +861,28 @@ class MainActivity : AppCompatActivity() {
             dialog.dismiss()
             showManualCommitDialog()
         }
+        dialogView.findViewById<View>(R.id.rowGitCommit).setOnLongClickListener {
+            val ws = ctx.workspaceRoot
+            if (ws.isNullOrEmpty()) return@setOnLongClickListener false
+            lifecycleScope.launch {
+                val dump = withContext(Dispatchers.IO) { GitManager.workspaceDiagnostics(File(ws)) }
+                val tv = android.widget.TextView(this@MainActivity)
+                tv.text = dump
+                tv.setTextIsSelectable(true)
+                tv.typeface = android.graphics.Typeface.MONOSPACE
+                tv.setTextSize(11f)
+                tv.setPadding(24, 24, 24, 24)
+                val scroller = android.widget.ScrollView(this@MainActivity)
+                scroller.addView(tv)
+                scroller.isFillViewport = true
+                com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
+                    .setTitle("Workspace diagnostics")
+                    .setView(scroller)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
+            }
+            true
+        }
         dialogView.findViewById<View>(R.id.rowGitRevert).setOnClickListener {
             dialog.dismiss()
             handleGitUndoAction(commits)
