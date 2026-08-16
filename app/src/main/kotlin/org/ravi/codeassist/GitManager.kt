@@ -341,28 +341,29 @@ object GitManager {
     suspend fun listCheckpoints(workspaceRoot: File): List<RoundCheckpoint> = gitMutex.withLock {
         val repoRoot = repoRootFor(workspaceRoot) ?: return emptyList()
         return try {
-            Git.open(repoRoot).use { git ->
-                git.tagList().call().mapNotNull { ref ->
-                    val shortName = ref.name.removePrefix("refs/tags/")
-                    val round = when {
-                        shortName.startsWith("codeassist-round-") -> shortName.removePrefix("codeassist-round-").toIntOrNull() ?: return@mapNotNull null
-                        shortName == "codeassist-session-start" -> 0
-                        else -> return@mapNotNull null
-                    }
-                    val commitId = git.repository.resolve("${ref.name}^{}") ?: ref.objectId ?: return@mapNotNull null
-                    val commit = git.repository.parseCommit(commitId)
-                    RoundCheckpoint(
-                        tag = shortName,
-                        round = round,
-                        message = commit.shortMessage,
-                        time = commit.commitTime.toLong() * 1000L
-                    )
-                }.sortedWith(compareByDescending<RoundCheckpoint> { it.round }.thenByDescending { it.time })
-            }
+            Git.open(repoRoot).use { git -> checkpointList(git) }
         } catch (_: Exception) {
             emptyList()
         }
     }
+
+    private fun checkpointList(git: Git): List<RoundCheckpoint> =
+        git.tagList().call().mapNotNull { ref ->
+            val shortName = ref.name.removePrefix("refs/tags/")
+            val round = when {
+                shortName.startsWith("codeassist-round-") -> shortName.removePrefix("codeassist-round-").toIntOrNull() ?: return@mapNotNull null
+                shortName == "codeassist-session-start" -> 0
+                else -> return@mapNotNull null
+            }
+            val commitId = git.repository.resolve("${ref.name}^{}") ?: ref.objectId ?: return@mapNotNull null
+            val commit = git.repository.parseCommit(commitId)
+            RoundCheckpoint(
+                tag = shortName,
+                round = round,
+                message = commit.shortMessage,
+                time = commit.commitTime.toLong() * 1000L
+            )
+        }.sortedWith(compareByDescending<RoundCheckpoint> { it.round }.thenByDescending { it.time })
 
     data class CommitInfo(val hash: String, val message: String, val author: String, val time: Long)
 
@@ -453,29 +454,32 @@ object GitManager {
      * Collects all chronological system commit logs mapped directly from the repository internals.
      */
     suspend fun getCommitHistory(workspaceRoot: File): List<CommitInfo> = gitMutex.withLock {
-        val historyList = mutableListOf<CommitInfo>()
-        val repoRoot = repoRootFor(workspaceRoot) ?: return historyList
+        val repoRoot = repoRootFor(workspaceRoot) ?: return emptyList()
         cleanupStaleLocks(workspaceRoot)
-
-        try {
+        val historyList = try {
             Git.open(repoRoot).use { git ->
                 flushRepositoryCaches(git)
-                
-                val logs = git.log().setMaxCount(100).call()
-                for (revCommit in logs) {
-                    historyList.add(
-                        CommitInfo(
-                            hash = revCommit.name,
-                            message = revCommit.fullMessage,
-                            author = revCommit.authorIdent.name,
-                            time = revCommit.commitTime.toLong() * 1000L
-                        )
-                    )
-                }
+                commitHistory(git, 100)
             }
-        } catch (_: Exception) {}
-        
+        } catch (_: Exception) {
+            emptyList()
+        }
         return historyList.sortedWith(compareByDescending<CommitInfo> { it.time }.thenByDescending { it.hash })
+    }
+
+    private fun commitHistory(git: Git, max: Int): List<CommitInfo> {
+        val historyList = mutableListOf<CommitInfo>()
+        for (revCommit in git.log().setMaxCount(max).call()) {
+            historyList.add(
+                CommitInfo(
+                    hash = revCommit.name,
+                    message = revCommit.fullMessage,
+                    author = revCommit.authorIdent.name,
+                    time = revCommit.commitTime.toLong() * 1000L
+                )
+            )
+        }
+        return historyList
     }
 
     data class CloneResult(val ok: Boolean, val error: String?, val path: File?)
@@ -544,13 +548,14 @@ object GitManager {
     suspend fun listBranches(workspaceRoot: File): List<String> = gitMutex.withLock {
         val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock emptyList()
         try {
-            Git.open(repoRoot).use { git ->
-                git.branchList().call().map { it.name.removePrefix("refs/heads/") }.sorted()
-            }
+            Git.open(repoRoot).use { git -> branchList(git) }
         } catch (_: Exception) {
             emptyList()
         }
     }
+
+    private fun branchList(git: Git): List<String> =
+        git.branchList().call().map { it.name.removePrefix("refs/heads/") }.sorted()
 
     /**
      * Number of commits on the current [branch] not present on its configured
@@ -562,20 +567,27 @@ object GitManager {
         val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock null
         if (branch.isNullOrBlank()) return@withLock null
         try {
-            Git.open(repoRoot).use { git ->
-                val config = git.repository.config
-                val remoteName = config.getString("branch", branch, "remote") ?: return@use null
-                val mergeRef = config.getString("branch", branch, "merge") ?: return@use null
-                val upstream = git.repository.findRef("refs/remotes/$remoteName/${mergeRef.removePrefix("refs/heads/")}")?.objectId
-                    ?: return@use null
-                val head = git.repository.resolve("HEAD") ?: return@use null
-                org.eclipse.jgit.revwalk.RevWalk(git.repository).use { walk ->
-                    walk.markStart(walk.parseCommit(head))
-                    walk.markUninteresting(walk.parseCommit(upstream))
-                    var count = 0
-                    for (commit in walk) count++
-                    count
-                }
+            Git.open(repoRoot).use { git -> commitsAheadInternal(git, branch) }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun commitsAheadInternal(git: Git, branch: String?): Int? {
+        if (branch.isNullOrBlank()) return null
+        return try {
+            val config = git.repository.config
+            val remoteName = config.getString("branch", branch, "remote") ?: return null
+            val mergeRef = config.getString("branch", branch, "merge") ?: return null
+            val upstream = git.repository.findRef("refs/remotes/$remoteName/${mergeRef.removePrefix("refs/heads/")}")?.objectId
+                ?: return null
+            val head = git.repository.resolve("HEAD") ?: return null
+            org.eclipse.jgit.revwalk.RevWalk(git.repository).use { walk ->
+                walk.markStart(walk.parseCommit(head))
+                walk.markUninteresting(walk.parseCommit(upstream))
+                var count = 0
+                for (commit in walk) count++
+                count
             }
         } catch (_: Exception) {
             null
@@ -678,23 +690,35 @@ object GitManager {
             ?: return@withLock ChangesOverview(emptyList(), emptyList(), emptyList(), emptyList())
         try {
             Git.open(repoRoot).use { git ->
-                val status = git.status().call()
-                val untracked = status.untracked.map { path ->
-                    val lines = runCatching {
-                        File(repoRoot, path).readText().count { it == '\n' }
-                    }.getOrDefault(0)
-                    FileChange(path, ChangeStatus.UNTRACKED, lines, 0)
-                }
-                ChangesOverview(
-                    staged = diffStats(git, cached = true),
-                    unstaged = diffStats(git, cached = false),
-                    untracked = untracked,
-                    conflicts = status.conflicting.toList()
-                )
+                buildChangesOverview(git, repoRoot, git.status().call())
             }
         } catch (_: Exception) {
             ChangesOverview(emptyList(), emptyList(), emptyList(), emptyList())
         }
+    }
+
+    /**
+     * Builds the changes overview from a live status snapshot. Buckets are
+     * independent: a failing bucket degrades to empty instead of blanking the
+     * whole preview. The staged diff in particular throws NoHeadException in a
+     * repository that has no HEAD yet, so without this guard a fresh repo
+     * would hide its untracked/unstaged files and the commit dialog would
+     * report "no changes" forever.
+     */
+    private fun buildChangesOverview(git: Git, repoRoot: File, status: org.eclipse.jgit.api.Status): ChangesOverview {
+        val untracked = status.untracked.map { path ->
+            val lines = runCatching {
+                val file = File(repoRoot, path)
+                if (file.length() > 512 * 1024) 0 else file.readText().count { it == '\n' }
+            }.getOrDefault(0)
+            FileChange(path, ChangeStatus.UNTRACKED, lines, 0)
+        }
+        return ChangesOverview(
+            staged = runCatching { diffStats(git, cached = true) }.getOrDefault(emptyList()),
+            unstaged = runCatching { diffStats(git, cached = false) }.getOrDefault(emptyList()),
+            untracked = untracked,
+            conflicts = status.conflicting.toList()
+        )
     }
 
     /**
@@ -921,6 +945,69 @@ object GitManager {
     }
 
     /**
+     * Everything the Git Actions dialog renders, computed in a single
+     * repository open and a single status scan. The dialog previously
+     * prefetched each field through its own `Git.open` (8 opens + 3 status
+     * scans back to back), which cost 2-3s on device before the menu appeared.
+     */
+    data class GitActionsSnapshot(
+        val repoExists: Boolean,
+        val branch: String?,
+        val clean: Boolean,
+        val changeCount: Int,
+        val conflictCount: Int,
+        val overview: ChangesOverview,
+        val commits: List<CommitInfo>,
+        val remotes: List<Pair<String, String>>,
+        val branches: List<String>,
+        val stashCount: Int,
+        val checkpointCount: Int,
+        val commitsAhead: Int?
+    )
+
+    suspend fun collectGitActionsSnapshot(workspaceRoot: File): GitActionsSnapshot = gitMutex.withLock {
+        val repoRoot = repoRootFor(workspaceRoot)
+        if (repoRoot == null) {
+            return@withLock GitActionsSnapshot(
+                repoExists = false, branch = null, clean = true, changeCount = 0, conflictCount = 0,
+                overview = ChangesOverview(emptyList(), emptyList(), emptyList(), emptyList()),
+                commits = emptyList(), remotes = emptyList(), branches = emptyList(),
+                stashCount = 0, checkpointCount = 0, commitsAhead = null
+            )
+        }
+        cleanupStaleLocks(workspaceRoot)
+        return@withLock try {
+            Git.open(repoRoot).use { git ->
+                val status = git.status().call()
+                val branch = git.repository.branch
+                GitActionsSnapshot(
+                    repoExists = true,
+                    branch = branch,
+                    clean = status.isClean,
+                    changeCount = status.uncommittedChanges.size + status.added.size + status.modified.size +
+                        status.removed.size + status.missing.size + status.untracked.size,
+                    conflictCount = status.conflicting.size,
+                    overview = buildChangesOverview(git, repoRoot, status),
+                    commits = commitHistory(git, 100)
+                        .sortedWith(compareByDescending<CommitInfo> { it.time }.thenByDescending { it.hash }),
+                    remotes = remoteDetails(git),
+                    branches = branchList(git),
+                    stashCount = runCatching { git.stashList().call().size }.getOrDefault(0),
+                    checkpointCount = checkpointList(git).size,
+                    commitsAhead = commitsAheadInternal(git, branch)
+                )
+            }
+        } catch (_: Exception) {
+            GitActionsSnapshot(
+                repoExists = false, branch = null, clean = true, changeCount = 0, conflictCount = 0,
+                overview = ChangesOverview(emptyList(), emptyList(), emptyList(), emptyList()),
+                commits = emptyList(), remotes = emptyList(), branches = emptyList(),
+                stashCount = 0, checkpointCount = 0, commitsAhead = null
+            )
+        }
+    }
+
+    /**
      * Pulls (fetch + merge) the current branch from [remote]. Shallow clones
      * are unshallowed first. Returns null on success, or a friendly error.
      */
@@ -1082,15 +1169,14 @@ object GitManager {
     suspend fun listRemoteDetails(workspaceRoot: File): List<Pair<String, String>> = gitMutex.withLock {
         val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock emptyList()
         try {
-            Git.open(repoRoot).use { git ->
-                git.remoteList().call().map { config ->
-                    config.name to (config.getURIs().firstOrNull()?.toString() ?: "")
-                }
-            }
+            Git.open(repoRoot).use { git -> remoteDetails(git) }
         } catch (_: Exception) {
             emptyList()
         }
     }
+
+    private fun remoteDetails(git: Git): List<Pair<String, String>> =
+        git.remoteList().call().map { config -> config.name to (config.getURIs().firstOrNull()?.toString() ?: "") }
 
     /**
      * Adds a new remote named [name] pointing at [url]. Returns null on

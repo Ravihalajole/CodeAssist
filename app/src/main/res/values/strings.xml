@@ -105,6 +105,8 @@
     <string name="git_status_changes_staged">%1$d files · +%2$d −%3$d · %4$d staged</string>
     <string name="git_commit_conflicts">Resolve %1$d conflicted file(s) first</string>
     <string name="git_branch_detached">Detached HEAD</string>
+    <string name="branch_current">current</string>
+    <string name="branch_empty">No local branches found yet. Create one below.</string>
     <string name="git_push_ahead">%1$d commit(s) to push</string>
     <string name="git_push_up_to_date">Up to date with upstream</string>
     <string name="git_push_no_upstream">No upstream branch set</string>

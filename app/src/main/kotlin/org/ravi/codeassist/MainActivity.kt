@@ -13,12 +13,15 @@ import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
+import android.widget.FrameLayout
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.lifecycle.ViewModelProvider
@@ -696,22 +699,21 @@ class MainActivity : AppCompatActivity() {
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
         lifecycleScope.launch(Dispatchers.IO) {
-            val rootFile = workspaceRoot?.let { File(it) }
-            val status = rootFile?.let { GitManager.getWorkspaceStatus(it) }
-            val branches = rootFile?.let { GitManager.listBranches(it) } ?: emptyList()
-            val currentBranch = status?.branch
-            val context = GitActionsContext(
-                workspaceRoot = workspaceRoot,
-                overview = rootFile?.let { GitManager.changesOverview(it) },
-                status = status,
-                commits = rootFile?.let { GitManager.getCommitHistory(it).take(20) } ?: emptyList(),
-                remotes = rootFile?.let { GitManager.listRemoteDetails(it) } ?: emptyList(),
-                otherBranches = branches.filterNot { it == currentBranch },
-                stashCount = rootFile?.let { GitManager.stashCount(it) } ?: 0,
-                checkpointCount = rootFile?.let { GitManager.listCheckpoints(it).size } ?: 0,
-                commitsAhead = rootFile?.let { GitManager.commitsAhead(it, currentBranch) }
-            )
+            val snapshot = workspaceRoot?.let { GitManager.collectGitActionsSnapshot(File(it)) }
             withContext(Dispatchers.Main) {
+                val context = GitActionsContext(
+                    workspaceRoot = workspaceRoot,
+                    overview = snapshot?.overview,
+                    status = snapshot?.let {
+                        GitManager.WorkspaceStatus(it.repoExists, it.branch, it.clean, it.changeCount, it.conflictCount)
+                    },
+                    commits = snapshot?.commits?.take(20) ?: emptyList(),
+                    remotes = snapshot?.remotes ?: emptyList(),
+                    otherBranches = snapshot?.branches?.filterNot { it == snapshot.branch } ?: emptyList(),
+                    stashCount = snapshot?.stashCount ?: 0,
+                    checkpointCount = snapshot?.checkpointCount ?: 0,
+                    commitsAhead = snapshot?.commitsAhead
+                )
                 showGitActionsDialogContent(context)
             }
         }
@@ -1127,6 +1129,38 @@ class MainActivity : AppCompatActivity() {
         return spannable
     }
 
+    private fun styleGitDialogHeader(
+        dialogView: View,
+        iconRes: Int,
+        colorRes: Int,
+        title: String,
+        desc: String,
+        danger: Boolean = false
+    ) {
+        dialogView.findViewById<ImageView>(R.id.ivGitHeaderIcon).apply {
+            setImageResource(iconRes)
+            imageTintList = android.content.res.ColorStateList.valueOf(
+                ContextCompat.getColor(this@MainActivity, colorRes)
+            )
+        }
+        if (danger) {
+            dialogView.findViewById<FrameLayout>(R.id.fvGitHeaderIcon)
+                .setBackgroundResource(R.drawable.bg_icon_box_danger)
+        }
+        dialogView.findViewById<TextView>(R.id.tvGitHeaderTitle).text = title
+        dialogView.findViewById<TextView>(R.id.tvGitHeaderDesc).apply {
+            text = desc
+            if (danger) {
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.state_red))
+            }
+        }
+    }
+
+    private fun styleDestructivePositive(dialog: androidx.appcompat.app.AlertDialog) {
+        dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
+            .setTextColor(ContextCompat.getColor(this, R.color.state_red))
+    }
+
     private fun handleGitUndoAction(commits: List<GitManager.CommitInfo>) {
         val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return
@@ -1143,8 +1177,15 @@ class MainActivity : AppCompatActivity() {
         pick.setSimpleItems(labels.toTypedArray())
         pick.setText(labels.first(), false)
 
+        styleGitDialogHeader(
+            dialogView,
+            R.drawable.ic_undo,
+            R.color.state_amber,
+            getString(R.string.git_action_revert),
+            getString(R.string.revert_desc)
+        )
+
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.git_action_revert)
             .setView(dialogView)
             .setPositiveButton(R.string.git_action_revert) { _, _ ->
                 val idx = labels.indexOf(pick.text?.toString())
@@ -1170,8 +1211,16 @@ class MainActivity : AppCompatActivity() {
         pick.setSimpleItems(labels.toTypedArray())
         pick.setText(labels.first(), false)
 
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.git_action_reset)
+        styleGitDialogHeader(
+            dialogView,
+            R.drawable.ic_history,
+            R.color.state_red,
+            getString(R.string.git_action_reset),
+            getString(R.string.reset_desc),
+            danger = true
+        )
+
+        val resetDialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setView(dialogView)
             .setPositiveButton(R.string.git_action_reset) { _, _ ->
                 val idx = labels.indexOf(pick.text?.toString())
@@ -1180,6 +1229,7 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+        styleDestructivePositive(resetDialog)
     }
 
     private fun showManualCommitDialog() {
@@ -1552,6 +1602,7 @@ class MainActivity : AppCompatActivity() {
             val remotes = GitManager.listRemotes(rootFile)
             val branches = GitManager.listBranches(rootFile)
             val currentBranch = GitManager.getWorkspaceStatus(rootFile).branch
+            val commitsAhead = currentBranch?.let { GitManager.commitsAhead(rootFile, it) }
             withContext(Dispatchers.Main) {
                 logsProgress.visibility = View.GONE
                 btnGitOptions.isEnabled = true
@@ -1560,13 +1611,19 @@ class MainActivity : AppCompatActivity() {
                 } else if (remotes.isEmpty() && branches.isEmpty()) {
                     Toast.makeText(this@MainActivity, "No remotes or branches found. Configure a remote first.", Toast.LENGTH_LONG).show()
                 } else {
-                    showPushDialog(workspaceRoot, remotes, branches, currentBranch)
+                    showPushDialog(workspaceRoot, remotes, branches, currentBranch, commitsAhead)
                 }
             }
         }
     }
 
-    private fun showPushDialog(workspaceRoot: String, remotes: List<String>, branches: List<String>, currentBranch: String?) {
+    private fun showPushDialog(
+        workspaceRoot: String,
+        remotes: List<String>,
+        branches: List<String>,
+        currentBranch: String?,
+        commitsAhead: Int?
+    ) {
         val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_push, null)
         val etRemote = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etPushRemote)
         val etBranch = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etPushBranch)
@@ -1581,8 +1638,20 @@ class MainActivity : AppCompatActivity() {
         }
         configureCredDropdown(etCred, defaultActive = true)
 
+        val aheadText = when {
+            commitsAhead == null -> getString(R.string.git_push_no_upstream)
+            commitsAhead > 0 -> getString(R.string.git_push_ahead, commitsAhead)
+            else -> getString(R.string.git_push_up_to_date)
+        }
+        styleGitDialogHeader(
+            dialogView,
+            R.drawable.ic_push,
+            R.color.state_blue,
+            getString(R.string.push_title),
+            getString(R.string.git_status_push, currentBranch ?: branches.firstOrNull().orEmpty(), aheadText)
+        )
+
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.push_title)
             .setView(dialogView)
             .setPositiveButton(R.string.push_action) { _, _ ->
                 val remote = etRemote.text?.toString()?.trim().orEmpty()
@@ -1663,8 +1732,15 @@ class MainActivity : AppCompatActivity() {
         }
         configureCredDropdown(etCred, defaultActive = true)
 
+        styleGitDialogHeader(
+            dialogView,
+            R.drawable.ic_pull,
+            R.color.state_violet,
+            getString(R.string.pull_title),
+            getString(R.string.pull_desc)
+        )
+
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.pull_title)
             .setView(dialogView)
             .setPositiveButton(R.string.pull_action) { _, _ ->
                 val remote = etRemote.text?.toString()?.trim().orEmpty()
@@ -1714,18 +1790,33 @@ class MainActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 logsProgress.visibility = View.GONE
                 btnGitOptions.isEnabled = true
-                if (branches.isEmpty()) {
-                    Toast.makeText(this@MainActivity, "No local branches found.", Toast.LENGTH_SHORT).show()
-                    return@withContext
-                }
                 val dialogView = android.view.LayoutInflater.from(this@MainActivity)
                     .inflate(R.layout.dialog_git_branch, null)
                 val container = dialogView.findViewById<LinearLayout>(R.id.llBranchList)
                 lateinit var dialog: android.app.Dialog
 
+                styleGitDialogHeader(
+                    dialogView,
+                    R.drawable.ic_branch,
+                    R.color.state_cyan,
+                    getString(R.string.branch_switcher),
+                    getString(R.string.branch_switcher_desc)
+                )
+
                 dialogView.findViewById<MaterialButton>(R.id.btnNewBranch).setOnClickListener {
                     dialog.dismiss()
                     showCreateBranchDialog(rootFile)
+                }
+
+                if (branches.isEmpty()) {
+                    val empty = TextView(this@MainActivity)
+                    empty.text = getString(R.string.branch_empty)
+                    empty.setTextAppearance(this@MainActivity, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+                    val ta = theme.obtainStyledAttributes(intArrayOf(com.google.android.material.R.attr.colorOnSurfaceVariant))
+                    empty.setTextColor(ta.getColor(0, android.graphics.Color.GRAY))
+                    ta.recycle()
+                    empty.setPadding(0, 16, 0, 16)
+                    container.addView(empty)
                 }
 
                 branches.forEach { branch ->
@@ -1733,16 +1824,18 @@ class MainActivity : AppCompatActivity() {
                         .inflate(R.layout.item_branch, container, false)
                     val rb = row.findViewById<com.google.android.material.radiobutton.MaterialRadioButton>(R.id.rbBranchActive)
                     val tv = row.findViewById<TextView>(R.id.tvBranchName)
+                    val badge = row.findViewById<TextView>(R.id.tvBranchBadge)
                     val btnDelete = row.findViewById<ImageButton>(R.id.btnBranchDelete)
                     val isCurrent = branch == current
-                    tv.text = if (isCurrent) "$branch  (current)" else branch
+                    tv.text = branch
+                    badge.visibility = if (isCurrent) View.VISIBLE else View.GONE
                     rb.isChecked = isCurrent
                     rb.isEnabled = !isCurrent
                     if (isCurrent) {
                         btnDelete.visibility = View.GONE
                     } else {
                         btnDelete.setOnClickListener {
-                            com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
+                            val deleteDialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
                                 .setTitle(getString(R.string.branch_delete_title, branch))
                                 .setMessage(R.string.branch_delete_msg)
                                 .setPositiveButton(R.string.branch_delete_action) { _, _ ->
@@ -1750,6 +1843,7 @@ class MainActivity : AppCompatActivity() {
                                 }
                                 .setNegativeButton(android.R.string.cancel, null)
                                 .show()
+                            styleDestructivePositive(deleteDialog)
                         }
                     }
                     row.setOnClickListener {
@@ -1872,13 +1966,21 @@ class MainActivity : AppCompatActivity() {
         logsProgress.visibility = View.VISIBLE
         btnGitOptions.isEnabled = false
         lifecycleScope.launch(Dispatchers.IO) {
-            val checkpoints = GitManager.listCheckpoints(rootFile)
+            val checkpointList = GitManager.listCheckpoints(rootFile)
             withContext(Dispatchers.Main) {
                 logsProgress.visibility = View.GONE
                 btnGitOptions.isEnabled = true
                 val dialogView = android.view.LayoutInflater.from(this@MainActivity)
                     .inflate(R.layout.dialog_git_checkpoints, null)
                 val container = dialogView.findViewById<LinearLayout>(R.id.llCheckpoints)
+
+                styleGitDialogHeader(
+                    dialogView,
+                    R.drawable.ic_history,
+                    R.color.state_violet,
+                    getString(R.string.checkpoints_title),
+                    getString(R.string.checkpoints_desc)
+                )
 
                 if (checkpoints.isEmpty()) {
                     val empty = TextView(this@MainActivity)
@@ -1901,7 +2003,7 @@ class MainActivity : AppCompatActivity() {
                         java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault())
                             .format(java.util.Date(cp.time))
                     item.findViewById<MaterialButton>(R.id.btnCheckpointReset).setOnClickListener {
-                        com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
+                        val resetDialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
                             .setTitle(R.string.checkpoint_reset_title)
                             .setMessage(getString(R.string.checkpoint_reset_msg, cp.tag))
                             .setPositiveButton(R.string.checkpoint_reset_action) { _, _ ->
@@ -1971,8 +2073,15 @@ class MainActivity : AppCompatActivity() {
         etRemote.setText(if ("origin" in remotes) "origin" else remotes.first(), false)
         configureCredDropdown(etCred, defaultActive = true)
 
+        styleGitDialogHeader(
+            dialogView,
+            R.drawable.ic_fetch,
+            R.color.state_cyan,
+            getString(R.string.fetch_title),
+            getString(R.string.git_fetch_remotes, remotes.size, remotes.joinToString(", "))
+        )
+
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.fetch_title)
             .setView(dialogView)
             .setPositiveButton(R.string.fetch_action) { _, _ ->
                 val remote = etRemote.text?.toString()?.trim().orEmpty()
@@ -2032,8 +2141,15 @@ class MainActivity : AppCompatActivity() {
                 pick.setSimpleItems(candidates.toTypedArray())
                 pick.setText(candidates.first(), false)
 
+                styleGitDialogHeader(
+                    dialogView,
+                    R.drawable.ic_merge,
+                    R.color.state_blue,
+                    getString(R.string.git_action_merge),
+                    getString(R.string.git_merge_branches, candidates.size)
+                )
+
                 com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
-                    .setTitle(R.string.git_action_merge)
                     .setView(dialogView)
                     .setPositiveButton(R.string.merge_action) { _, _ ->
                         val idx = candidates.indexOf(pick.text?.toString())
@@ -2069,7 +2185,7 @@ class MainActivity : AppCompatActivity() {
     // --- DISCARD WORKING CHANGES ---
 
     private fun confirmDiscardChanges() {
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+        val discardDialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle(R.string.git_action_discard)
             .setMessage(R.string.discard_msg)
             .setPositiveButton(R.string.discard_action) { _, _ ->
@@ -2079,6 +2195,7 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+        styleDestructivePositive(discardDialog)
     }
 
     private fun runDiscardChanges(rootFile: File) {
@@ -2120,6 +2237,14 @@ class MainActivity : AppCompatActivity() {
                 val container = dialogView.findViewById<LinearLayout>(R.id.llRemotes)
                 lateinit var dialog: android.app.Dialog
 
+                styleGitDialogHeader(
+                    dialogView,
+                    R.drawable.ic_remote,
+                    R.color.state_violet,
+                    getString(R.string.remotes_title),
+                    getString(R.string.remotes_desc)
+                )
+
                 if (details.isEmpty()) {
                     val empty = TextView(this@MainActivity)
                     empty.text = getString(R.string.remotes_empty)
@@ -2141,7 +2266,7 @@ class MainActivity : AppCompatActivity() {
                         showRemoteEditDialog(rootFile, name to url)
                     }
                     item.findViewById<ImageButton>(R.id.btnRemoteRemove).setOnClickListener {
-                        com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
+                        val removeDialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
                             .setTitle(R.string.remove_remote_title)
                             .setMessage(getString(R.string.remove_remote_msg, name))
                             .setPositiveButton(R.string.remove_remote_action) { _, _ ->
@@ -2149,6 +2274,7 @@ class MainActivity : AppCompatActivity() {
                             }
                             .setNegativeButton(android.R.string.cancel, null)
                             .show()
+                        styleDestructivePositive(removeDialog)
                     }
                     container.addView(item)
                 }
@@ -2177,8 +2303,15 @@ class MainActivity : AppCompatActivity() {
             etUrl.setText(existing.second)
         }
 
+        styleGitDialogHeader(
+            dialogView,
+            R.drawable.ic_remote,
+            R.color.state_violet,
+            getString(if (existing == null) R.string.add_remote_title else R.string.edit_remote_title),
+            getString(R.string.remote_edit_desc)
+        )
+
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle(if (existing == null) R.string.add_remote_title else R.string.edit_remote_title)
             .setView(dialogView)
             .setPositiveButton(R.string.save_remote) { _, _ ->
                 val name = etName.text?.toString()?.trim().orEmpty()
@@ -2257,8 +2390,15 @@ class MainActivity : AppCompatActivity() {
         val etName = dialogView.findViewById<TextInputEditText>(R.id.etBranchName)
         val cbCheckout = dialogView.findViewById<com.google.android.material.checkbox.MaterialCheckBox>(R.id.cbBranchCheckout)
 
+        styleGitDialogHeader(
+            dialogView,
+            R.drawable.ic_branch,
+            R.color.state_cyan,
+            getString(R.string.branch_new),
+            getString(R.string.branch_new_desc)
+        )
+
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.branch_new)
             .setView(dialogView)
             .setPositiveButton(R.string.branch_new_action) { _, _ ->
                 val name = etName.text?.toString()?.trim()
@@ -2373,10 +2513,11 @@ class MainActivity : AppCompatActivity() {
                             render()
                             refreshGitCredStatus()
                         }
-                        .setNegativeButton(android.R.string.cancel, null)
-                        .show()
-                }
-                container.addView(item)
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show()
+                        styleDestructivePositive(resetDialog)
+                    }
+                    container.addView(item)
             }
             if (GitCredentialProfiles.profiles(sharedPref).isEmpty()) {
                 val empty = TextView(this)

@@ -51,6 +51,8 @@
             style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/reset_to_here"/>
+            android:backgroundTint="#1AFF4D5A"
+            android:text="@string/reset_to_here"
+            android:textColor="@color/state_red"/>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
