@@ -1135,7 +1135,7 @@ object GitManager {
                         overview.untracked.size + overview.conflicts.size,
                     conflictCount = overview.conflicts.size,
                     overview = overview,
-                    commits = commitHistory(git, 100)
+                    commits = commitHistory(git, 20)
                         .sortedWith(compareByDescending<CommitInfo> { it.time }.thenByDescending { it.hash }),
                     remotes = remoteDetails(git),
                     branches = branchList(git),
