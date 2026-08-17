@@ -6,7 +6,13 @@ import org.eclipse.jgit.api.ResetCommand
 import org.eclipse.jgit.api.errors.EmptyCommitException
 import org.eclipse.jgit.diff.DiffEntry
 import org.eclipse.jgit.diff.DiffFormatter
+import org.eclipse.jgit.diff.Edit
+import org.eclipse.jgit.diff.EditList
+import org.eclipse.jgit.diff.HistogramDiff
+import org.eclipse.jgit.diff.RawText
+import org.eclipse.jgit.diff.RawTextComparator
 import org.eclipse.jgit.dircache.DirCacheEntry
+import org.eclipse.jgit.lib.ObjectReader
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.lib.RepositoryCache
 import org.eclipse.jgit.treewalk.FileTreeIterator
@@ -729,7 +735,6 @@ object GitManager {
             ?: return@withLock ChangesOverview(emptyList(), emptyList(), emptyList(), emptyList())
         try {
             Git.open(repoRoot).use { git ->
-                runCatching { git.diff().setNewTree(ContentCheckingFileTreeIterator(git.repository)).call() }
                 buildChangesOverview(git, repoRoot, git.status().call())
             }
         } catch (_: Exception) {
@@ -851,6 +856,14 @@ object GitManager {
      * Stats (added/removed lines per file) for either the staged diff
      * (HEAD vs index, [cached] = true) or the unstaged diff (index vs
      * working tree, [cached] = false).
+     *
+     * For the unstaged side, the diff is NOT formatted through the
+     * repository: the working-tree blob id of a modified file only exists in
+     * the working tree, never in the object database, so
+     * `DiffFormatter.toFileHeader(...)` throws `MissingObjectException` and
+     * every modified file silently vanished from the commit dialog. Edits are
+     * instead computed directly from the index blob (in the odb) and the
+     * actual file bytes on disk.
      */
     private fun diffStats(git: Git, cached: Boolean): List<FileChange> {
         val formatter = DiffFormatter(java.io.ByteArrayOutputStream())
@@ -866,7 +879,11 @@ object GitManager {
             val diff = command.call()
             return git.repository.newObjectReader().use { reader ->
                 diff.map { entry ->
-                    val edits = formatter.toFileHeader(entry).toEditList()
+                    val edits = if (cached) {
+                        formatter.toFileHeader(entry).toEditList()
+                    } else {
+                        workingEditList(git.repository, reader, entry)
+                    }
                     FileChange(
                         path = if (entry.changeType == DiffEntry.ChangeType.DELETE) entry.oldPath else entry.newPath,
                         status = entry.changeStatus(),
@@ -877,6 +894,22 @@ object GitManager {
             }
         } finally {
             formatter.close()
+        }
+    }
+
+    private fun workingEditList(repo: Repository, reader: ObjectReader, entry: DiffEntry): EditList {
+        val oldText = if (entry.oldId == null) null else runCatching {
+            RawText(reader.open(entry.oldId.toObjectId()).bytes)
+        }.getOrNull()
+        val newText = if (entry.changeType == DiffEntry.ChangeType.DELETE) null else runCatching {
+            val file = File(repo.workTree, entry.newPath)
+            if (file.isFile && file.length() <= 5 * 1024 * 1024) RawText(file.readBytes()) else null
+        }.getOrNull()
+        return when {
+            oldText == null && newText == null -> EditList()
+            oldText == null -> EditList(listOf(Edit(0, 0, 0, newText?.size() ?: 0)))
+            newText == null -> EditList(listOf(Edit(0, oldText.size(), 0, 0)))
+            else -> HistogramDiff().diff(RawTextComparator.DEFAULT, oldText, newText)
         }
     }
 
@@ -1090,7 +1123,6 @@ object GitManager {
         cleanupStaleLocks(workspaceRoot)
         return@withLock try {
             Git.open(repoRoot).use { git ->
-                runCatching { git.diff().setNewTree(ContentCheckingFileTreeIterator(git.repository)).call() }
                 val status = git.status().call()
                 val branch = git.repository.branch
                 val overview = buildChangesOverview(git, repoRoot, status)
