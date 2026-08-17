@@ -59,4 +59,7 @@
     <color name="ovl_sheen">#26FFFFFF</color>
     <color name="ovl_scrim_strong">#CC000000</color>
 
+    <!-- Pill overlay: translucent glass surface (72% of the raised surface) -->
+    <color name="ovl_pill_glass">#B714141A</color>
+
 </resources>

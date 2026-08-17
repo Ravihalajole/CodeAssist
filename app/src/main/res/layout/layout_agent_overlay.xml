@@ -1,11 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="80dp"
-    android:layout_height="80dp">
+<org.ravi.codeassist.ui.CommandPillView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/pillView"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="12dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="8dp"
+    android:paddingBottom="12dp"
+    android:contentDescription="Agent control pill">
 
-    <org.ravi.codeassist.ui.CommandOrbView
-        android:id="@+id/orbView"
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        android:contentDescription="Agent control orb" />
-</FrameLayout>
+    <View
+        android:id="@+id/pillDot"
+        android:layout_width="10dp"
+        android:layout_height="10dp"
+        android:layout_gravity="center_vertical"
+        android:layout_marginEnd="10dp"
+        android:background="@drawable/bg_pill_dot" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:layout_marginEnd="12dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/pillLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.03"
+            android:text="Idle"
+            android:textColor="@color/text_hi"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/pillSub"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxWidth="172dp"
+            android:singleLine="true"
+            android:text="Tap to open tools"
+            android:textColor="@color/text_mid"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/morphButton"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_gravity="center_vertical"
+        android:backgroundTint="@color/brand_mint"
+        android:contentDescription="Stop or resume"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        app:cornerRadius="18dp"
+        app:icon="@drawable/ic_play"
+        app:iconGravity="textStart"
+        app:iconPadding="0dp"
+        app:iconSize="18dp"
+        app:iconTint="@color/brand_on_accent"
+        app:strokeWidth="0dp"
+        tools:ignore="MissingConstraints" />
+</org.ravi.codeassist.ui.CommandPillView>

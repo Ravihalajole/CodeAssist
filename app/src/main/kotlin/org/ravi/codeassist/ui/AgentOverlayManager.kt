@@ -21,16 +21,22 @@ import org.ravi.codeassist.agent.AgentState
 class AgentOverlayManager(private val context: Context) {
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var overlayView: View? = null
-    private var orbView: CommandOrbView? = null
-    private var radialOverlay: CommandRadialOverlay? = null
+    private var pillView: CommandPillView? = null
+    private var sheetOverlay: CommandSheetOverlay? = null
     private var isGenerating = false
-    private var longPressRunnable: Runnable? = null
-    private var longPressFired = false
+    private var lastUi = OverlayUi(0, false, "Idle", "Tap for tools")
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var stateJob: kotlinx.coroutines.Job? = null
 
     val isShowing: Boolean get() = overlayView != null
+
+    data class OverlayUi(
+        val accent: Int,
+        val generating: Boolean,
+        val label: String,
+        val sub: String
+    )
 
     fun showOverlay(stateFlow: StateFlow<AgentState>, onStop: () -> Unit) {
         if (overlayView != null) return
@@ -39,7 +45,7 @@ class AgentOverlayManager(private val context: Context) {
         val inflater = LayoutInflater.from(themedContext)
         val view = inflater.inflate(R.layout.layout_agent_overlay, null)
         overlayView = view
-        orbView = view.findViewById(R.id.orbView)
+        pillView = view.findViewById(R.id.pillView)
 
         val density = context.resources.displayMetrics.density
         val defaultY = (120 * density).toInt()
@@ -87,27 +93,20 @@ class AgentOverlayManager(private val context: Context) {
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     dragged = false
-                    longPressFired = false
                     initialX = layoutParams.x
                     initialY = layoutParams.y
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
-                    longPressRunnable?.let { view.removeCallbacks(it) }
-                    val task = Runnable {
-                        longPressFired = true
-                        openRadial()
-                    }
-                    longPressRunnable = task
-                    view.postDelayed(task, 400)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - initialTouchX
                     val dy = event.rawY - initialTouchY
                     if (kotlin.math.abs(dx) > touchSlop || kotlin.math.abs(dy) > touchSlop) {
-                        dragged = true
-                        longPressRunnable?.let { view.removeCallbacks(it) }
-                        longPressRunnable = null
+                        if (!dragged) {
+                            dismissSheet()
+                            dragged = true
+                        }
                         val (clampedX, clampedY) = clampToScreen(initialX + dx.toInt(), initialY - dy.toInt())
                         layoutParams.x = clampedX
                         layoutParams.y = clampedY
@@ -118,23 +117,31 @@ class AgentOverlayManager(private val context: Context) {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    longPressRunnable?.let { view.removeCallbacks(it) }
-                    longPressRunnable = null
                     sharedPref.edit().putInt("OVERLAY_POS_X", layoutParams.x).putInt("OVERLAY_POS_Y", layoutParams.y).apply()
-                    if (!dragged && !longPressFired) {
-                        if (isGenerating) {
-                            onStop()
+                    if (!dragged) {
+                        if (sheetOverlay?.isShowing == true) {
+                            dismissSheet()
                         } else {
-                            org.ravi.codeassist.AgentAccessibilityService.instance?.resumeOrSync()
+                            openSheet()
                         }
                     }
                     true
                 }
                 MotionEvent.ACTION_OUTSIDE -> {
-                    radialOverlay?.dismiss()
+                    dismissSheet()
                     true
                 }
                 else -> false
+            }
+        }
+
+        val morph = view.findViewById<com.google.android.material.button.MaterialButton>(R.id.morphButton)
+        morph.setOnClickListener {
+            dismissSheet()
+            if (isGenerating) {
+                onStop()
+            } else {
+                org.ravi.codeassist.AgentAccessibilityService.instance?.resumeOrSync()
             }
         }
 
@@ -148,53 +155,87 @@ class AgentOverlayManager(private val context: Context) {
         }
     }
 
-    private fun openRadial() {
-        if (radialOverlay?.isShowing == true) return
+    private fun dp(v: Float): Int = (v * context.resources.displayMetrics.density).toInt()
+
+    private fun openSheet() {
+        if (sheetOverlay?.isShowing == true) return
         val lp = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return
-        val fallback = (80 * context.resources.displayMetrics.density).toInt()
+        val fallback = dp(120f)
         val winW = (overlayView?.width ?: 0).takeIf { it > 0 } ?: fallback
         val winH = (overlayView?.height ?: 0).takeIf { it > 0 } ?: fallback
         val metrics = context.resources.displayMetrics
         val centerX = (metrics.widthPixels - winW) / 2 + lp.x + winW / 2
-        val centerY = metrics.heightPixels - lp.y - winH / 2
-        val radial = CommandRadialOverlay(context)
-        radial.show(
+        val pillTop = metrics.heightPixels - lp.y - winH
+
+        val mint = ContextCompat.getColor(context, R.color.brand_mint)
+        val violet = ContextCompat.getColor(context, R.color.state_violet)
+        val amber = ContextCompat.getColor(context, R.color.state_amber)
+        val mid = ContextCompat.getColor(context, R.color.text_mid)
+        val red = ContextCompat.getColor(context, R.color.state_red)
+
+        val sheet = CommandSheetOverlay(context)
+        sheet.onDismissed = { if (sheetOverlay === sheet) sheetOverlay = null }
+        sheet.show(
             centerX = centerX,
-            centerY = centerY,
-            onResume = { org.ravi.codeassist.agent.ToolboxManager.getTool("resume_session")?.onExecute() },
-            onInit = { org.ravi.codeassist.agent.ToolboxManager.getTool("init_workspace")?.onExecute() },
-            onBounds = { org.ravi.codeassist.agent.ToolboxManager.getTool("configure_scroll_zone")?.onExecute() },
-            onNewSession = { org.ravi.codeassist.agent.ToolboxManager.getTool("new_session")?.onExecute() },
-            onSettings = {
-                val intent = android.content.Intent(context, org.ravi.codeassist.MainActivity::class.java).apply {
-                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+            pillTop = pillTop,
+            accent = lastUi.accent,
+            status = lastUi.label,
+            tele = lastUi.sub,
+            tools = listOf(
+                CommandSheetOverlay.ToolSpec("Resume", R.drawable.ic_stroke_play, mint) {
+                    org.ravi.codeassist.agent.ToolboxManager.getTool("resume_session")?.onExecute()
+                },
+                CommandSheetOverlay.ToolSpec("Init", R.drawable.ic_play, mint) {
+                    org.ravi.codeassist.agent.ToolboxManager.getTool("init_workspace")?.onExecute()
+                },
+                CommandSheetOverlay.ToolSpec("Bounds", R.drawable.ic_target_crosshair, violet) {
+                    org.ravi.codeassist.agent.ToolboxManager.getTool("configure_scroll_zone")?.onExecute()
+                },
+                CommandSheetOverlay.ToolSpec("Reset", R.drawable.ic_tool_reset, amber) {
+                    org.ravi.codeassist.agent.ToolboxManager.getTool("new_session")?.onExecute()
+                },
+                CommandSheetOverlay.ToolSpec("App", R.drawable.ic_nav_settings, mid) {
+                    val intent = android.content.Intent(context, org.ravi.codeassist.MainActivity::class.java).apply {
+                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    context.startActivity(intent)
+                },
+                CommandSheetOverlay.ToolSpec("Exit", R.drawable.ic_close, red) {
+                    org.ravi.codeassist.AgentAccessibilityService.instance?.stopAgentSession()
                 }
-                context.startActivity(intent)
-            },
+            ),
+            onClose = { dismissSheet() },
             onExit = { org.ravi.codeassist.AgentAccessibilityService.instance?.stopAgentSession() }
         )
-        radialOverlay = radial
+        sheetOverlay = sheet
     }
 
-    private fun overlayUiFor(state: AgentState): Pair<Int, Boolean> {
+    private fun dismissSheet() {
+        sheetOverlay?.dismiss()
+        sheetOverlay = null
+    }
+
+    private fun overlayUiFor(state: AgentState): OverlayUi {
         return when (state) {
-            is AgentState.IDLE -> Pair(ContextCompat.getColor(context, R.color.state_cyan), false)
-            is AgentState.ANALYZING_SCREEN -> Pair(ContextCompat.getColor(context, R.color.state_amber), true)
-            is AgentState.AWAITING_LLM -> Pair(ContextCompat.getColor(context, R.color.state_amber), true)
-            is AgentState.EXECUTING_ACTION -> Pair(ContextCompat.getColor(context, R.color.brand_mint), true)
-            is AgentState.WAITING_FOR_MUTATION -> Pair(ContextCompat.getColor(context, R.color.state_amber), true)
-            is AgentState.WAITING_FOR_USER -> Pair(ContextCompat.getColor(context, R.color.state_blue), false)
-            is AgentState.ERROR -> Pair(ContextCompat.getColor(context, R.color.state_red), false)
-            is AgentState.TOOLBOX_OPEN -> Pair(ContextCompat.getColor(context, R.color.state_violet), false)
-            is AgentState.SCROLL_CONFIG_ACTIVE -> Pair(ContextCompat.getColor(context, R.color.state_cyan), false)
+            is AgentState.IDLE -> OverlayUi(ContextCompat.getColor(context, R.color.state_cyan), false, "Idle", "Tap for tools")
+            is AgentState.ANALYZING_SCREEN -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Reading screen", "Scanning UI")
+            is AgentState.AWAITING_LLM -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Thinking", "Waiting for model")
+            is AgentState.EXECUTING_ACTION -> OverlayUi(ContextCompat.getColor(context, R.color.brand_mint), true, "Tapping", state.actionName)
+            is AgentState.WAITING_FOR_MUTATION -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Applying changes", "Awaiting completion")
+            is AgentState.WAITING_FOR_USER -> OverlayUi(ContextCompat.getColor(context, R.color.state_blue), false, "Needs input", "Morph to resume")
+            is AgentState.ERROR -> OverlayUi(ContextCompat.getColor(context, R.color.state_red), false, "Stopped", state.message)
+            is AgentState.TOOLBOX_OPEN -> OverlayUi(ContextCompat.getColor(context, R.color.state_violet), false, "Tools", "Agent control")
+            is AgentState.SCROLL_CONFIG_ACTIVE -> OverlayUi(ContextCompat.getColor(context, R.color.state_cyan), false, "Scroll zone", "Setting bounds")
         }
     }
 
     private fun updateStatusInternal(state: AgentState) {
-        val orb = orbView ?: return
-        val (color, generating) = overlayUiFor(state)
-        isGenerating = generating
-        orb.applyUi(color, generating, state is AgentState.WAITING_FOR_USER || state is AgentState.ERROR)
+        val pill = pillView ?: return
+        val ui = overlayUiFor(state)
+        lastUi = ui
+        isGenerating = ui.generating
+        pill.applyUi(ui.accent, ui.generating, state is AgentState.WAITING_FOR_USER || state is AgentState.ERROR, ui.label, ui.sub)
+        sheetOverlay?.updateStatus(ui.accent, ui.label, ui.sub)
     }
 
     fun setOverlayVisibility(isVisible: Boolean) {
@@ -319,8 +360,7 @@ class AgentOverlayManager(private val context: Context) {
     fun hideOverlay() {
         stateJob?.cancel()
         stateJob = null
-        radialOverlay?.dismiss()
-        radialOverlay = null
+        dismissSheet()
         hideScrollZonePicker()
         overlayView?.let {
             try {
@@ -328,7 +368,7 @@ class AgentOverlayManager(private val context: Context) {
             } catch (_: Exception) {}
         }
         overlayView = null
-        orbView = null
+        pillView = null
     }
 
     fun destroy() {
