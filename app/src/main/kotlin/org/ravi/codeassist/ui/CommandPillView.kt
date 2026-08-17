@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
@@ -50,8 +51,15 @@ class CommandPillView @JvmOverloads constructor(
     private val barFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
     }
+    private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        shader = LinearGradient(
+            0f, 0f, 0f, dp(1.5f),
+            0x14FFFFFF.toInt(), 0x00FFFFFF.toInt(), Shader.TileMode.CLAMP
+        )
+    }
 
     private val pillRect = RectF()
+    private val pillPath = Path()
     private val barRect = RectF()
     private var cornerRadius = 0f
 
@@ -87,6 +95,8 @@ class CommandPillView @JvmOverloads constructor(
         super.onSizeChanged(w, h, oldw, oldh)
         cornerRadius = dp(22f)
         pillRect.set(0f, 0f, w.toFloat(), h.toFloat())
+        pillPath.reset()
+        pillPath.addRoundRect(pillRect, cornerRadius, cornerRadius, Path.Direction.CW)
         val barH = dp(2.5f)
         val margin = dp(8f)
         barRect.set(margin, h - barH - margin, w - margin, h - margin)
@@ -121,13 +131,12 @@ class CommandPillView @JvmOverloads constructor(
         val btn = morphButton
         if (btn != null) {
             btn.icon = ContextCompat.getDrawable(context, if (gen) R.drawable.ic_stop else R.drawable.ic_play)
-            if (gen) {
-                btn.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.surf_high))
-                btn.iconTint = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.text_hi))
-            } else {
-                btn.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.brand_mint))
-                btn.iconTint = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.brand_on_accent))
-            }
+            btn.setBackgroundResource(if (gen) R.drawable.bg_morph_stop else R.drawable.bg_morph_play)
+            btn.backgroundTintList = null
+            btn.iconTint = ColorStateList.valueOf(
+                if (gen) ContextCompat.getColor(context, R.color.text_hi)
+                else ContextCompat.getColor(context, R.color.brand_on_accent)
+            )
         }
         if (gen) {
             barAnim = ValueAnimator.ofFloat(0f, 1f).apply {
@@ -208,6 +217,10 @@ class CommandPillView @JvmOverloads constructor(
         canvas.drawRoundRect(pillRect, cornerRadius, cornerRadius, borderPaint)
         canvas.drawRoundRect(pillRect, cornerRadius, cornerRadius, rimPaint)
 
+        canvas.save()
+        canvas.clipPath(pillPath)
+        canvas.drawRect(pillRect.left, pillRect.top, pillRect.right, pillRect.top + dp(1.5f), highlightPaint)
+        canvas.restore()
         if (generating) {
             canvas.save()
             canvas.clipRect(barRect)

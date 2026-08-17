@@ -314,6 +314,19 @@ class CommandSheetOverlay(private val context: Context) {
         }
         chip.setOnClickListener { onToolTap() }
         cell.setOnClickListener { onToolTap() }
+        cell.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    v.animate().scaleX(0.94f).scaleY(0.94f).setDuration(90).start()
+                    false
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(140).setInterpolator(OvershootInterpolator(0.8f)).start()
+                    false
+                }
+                else -> false
+            }
+        }
         return cell
     }
 
