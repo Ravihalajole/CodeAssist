@@ -87,12 +87,14 @@ class AgentOverlayManager(private val context: Context) {
         var initialTouchX = 0f
         var initialTouchY = 0f
         var dragged = false
+        var wasSheetOpen = false
 
         view.setOnTouchListener { _, event ->
             val layoutParams = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     dragged = false
+                    wasSheetOpen = sheetOverlay?.isShowing == true
                     initialX = layoutParams.x
                     initialY = layoutParams.y
                     initialTouchX = event.rawX
@@ -119,7 +121,7 @@ class AgentOverlayManager(private val context: Context) {
                 MotionEvent.ACTION_UP -> {
                     sharedPref.edit().putInt("OVERLAY_POS_X", layoutParams.x).putInt("OVERLAY_POS_Y", layoutParams.y).apply()
                     if (!dragged) {
-                        if (sheetOverlay?.isShowing == true) {
+                        if (wasSheetOpen) {
                             dismissSheet()
                         } else {
                             openSheet()

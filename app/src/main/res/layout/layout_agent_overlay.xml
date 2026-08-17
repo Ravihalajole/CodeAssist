@@ -22,7 +22,7 @@
         android:background="@drawable/bg_pill_dot" />
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="150dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"
         android:layout_marginEnd="12dp"
@@ -30,10 +30,12 @@
 
         <TextView
             android:id="@+id/pillLabel"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:ellipsize="end"
             android:fontFamily="monospace"
             android:letterSpacing="0.03"
+            android:singleLine="true"
             android:text="Idle"
             android:textColor="@color/text_hi"
             android:textSize="12sp"
@@ -41,10 +43,9 @@
 
         <TextView
             android:id="@+id/pillSub"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
-            android:maxWidth="172dp"
             android:singleLine="true"
             android:text="Tap to open tools"
             android:textColor="@color/text_mid"
@@ -58,8 +59,12 @@
         android:layout_gravity="center_vertical"
         android:backgroundTint="@color/brand_mint"
         android:contentDescription="Stop or resume"
+        android:insetLeft="0dp"
         android:insetTop="0dp"
+        android:insetRight="0dp"
         android:insetBottom="0dp"
+        android:paddingLeft="9dp"
+        android:paddingRight="9dp"
         app:cornerRadius="18dp"
         app:icon="@drawable/ic_play"
         app:iconGravity="textStart"

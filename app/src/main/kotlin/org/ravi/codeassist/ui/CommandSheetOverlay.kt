@@ -68,12 +68,17 @@ class CommandSheetOverlay(private val context: Context) {
             translationY = dp(16).toFloat()
         }
 
+        val rim = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(accent, 0x00FFFFFF.toInt())).apply {
+            cornerRadius = dp(22f).toFloat()
+        }
         val glass = GradientDrawable().apply {
             setColor(ContextCompat.getColor(context, R.color.ovl_pill_glass))
-            cornerRadius = dp(22f).toFloat()
-            setStroke(dp(1), 0x17FFFFFF.toInt())
+            cornerRadius = dp(21f).toFloat()
         }
-        root.background = glass
+        val bg = android.graphics.drawable.LayerDrawable(arrayOf(rim, glass)).apply {
+            setLayerInset(1, dp(1), dp(1), dp(1), dp(1))
+        }
+        root.background = bg
 
         val content = LinearLayout(themedContext).apply {
             orientation = LinearLayout.VERTICAL
@@ -434,20 +439,12 @@ class CommandSheetOverlay(private val context: Context) {
         confirmTimer?.let { handler.removeCallbacks(it) }
         confirmTimer = null
         val root = container ?: return
+        container = null
         confirmBar = null
-        root.animate()
-            .alpha(0f)
-            .translationY(dp(16).toFloat())
-            .setDuration(160)
-            .setInterpolator(DecelerateInterpolator())
-            .withEndAction {
-                container = null
-                try {
-                    windowManager.removeView(root)
-                } catch (_: Exception) {}
-                onDismissed?.invoke()
-            }
-            .start()
+        try {
+            windowManager.removeView(root)
+        } catch (_: Exception) {}
+        onDismissed?.invoke()
     }
 
     private fun dp(v: Int): Int = (v * density).toInt()
