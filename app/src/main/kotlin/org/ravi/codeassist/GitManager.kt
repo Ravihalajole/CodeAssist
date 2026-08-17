@@ -907,8 +907,8 @@ object GitManager {
         }.getOrNull()
         return when {
             oldText == null && newText == null -> EditList()
-            oldText == null -> EditList(listOf(Edit(0, 0, 0, newText?.size() ?: 0)))
-            newText == null -> EditList(listOf(Edit(0, oldText.size(), 0, 0)))
+            oldText == null -> EditList().apply { add(Edit(0, 0, 0, newText?.size() ?: 0)) }
+            newText == null -> EditList().apply { add(Edit(0, oldText.size(), 0, 0)) }
             else -> HistogramDiff().diff(RawTextComparator.DEFAULT, oldText, newText)
         }
     }
