@@ -1093,7 +1093,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 val path = TextView(this).apply {
                     text = change.path
-                    ellipsize = android.text.TruncateAt.MIDDLE
+                    ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
                     isSingleLine = true
                     setTextAppearance(this@MainActivity, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
                     setTextColor(getColor(R.color.text_hi))
