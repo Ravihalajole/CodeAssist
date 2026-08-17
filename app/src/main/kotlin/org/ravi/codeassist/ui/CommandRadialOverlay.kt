@@ -87,9 +87,9 @@ class CommandRadialOverlay(private val context: Context) {
             val y = sin(angle) * radius
             val isExit = i == tools.lastIndex
             val item = buildItem(spec, isExit)
-            val lp = FrameLayout.LayoutParams(dp(52), dp(56)).apply {
+            val lp = FrameLayout.LayoutParams(dp(52), dp(60)).apply {
                 leftMargin = (center + x - dp(26f)).toInt()
-                topMargin = (center + y - dp(28f)).toInt()
+                topMargin = (center + y - dp(30f)).toInt()
             }
             root.addView(item, lp)
             item.alpha = 0f
@@ -146,7 +146,8 @@ class CommandRadialOverlay(private val context: Context) {
             iconSize = dp(18)
             iconTint = ColorStateList.valueOf(accent)
             backgroundTintList = ColorStateList.valueOf(raised)
-            strokeWidth = 0
+            strokeColor = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.line_strong))
+            strokeWidth = dp(1)
             cornerRadius = dp(20)
             insetLeft = 0
             insetTop = 0
@@ -162,6 +163,12 @@ class CommandRadialOverlay(private val context: Context) {
             textSize = 9.5f
             setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
             letterSpacing = 0.02f
+            setSingleLine(true)
+            setBackground(android.graphics.drawable.GradientDrawable().apply {
+                setColor(ContextCompat.getColor(context, R.color.ovl_scrim))
+                cornerRadius = dp(6f)
+            })
+            setPadding(dp(7), dp(2), dp(7), dp(2))
         }
         val layout = LinearLayout(themedContext).apply {
             orientation = LinearLayout.VERTICAL

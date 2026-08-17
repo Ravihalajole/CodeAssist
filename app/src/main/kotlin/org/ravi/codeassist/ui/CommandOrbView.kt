@@ -88,6 +88,8 @@ class CommandOrbView @JvmOverloads constructor(
 
     init {
         coreClip.addCircle(0f, 0f, 1f, Path.Direction.CW)
+        arcPaint.color = accent
+        iconPaint.color = accent
     }
 
     private fun dp(v: Float): Float = v * resources.displayMetrics.density
@@ -98,7 +100,7 @@ class CommandOrbView @JvmOverloads constructor(
         cy = h / 2f
         ringRadius = min(w, h) / 2f - dp(10f)
         coreRadius = ringRadius - dp(6f)
-        auraRadius = min(w, h) / 2f - dp(2f)
+        auraRadius = coreRadius * 1.5f
         ringRect.set(cx - ringRadius, cy - ringRadius, cx + ringRadius, cy + ringRadius)
         sheenShader = RadialGradient(
             cx - coreRadius * 0.55f,
@@ -138,7 +140,7 @@ class CommandOrbView @JvmOverloads constructor(
                     val p = a.animatedValue as Float
                     sweepStart = -90f + 360f * p
                     arcSweep = 70f + 190f * (0.5f - 0.5f * cos(2f * PI.toFloat() * p))
-                    auraAlpha = 0.30f + 0.22f * (0.5f - 0.5f * cos(2f * PI.toFloat() * p + PI.toFloat()))
+                    auraAlpha = 0.22f + 0.16f * (0.5f - 0.5f * cos(2f * PI.toFloat() * p + PI.toFloat()))
                     invalidate()
                 }
             }
@@ -204,13 +206,13 @@ class CommandOrbView @JvmOverloads constructor(
             auraPaint.alpha = 255
         }
 
-        canvas.save()
-        canvas.scale(coreScale, coreScale, cx, cy)
-
         canvas.drawCircle(cx, cy, ringRadius, trackPaint)
         if (generating) {
             canvas.drawArc(ringRect, sweepStart, arcSweep, false, arcPaint)
         }
+
+        canvas.save()
+        canvas.scale(coreScale, coreScale, cx, cy)
 
         canvas.drawCircle(cx, cy, coreRadius, corePaint)
         canvas.drawCircle(cx, cy, coreRadius, coreBorderPaint)
@@ -222,7 +224,7 @@ class CommandOrbView @JvmOverloads constructor(
         canvas.drawCircle(cx - coreRadius * 0.55f, cy - coreRadius * 0.55f, coreRadius * 1.6f, sheenPaint)
         canvas.restore()
 
-        val iconScale = dp(18f) / 24f
+        val iconScale = dp(20f) / 14f
         canvas.save()
         canvas.translate(cx, cy)
         canvas.scale(iconScale, iconScale)

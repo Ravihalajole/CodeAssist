@@ -151,8 +151,9 @@ class AgentOverlayManager(private val context: Context) {
     private fun openRadial() {
         if (radialOverlay?.isShowing == true) return
         val lp = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return
-        val winW = (overlayView?.width ?: 0).takeIf { it > 0 } ?: return
-        val winH = (overlayView?.height ?: 0).takeIf { it > 0 } ?: return
+        val fallback = (80 * context.resources.displayMetrics.density).toInt()
+        val winW = (overlayView?.width ?: 0).takeIf { it > 0 } ?: fallback
+        val winH = (overlayView?.height ?: 0).takeIf { it > 0 } ?: fallback
         val metrics = context.resources.displayMetrics
         val centerX = (metrics.widthPixels - winW) / 2 + lp.x + winW / 2
         val centerY = metrics.heightPixels - lp.y - winH / 2
