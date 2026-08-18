@@ -239,7 +239,7 @@ class CommandSheetOverlay(private val context: Context) {
 
         val closeSize = res.getDimension(R.dimen.sheet_close_size).toInt()
         val closeIcon = res.getDimension(R.dimen.sheet_close_icon).toInt()
-        val closeCorner = res.getDimension(R.dimen.ovl_corner_sm)
+        val closeCorner = dimenDp(R.dimen.ovl_corner_sm)
         val close = MaterialButton(themedContext, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
             icon = ContextCompat.getDrawable(context, R.drawable.ic_close)
             iconSize = closeIcon
@@ -409,7 +409,7 @@ class CommandSheetOverlay(private val context: Context) {
         val spacingSm = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
         val spacingMd = res.getDimension(R.dimen.ovl_spacing_md).toInt()
         val btnH = res.getDimension(R.dimen.sheet_confirm_btn_h).toInt()
-        val btnCorner = res.getDimension(R.dimen.ovl_corner_sm)
+        val btnCorner = dimenDp(R.dimen.ovl_corner_sm)
         val barCorner = res.getDimension(R.dimen.ovl_corner_sm)
 
         val title = TextView(themedContext).apply {
@@ -565,4 +565,7 @@ class CommandSheetOverlay(private val context: Context) {
     private fun dp(v: Int): Int = (v * density).toInt()
 
     private fun dp(v: Float): Int = (v * density).toInt()
+
+    private fun dimenDp(resId: Int): Int =
+        (res.getDimension(resId) / res.displayMetrics.density).toInt()
 }
