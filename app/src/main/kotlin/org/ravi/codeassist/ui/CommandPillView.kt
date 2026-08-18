@@ -11,6 +11,7 @@ import android.graphics.Path
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.SweepGradient
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
@@ -49,12 +50,15 @@ class CommandPillView @JvmOverloads constructor(
     private val dotGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
     }
-    private val barTrackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val ringTrackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0x14FFFFFF.toInt()
-        style = Paint.Style.FILL
+        style = Paint.Style.STROKE
+        strokeWidth = dp(2f)
     }
-    private val barFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
+    private val ringArcPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = dp(2f)
+        strokeCap = Paint.Cap.ROUND
     }
     private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         shader = LinearGradient(
@@ -65,16 +69,15 @@ class CommandPillView @JvmOverloads constructor(
 
     private val pillRect = RectF()
     private val pillPath = Path()
-    private val barRect = RectF()
     private var cornerRadius = 0f
 
     private var accent = ContextCompat.getColor(context, R.color.state_cyan)
     private var generating = false
     private var glow = false
-    private var barOffset = 0f
+    private var ringAngle = 0f
     private var auraAlpha = 0f
 
-    private var barAnim: ValueAnimator? = null
+    private var ringAnim: ValueAnimator? = null
     private var auraAnim: ValueAnimator? = null
     private var dotPulseAnim: ValueAnimator? = null
 
@@ -143,9 +146,6 @@ class CommandPillView @JvmOverloads constructor(
         pillRect.set(0f, 0f, w.toFloat(), h.toFloat())
         pillPath.reset()
         pillPath.addRoundRect(pillRect, cornerRadius, cornerRadius, Path.Direction.CW)
-        val barH = dp(2.5f)
-        val margin = dp(10f)
-        barRect.set(margin, h - barH - margin, w - margin, h - margin)
         rebuildRim()
     }
 
@@ -209,16 +209,16 @@ class CommandPillView @JvmOverloads constructor(
             )
         }
         if (gen) {
-            barAnim = ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = 1500
+            ringAnim = ValueAnimator.ofFloat(0f, 360f).apply {
+                duration = 1200
                 repeatCount = ValueAnimator.INFINITE
                 interpolator = LinearInterpolator()
                 addUpdateListener { a ->
-                    barOffset = a.animatedValue as Float
+                    ringAngle = a.animatedValue as Float
                     invalidate()
                 }
             }
-            barAnim?.start()
+            ringAnim?.start()
             val dot = dotView
             if (dot != null) {
                 dotPulseAnim = ValueAnimator.ofFloat(1f, 0.62f).apply {
@@ -235,9 +235,9 @@ class CommandPillView @JvmOverloads constructor(
                 dotPulseAnim?.start()
             }
         } else {
-            barAnim?.cancel()
-            barAnim = null
-            barOffset = 0f
+            ringAnim?.cancel()
+            ringAnim = null
+            ringAngle = 0f
             dotPulseAnim?.cancel()
             dotPulseAnim = null
             dotView?.scaleX = 1f
@@ -303,21 +303,24 @@ class CommandPillView @JvmOverloads constructor(
         canvas.drawRect(pillRect.left, pillRect.top, pillRect.right, pillRect.top + dp(1.5f), highlightPaint)
         canvas.restore()
         if (generating) {
+            // Compact activity ring around the morph button: a faint track plus a
+            // rotating accent arc. Zero extra footprint on the pill.
+            val btn = morphButton ?: return
+            val cx = btn.left + btn.width / 2f
+            val cy = btn.top + btn.height / 2f
+            val radius = btn.width / 2f + dp(3f)
+            val ringRect = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+            canvas.drawCircle(cx, cy, radius, ringTrackPaint)
+            ringArcPaint.shader = SweepGradient(
+                cx, cy, intArrayOf(
+                    ContextCompat.getColor(context, R.color.brand_mint),
+                    ContextCompat.getColor(context, R.color.brand_teal),
+                    ContextCompat.getColor(context, R.color.brand_mint)
+                ), null
+            )
             canvas.save()
-            canvas.clipRect(barRect)
-            canvas.drawRoundRect(barRect, barRect.height() / 2f, barRect.height() / 2f, barTrackPaint)
-            val segW = barRect.width() * 0.38f
-            val left = barRect.left - segW + barOffset * (barRect.width() + segW)
-            barFillPaint.shader = LinearGradient(
-                left, 0f, left + segW, 0f,
-                ContextCompat.getColor(context, R.color.brand_teal),
-                ContextCompat.getColor(context, R.color.brand_mint),
-                Shader.TileMode.CLAMP
-            )
-            canvas.drawRoundRect(
-                RectF(left, barRect.top, left + segW, barRect.bottom),
-                barRect.height() / 2f, barRect.height() / 2f, barFillPaint
-            )
+            canvas.rotate(ringAngle, cx, cy)
+            canvas.drawArc(ringRect, -90f, 110f, false, ringArcPaint)
             canvas.restore()
         }
     }

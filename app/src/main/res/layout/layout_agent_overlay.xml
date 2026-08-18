@@ -9,9 +9,9 @@
     android:orientation="horizontal"
     android:gravity="center_vertical"
     android:paddingStart="12dp"
-    android:paddingTop="6dp"
+    android:paddingTop="7dp"
     android:paddingEnd="8dp"
-    android:paddingBottom="11dp"
+    android:paddingBottom="8dp"
     android:contentDescription="Agent control pill">
 
     <View

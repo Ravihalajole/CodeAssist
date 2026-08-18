@@ -89,18 +89,18 @@ class AgentOverlayManager(private val context: Context) {
         var initialTouchX = 0f
         var initialTouchY = 0f
         var dragged = false
-        var wasSheetOpen = false
-        // Debounce pill taps: rapid re-taps toggle the sheet open/close mid
-        // animation and read as flicker. Ignore taps arriving within this
-        // window of the previous one.
+        // Debounce pill taps: the sheet entrance alone takes 320ms, so rapid
+        // re-taps inside that window would toggle it closed right after opening
+        // and read as flicker. Toggle decisions are made from the live sheet
+        // state at release, not a snapshot taken at press.
         var lastTapAt = 0L
+        val tapCooldown = 400L
 
         view.setOnTouchListener { _, event ->
             val layoutParams = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     dragged = false
-                    wasSheetOpen = sheetOverlay?.isShowing == true
                     initialX = layoutParams.x
                     initialY = layoutParams.y
                     initialTouchX = event.rawX
@@ -132,11 +132,11 @@ class AgentOverlayManager(private val context: Context) {
                         pillView?.setPressFeedback(false)
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         val now = SystemClock.uptimeMillis()
-                        if (now - lastTapAt < 250) {
+                        if (now - lastTapAt < tapCooldown) {
                             return@setOnTouchListener true
                         }
                         lastTapAt = now
-                        if (wasSheetOpen) {
+                        if (sheetOverlay?.isShowing == true) {
                             dismissSheet()
                         } else {
                             openSheet()
@@ -153,6 +153,9 @@ class AgentOverlayManager(private val context: Context) {
                     val sheet = sheetOverlay
                     if (sheet?.hitTest(event.rawX.toInt(), event.rawY.toInt()) != true) {
                         dismissSheet()
+                        // Treat the outside tap as a toggle action too, so a quick
+                        // pill tap right after can't bounce the sheet back open.
+                        lastTapAt = SystemClock.uptimeMillis()
                     }
                     pillView?.setPressFeedback(false)
                     true
@@ -201,7 +204,7 @@ class AgentOverlayManager(private val context: Context) {
             winH = overlayView?.measuredHeight ?: 0
         }
         if (winW <= 0) winW = fallback
-        if (winH <= 0) winH = dp(45f)
+        if (winH <= 0) winH = dp(48f)
         val metrics = context.resources.displayMetrics
         val centerX = (metrics.widthPixels - winW) / 2 + lp.x + winW / 2
         val pillTop = metrics.heightPixels - lp.y - winH
