@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.ContextThemeWrapper
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -50,9 +51,25 @@ class CommandSheetOverlay(private val context: Context) {
 
     val isShowing: Boolean get() = container != null
 
+    /**
+     * True when [rawX]/[rawY] (screen coordinates) fall inside the sheet's
+     * current window bounds. Used by the pill's ACTION_OUTSIDE handler: a tap
+     * inside the sheet is handled there and must NOT propagate a close.
+     */
+    fun hitTest(rawX: Int, rawY: Int): Boolean {
+        val c = container ?: return false
+        val lp = c.layoutParams as? WindowManager.LayoutParams ?: return false
+        val w = c.width
+        val h = c.height
+        if (w <= 0 || h <= 0) return false
+        return rawX in lp.x until (lp.x + w) && rawY in lp.y until (lp.y + h)
+    }
+
     fun show(
         centerX: Int,
         pillTop: Int,
+        pillBottom: Int,
+        preferAbove: Boolean,
         accent: Int,
         status: String,
         tele: String,
@@ -66,6 +83,8 @@ class CommandSheetOverlay(private val context: Context) {
         val root = FrameLayout(themedContext).apply {
             alpha = 0f
             translationY = dp(16).toFloat()
+            scaleX = 0.97f
+            scaleY = 0.97f
         }
 
         val rim = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(accent, 0x00FFFFFF.toInt())).apply {
@@ -129,6 +148,15 @@ class CommandSheetOverlay(private val context: Context) {
         val sheetH = root.measuredHeight.coerceAtLeast(1)
 
         val metrics = context.resources.displayMetrics
+        val gap = dp(12)
+        val topBound = (metrics.heightPixels - sheetH).coerceAtLeast(0)
+        // Anchor above the pill, or flip below it when there isn't enough room
+        // (pill dragged near the top of the screen).
+        val y = if (preferAbove && (pillTop - gap - sheetH) >= dp(8)) {
+            pillTop - gap - sheetH
+        } else {
+            (pillBottom + gap).coerceIn(dp(8), topBound.coerceAtLeast(dp(8)))
+        }
         val params = WindowManager.LayoutParams(
             sheetW, WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
@@ -137,20 +165,18 @@ class CommandSheetOverlay(private val context: Context) {
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = (centerX - sheetW / 2).coerceIn(0, (metrics.widthPixels - sheetW).coerceAtLeast(0))
-            y = (pillTop - dp(12) - sheetH).coerceIn(dp(8), (metrics.heightPixels - sheetH).coerceAtLeast(0))
+            y = y
         }
 
+        // Only ACTION_OUTSIDE closes the sheet. Internal touches are consumed so
+        // empty areas (grip, header, padding) neither dismiss the sheet nor pass
+        // through to the app underneath — only a tap outside the window closes it.
         root.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_OUTSIDE -> {
-                    dismiss()
-                    true
-                }
-                MotionEvent.ACTION_DOWN -> {
-                    dismiss()
-                    true
-                }
-                else -> false
+            if (event.action == MotionEvent.ACTION_OUTSIDE) {
+                dismiss()
+                true
+            } else {
+                true
             }
         }
 
@@ -160,6 +186,8 @@ class CommandSheetOverlay(private val context: Context) {
         root.animate()
             .alpha(1f)
             .translationY(0f)
+            .scaleX(1f)
+            .scaleY(1f)
             .setDuration(320)
             .setInterpolator(OvershootInterpolator(1.1f))
             .start()
@@ -211,7 +239,10 @@ class CommandSheetOverlay(private val context: Context) {
             minWidth = 0
             minHeight = 0
             contentDescription = "Close"
-            setOnClickListener { onClose() }
+            setOnClickListener {
+                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                onClose()
+            }
         }
 
         return LinearLayout(themedContext).apply {
@@ -312,8 +343,14 @@ class CommandSheetOverlay(private val context: Context) {
                 spec.action()
             }
         }
-        chip.setOnClickListener { onToolTap() }
-        cell.setOnClickListener { onToolTap() }
+        chip.setOnClickListener {
+            chip.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            onToolTap()
+        }
+        cell.setOnClickListener {
+            cell.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            onToolTap()
+        }
         cell.setOnTouchListener { v, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -354,6 +391,7 @@ class CommandSheetOverlay(private val context: Context) {
             minWidth = 0
             minHeight = 0
             setOnClickListener {
+                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 dismiss()
                 onExit()
             }
@@ -369,7 +407,10 @@ class CommandSheetOverlay(private val context: Context) {
             insetBottom = 0
             minWidth = 0
             minHeight = 0
-            setOnClickListener { hideConfirmBar() }
+            setOnClickListener {
+                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                hideConfirmBar()
+            }
         }
 
         val barBg = GradientDrawable().apply {
@@ -402,21 +443,30 @@ class CommandSheetOverlay(private val context: Context) {
             action?.invoke()
             return
         }
-        bar.visibility = View.VISIBLE
-        bar.alpha = 0f
-        bar.animate()
-            .alpha(1f)
-            .setDuration(180)
-            .setInterpolator(DecelerateInterpolator())
-            .start()
-        bar.post {
-            val h = bar.measuredHeight
-            val lp = container?.layoutParams as? WindowManager.LayoutParams ?: return@post
-            lp.y = (lp.y - h - dp(2)).coerceAtLeast(dp(8))
+        // Measure the confirm bar BEFORE revealing it so the window can shift up
+        // in the same frame instead of first growing downward over the pill and
+        // then jumping.
+        bar.measure(
+            View.MeasureSpec.makeMeasureSpec(container?.width ?: dp(300), View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val barH = bar.measuredHeight
+        val lp = container?.layoutParams as? WindowManager.LayoutParams
+        if (lp != null) {
+            lp.y = (lp.y - barH - dp(2)).coerceAtLeast(dp(8))
             try {
                 windowManager.updateViewLayout(container, lp)
             } catch (_: Exception) {}
         }
+        bar.visibility = View.VISIBLE
+        bar.alpha = 0f
+        bar.translationY = dp(6).toFloat()
+        bar.animate()
+            .alpha(1f)
+            .translationY(0f)
+            .setDuration(180)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
         val timer = Runnable { hideConfirmBar() }
         confirmTimer = timer
         handler.postDelayed(timer, 5000)
@@ -452,12 +502,26 @@ class CommandSheetOverlay(private val context: Context) {
         confirmTimer?.let { handler.removeCallbacks(it) }
         confirmTimer = null
         val root = container ?: return
-        container = null
         confirmBar = null
-        try {
-            windowManager.removeView(root)
-        } catch (_: Exception) {}
-        onDismissed?.invoke()
+        // Animate out, then detach. `container` stays set for the duration so
+        // `isShowing` keeps the pill from spawning a second sheet over the
+        // animating one; `onDismissed` fires once the window is actually gone.
+        root.animate().cancel()
+        root.animate()
+            .alpha(0f)
+            .translationY(dp(10).toFloat())
+            .scaleX(0.97f)
+            .scaleY(0.97f)
+            .setDuration(140)
+            .setInterpolator(DecelerateInterpolator())
+            .withEndAction {
+                container = null
+                try {
+                    windowManager.removeView(root)
+                } catch (_: Exception) {}
+                onDismissed?.invoke()
+            }
+            .start()
     }
 
     private fun dp(v: Int): Int = (v * density).toInt()

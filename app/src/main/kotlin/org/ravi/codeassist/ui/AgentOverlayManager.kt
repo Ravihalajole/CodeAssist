@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.PixelFormat
 import android.view.ContextThemeWrapper
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -99,6 +100,7 @@ class AgentOverlayManager(private val context: Context) {
                     initialY = layoutParams.y
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
+                    pillView?.setPressed(true)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -108,6 +110,7 @@ class AgentOverlayManager(private val context: Context) {
                         if (!dragged) {
                             dismissSheet()
                             dragged = true
+                            pillView?.setPressed(false)
                         }
                         val (clampedX, clampedY) = clampToScreen(initialX + dx.toInt(), initialY - dy.toInt())
                         layoutParams.x = clampedX
@@ -121,16 +124,27 @@ class AgentOverlayManager(private val context: Context) {
                 MotionEvent.ACTION_UP -> {
                     sharedPref.edit().putInt("OVERLAY_POS_X", layoutParams.x).putInt("OVERLAY_POS_Y", layoutParams.y).apply()
                     if (!dragged) {
+                        pillView?.setPressed(false)
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         if (wasSheetOpen) {
                             dismissSheet()
                         } else {
                             openSheet()
                         }
+                    } else {
+                        pillView?.setPressed(false)
                     }
                     true
                 }
                 MotionEvent.ACTION_OUTSIDE -> {
-                    dismissSheet()
+                    // The sheet window also trips this listener (it's a separate
+                    // overlay), so a tap inside the sheet must not close it —
+                    // only touches beyond both windows dismiss it.
+                    val sheet = sheetOverlay
+                    if (sheet?.hitTest(event.rawX.toInt(), event.rawY.toInt()) != true) {
+                        dismissSheet()
+                    }
+                    pillView?.setPressed(false)
                     true
                 }
                 else -> false
@@ -139,6 +153,7 @@ class AgentOverlayManager(private val context: Context) {
 
         val morph = view.findViewById<com.google.android.material.button.MaterialButton>(R.id.morphButton)
         morph.setOnClickListener {
+            morph.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             dismissSheet()
             if (isGenerating) {
                 onStop()
@@ -162,9 +177,21 @@ class AgentOverlayManager(private val context: Context) {
     private fun openSheet() {
         if (sheetOverlay?.isShowing == true) return
         val lp = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return
-        val fallback = dp(120f)
-        val winW = (overlayView?.width ?: 0).takeIf { it > 0 } ?: fallback
-        val winH = (overlayView?.height ?: 0).takeIf { it > 0 } ?: fallback
+        val fallback = dp(250f)
+        // Measure the pill on demand so the sheet always anchors to its real
+        // bounds, even if the user taps before the first layout pass.
+        var winW = overlayView?.width ?: 0
+        var winH = overlayView?.height ?: 0
+        if (winW <= 0 || winH <= 0) {
+            overlayView?.measure(
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            )
+            winW = overlayView?.measuredWidth ?: 0
+            winH = overlayView?.measuredHeight ?: 0
+        }
+        if (winW <= 0) winW = fallback
+        if (winH <= 0) winH = dp(46f)
         val metrics = context.resources.displayMetrics
         val centerX = (metrics.widthPixels - winW) / 2 + lp.x + winW / 2
         val pillTop = metrics.heightPixels - lp.y - winH
@@ -180,6 +207,8 @@ class AgentOverlayManager(private val context: Context) {
         sheet.show(
             centerX = centerX,
             pillTop = pillTop,
+            pillBottom = pillTop + winH,
+            preferAbove = true,
             accent = lastUi.accent,
             status = lastUi.label,
             tele = lastUi.sub,
@@ -213,21 +242,41 @@ class AgentOverlayManager(private val context: Context) {
     }
 
     private fun dismissSheet() {
+        // Don't null sheetOverlay here — the sheet keeps its window (and its
+        // isShowing flag) for the 140ms close animation, so openSheet can't
+        // spawn a second sheet over the outgoing one. onDismissed (fired when
+        // the window is actually removed) nulls the field.
         sheetOverlay?.dismiss()
-        sheetOverlay = null
+    }
+
+    private fun formatElapsed(seconds: Long): String {
+        val m = seconds / 60
+        val s = seconds % 60
+        return "$m:${s.toString().padStart(2, '0')}"
+    }
+
+    private fun humanAction(actionName: String): String = when (actionName) {
+        "type_text" -> "Typing"
+        "click_send" -> "Sending"
+        "read_latest_response" -> "Reading"
+        else -> "Working"
     }
 
     private fun overlayUiFor(state: AgentState): OverlayUi {
+        val tele = org.ravi.codeassist.agent.AgentOrchestrator.telemetry()
+        val round = tele.round
+        val clock = formatElapsed(tele.elapsedSeconds)
+        val action = tele.lastAction.ifBlank { "working" }
         return when (state) {
-            is AgentState.IDLE -> OverlayUi(ContextCompat.getColor(context, R.color.state_cyan), false, "Idle", "Tap for tools")
-            is AgentState.ANALYZING_SCREEN -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Reading screen", "Scanning UI")
-            is AgentState.AWAITING_LLM -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Thinking", "Waiting for model")
-            is AgentState.EXECUTING_ACTION -> OverlayUi(ContextCompat.getColor(context, R.color.brand_mint), true, "Tapping", state.actionName)
-            is AgentState.WAITING_FOR_MUTATION -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Applying changes", "Awaiting completion")
-            is AgentState.WAITING_FOR_USER -> OverlayUi(ContextCompat.getColor(context, R.color.state_blue), false, "Needs input", "Morph to resume")
+            is AgentState.IDLE -> OverlayUi(ContextCompat.getColor(context, R.color.state_cyan), false, "Idle", "round $round · $clock · tap for tools")
+            is AgentState.ANALYZING_SCREEN -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Reading screen", "round $round · $clock · $action")
+            is AgentState.AWAITING_LLM -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Thinking", "round $round · $clock · $action")
+            is AgentState.EXECUTING_ACTION -> OverlayUi(ContextCompat.getColor(context, R.color.brand_mint), true, humanAction(state.actionName), "round $round · $clock · $action")
+            is AgentState.WAITING_FOR_MUTATION -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Applying changes", "round $round · $clock · $action")
+            is AgentState.WAITING_FOR_USER -> OverlayUi(ContextCompat.getColor(context, R.color.state_blue), false, "Needs input", "round $round · $clock · tap to resume")
             is AgentState.ERROR -> OverlayUi(ContextCompat.getColor(context, R.color.state_red), false, "Stopped", state.message)
-            is AgentState.TOOLBOX_OPEN -> OverlayUi(ContextCompat.getColor(context, R.color.state_violet), false, "Tools", "Agent control")
-            is AgentState.SCROLL_CONFIG_ACTIVE -> OverlayUi(ContextCompat.getColor(context, R.color.state_cyan), false, "Scroll zone", "Setting bounds")
+            is AgentState.TOOLBOX_OPEN -> OverlayUi(ContextCompat.getColor(context, R.color.state_violet), false, "Tools", "round $round · $clock")
+            is AgentState.SCROLL_CONFIG_ACTIVE -> OverlayUi(ContextCompat.getColor(context, R.color.state_cyan), false, "Scroll zone", "round $round · $clock")
         }
     }
 
@@ -252,6 +301,9 @@ class AgentOverlayManager(private val context: Context) {
                 .setInterpolator(android.view.animation.DecelerateInterpolator())
                 .start()
         } else {
+            // The pill hides while the agent types/sends; take the sheet down too
+            // so the two windows never linger out of sync.
+            dismissSheet()
             view.animate()
                 .alpha(0f)
                 .setDuration(100)

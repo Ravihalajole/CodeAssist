@@ -12,8 +12,10 @@ import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.view.View
 import android.view.animation.LinearInterpolator
+import android.view.animation.OvershootInterpolator
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
@@ -42,6 +44,9 @@ class CommandPillView @JvmOverloads constructor(
         strokeWidth = dp(1.5f)
     }
     private val auraPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+    }
+    private val dotGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
     }
     private val barTrackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -89,6 +94,45 @@ class CommandPillView @JvmOverloads constructor(
         subView = findViewById(R.id.pillSub)
         morphButton = findViewById(R.id.morphButton)
         dotView?.background?.setTint(accent)
+        morphButton?.setOnTouchListener { btn, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    btn.animate().cancel()
+                    btn.animate().scaleX(0.86f).scaleY(0.86f).setDuration(70).start()
+                    false
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    btn.animate().cancel()
+                    btn.animate()
+                        .scaleX(1f).scaleY(1f)
+                        .setDuration(160)
+                        .setInterpolator(OvershootInterpolator(0.7f))
+                        .start()
+                    false
+                }
+                else -> false
+            }
+        }
+    }
+
+    /**
+     * Whole-pill press feedback: a quick scale-down on touch-down, then a springy
+     * return on release. The window-level touch listener (AgentOverlayManager)
+     * drives this so taps and drags get the same tactile feel. Skipped while the
+     * overlay is mid-fade so a press can't cancel the visibility animation.
+     */
+    fun setPressed(pressed: Boolean) {
+        if (alpha < 1f) return
+        animate().cancel()
+        if (pressed) {
+            animate().scaleX(0.96f).scaleY(0.96f).setDuration(70).start()
+        } else {
+            animate()
+                .scaleX(1f).scaleY(1f)
+                .setDuration(170)
+                .setInterpolator(OvershootInterpolator(0.7f))
+                .start()
+        }
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -123,6 +167,30 @@ class CommandPillView @JvmOverloads constructor(
                 accent, Color.TRANSPARENT, Shader.TileMode.CLAMP
             )
         }
+    }
+
+    /**
+     * Accent halo around the status dot, mirroring the prototype's
+     * `box-shadow:0 0 10px accent`. Drawn in the pill's onDraw so it sits on the
+     * glass but underneath the dot child; breathes with the dot's pulse.
+     */
+    private fun drawDotGlow(canvas: Canvas) {
+        val dot = dotView ?: return
+        val cx = dot.left + dot.width / 2f
+        val cy = dot.top + dot.height / 2f
+        val r = dot.width * 2.2f
+        if (r <= 0f) return
+        dotGlowPaint.shader = RadialGradient(
+            cx, cy, r, accent, Color.TRANSPARENT, Shader.TileMode.CLAMP
+        )
+        val base = if (generating) 0.6f else 0.35f
+        val pulse = if (generating) (dot.scaleX) else 1f
+        dotGlowPaint.alpha = ((base * pulse * 255f).toInt()).coerceIn(0, 255)
+        canvas.save()
+        canvas.clipPath(pillPath)
+        canvas.drawCircle(cx, cy, r, dotGlowPaint)
+        canvas.restore()
+        dotGlowPaint.alpha = 255
     }
 
     private fun setGenerating(gen: Boolean) {
@@ -214,6 +282,7 @@ class CommandPillView @JvmOverloads constructor(
         }
 
         canvas.drawRoundRect(pillRect, cornerRadius, cornerRadius, bgPaint)
+        drawDotGlow(canvas)
         canvas.drawRoundRect(pillRect, cornerRadius, cornerRadius, borderPaint)
         canvas.drawRoundRect(pillRect, cornerRadius, cornerRadius, rimPaint)
 
