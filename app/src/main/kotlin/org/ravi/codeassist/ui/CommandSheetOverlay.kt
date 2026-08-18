@@ -31,6 +31,7 @@ class CommandSheetOverlay(private val context: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private val themedContext = ContextThemeWrapper(context, R.style.Theme_CodeAssist)
     private val density = context.resources.displayMetrics.density
+    private val res get() = context.resources
 
     private var container: FrameLayout? = null
     private var dismissing = false
@@ -52,11 +53,6 @@ class CommandSheetOverlay(private val context: Context) {
 
     val isShowing: Boolean get() = container != null
 
-    /**
-     * True when [rawX]/[rawY] (screen coordinates) fall inside the sheet's
-     * current window bounds. Used by the pill's ACTION_OUTSIDE handler: a tap
-     * inside the sheet is handled there and must NOT propagate a close.
-     */
     fun hitTest(rawX: Int, rawY: Int): Boolean {
         val c = container ?: return false
         val lp = c.layoutParams as? WindowManager.LayoutParams ?: return false
@@ -89,8 +85,8 @@ class CommandSheetOverlay(private val context: Context) {
             scaleY = 0.97f
         }
 
-        val cornerXl = resources.getDimension(R.dimen.ovl_corner_xl)
-        val cornerLg = resources.getDimension(R.dimen.ovl_corner_lg)
+        val cornerXl = res.getDimension(R.dimen.ovl_corner_xl)
+        val cornerLg = res.getDimension(R.dimen.ovl_corner_lg)
         val rim = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(accent, 0x00FFFFFF.toInt())).apply {
             cornerRadius = cornerXl
         }
@@ -103,17 +99,17 @@ class CommandSheetOverlay(private val context: Context) {
             cornerRadius = cornerLg
         }
 
-        val spacingSm = resources.getDimension(R.dimen.ovl_spacing_sm).toInt()
-        val spacingMd = resources.getDimension(R.dimen.ovl_spacing_md).toInt()
-        val spacingLg = resources.getDimension(R.dimen.ovl_spacing_lg).toInt()
+        val spacingSm = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
+        val spacingMd = res.getDimension(R.dimen.ovl_spacing_md).toInt()
+        val spacingLg = res.getDimension(R.dimen.ovl_spacing_lg).toInt()
         val content = LinearLayout(themedContext).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(spacingMd, spacingSm, spacingMd, spacingLg)
         }
         root.addView(content)
 
-        val gripW = resources.getDimension(R.dimen.sheet_grip_w).toInt()
-        val gripH = resources.getDimension(R.dimen.sheet_grip_h).toInt()
+        val gripW = res.getDimension(R.dimen.sheet_grip_w).toInt()
+        val gripH = res.getDimension(R.dimen.sheet_grip_h).toInt()
         val grip = View(themedContext).apply {
             background = ContextCompat.getDrawable(context, R.drawable.bg_sheet_grip)
         }
@@ -149,7 +145,7 @@ class CommandSheetOverlay(private val context: Context) {
 
         root.measure(
             View.MeasureSpec.makeMeasureSpec(sheetW, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(context.resources.displayMetrics.heightPixels, View.MeasureSpec.AT_MOST)
+            View.MeasureSpec.makeMeasureSpec(res.displayMetrics.heightPixels, View.MeasureSpec.AT_MOST)
         )
         val sheetH = root.measuredHeight.coerceAtLeast(1)
 
@@ -160,11 +156,9 @@ class CommandSheetOverlay(private val context: Context) {
         }
         root.background = bg
 
-        val metrics = context.resources.displayMetrics
+        val metrics = res.displayMetrics
         val gap = dp(12)
         val topBound = (metrics.heightPixels - sheetH).coerceAtLeast(0)
-        // Anchor above the pill, or flip below it when there isn't enough room
-        // (pill dragged near the top of the screen).
         val anchorY = if (preferAbove && (pillTop - gap - sheetH) >= dp(8)) {
             pillTop - gap - sheetH
         } else {
@@ -181,9 +175,6 @@ class CommandSheetOverlay(private val context: Context) {
             y = anchorY
         }
 
-        // Only ACTION_OUTSIDE closes the sheet. Internal touches are consumed so
-        // empty areas (grip, header, padding) neither dismiss the sheet nor pass
-        // through to the app underneath — only a tap outside the window closes it.
         root.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_OUTSIDE) {
                 dismiss()
@@ -210,9 +201,9 @@ class CommandSheetOverlay(private val context: Context) {
         val mid = ContextCompat.getColor(context, R.color.text_mid)
         val hi = ContextCompat.getColor(context, R.color.text_hi)
 
-        val dotSize = resources.getDimension(R.dimen.sheet_status_dot).toInt()
-        val spacingMd = resources.getDimension(R.dimen.ovl_spacing_md).toInt()
-        val spacingSm = resources.getDimension(R.dimen.ovl_spacing_sm).toInt()
+        val dotSize = res.getDimension(R.dimen.sheet_status_dot).toInt()
+        val spacingMd = res.getDimension(R.dimen.ovl_spacing_md).toInt()
+        val spacingSm = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
 
         statusDot = View(themedContext).apply {
             background = ContextCompat.getDrawable(context, R.drawable.bg_sheet_dot)?.mutate()
@@ -221,16 +212,16 @@ class CommandSheetOverlay(private val context: Context) {
         statusText = TextView(themedContext).apply {
             text = status
             setTextColor(hi)
-            textSize = resources.getDimension(R.dimen.ovl_text_md) / resources.displayMetrics.scaledDensity
+            textSize = res.getDimension(R.dimen.ovl_text_md) / res.displayMetrics.scaledDensity
             letterSpacing = 0.01f
-            typeface = Typeface.create(null, Typeface.BOLD)
+            typeface = Typeface.DEFAULT_BOLD
             setSingleLine(true)
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
         teleText = TextView(themedContext).apply {
             text = tele
             setTextColor(mid)
-            textSize = resources.getDimension(R.dimen.ovl_text_xs) / resources.displayMetrics.scaledDensity
+            textSize = res.getDimension(R.dimen.ovl_text_xs) / res.displayMetrics.scaledDensity
             setSingleLine(true)
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
@@ -246,9 +237,9 @@ class CommandSheetOverlay(private val context: Context) {
             })
         }
 
-        val closeSize = resources.getDimension(R.dimen.sheet_close_size).toInt()
-        val closeIcon = resources.getDimension(R.dimen.sheet_close_icon).toInt()
-        val closeCorner = resources.getDimension(R.dimen.ovl_corner_sm)
+        val closeSize = res.getDimension(R.dimen.sheet_close_size).toInt()
+        val closeIcon = res.getDimension(R.dimen.sheet_close_icon).toInt()
+        val closeCorner = res.getDimension(R.dimen.ovl_corner_sm)
         val close = MaterialButton(themedContext, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
             icon = ContextCompat.getDrawable(context, R.drawable.ic_close)
             iconSize = closeIcon
@@ -301,8 +292,8 @@ class CommandSheetOverlay(private val context: Context) {
         val grid = LinearLayout(themedContext).apply {
             orientation = LinearLayout.VERTICAL
         }
-        val cellW = resources.getDimension(R.dimen.sheet_tool_cell_w).toInt()
-        val gap = resources.getDimension(R.dimen.ovl_spacing_sm).toInt()
+        val cellW = res.getDimension(R.dimen.sheet_tool_cell_w).toInt()
+        val gap = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
         tools.chunked(3).forEachIndexed { rowIdx, rowTools ->
             val row = LinearLayout(themedContext).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -327,17 +318,17 @@ class CommandSheetOverlay(private val context: Context) {
     private fun buildTool(spec: ToolSpec): LinearLayout {
         val isExit = spec.label == "Exit"
         val accent = spec.accent
-        val spacingSm = resources.getDimension(R.dimen.ovl_spacing_sm).toInt()
-        val spacingMd = resources.getDimension(R.dimen.ovl_spacing_md).toInt()
-        val chipSize = resources.getDimension(R.dimen.sheet_tool_icon_chip).toInt()
-        val iconSize = resources.getDimension(R.dimen.sheet_tool_icon).toInt()
-        val chipCorner = resources.getDimension(R.dimen.sheet_tool_icon_corner)
-        val cellCorner = resources.getDimension(R.dimen.ovl_corner_md)
+        val spacingSm = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
+        val spacingMd = res.getDimension(R.dimen.ovl_spacing_md).toInt()
+        val chipSize = res.getDimension(R.dimen.sheet_tool_icon_chip).toInt()
+        val iconSize = res.getDimension(R.dimen.sheet_tool_icon).toInt()
+        val chipCorner = res.getDimension(R.dimen.sheet_tool_icon_corner)
+        val cellCorner = res.getDimension(R.dimen.ovl_corner_md)
 
         val chipBg = GradientDrawable().apply {
             setColor(ColorUtils.setAlphaComponent(accent, 40))
             cornerRadius = chipCorner
-            setStroke(resources.getDimension(R.dimen.ovl_stroke).toInt(), ColorUtils.setAlphaComponent(accent, 55))
+            setStroke(res.getDimension(R.dimen.ovl_stroke).toInt(), ColorUtils.setAlphaComponent(accent, 55))
         }
         val chip = FrameLayout(themedContext).apply {
             background = chipBg
@@ -353,8 +344,8 @@ class CommandSheetOverlay(private val context: Context) {
         val label = TextView(themedContext).apply {
             text = spec.label
             setTextColor(ContextCompat.getColor(context, R.color.text_mid))
-            textSize = resources.getDimension(R.dimen.ovl_text_sm) / resources.displayMetrics.scaledDensity
-            typeface = Typeface.create(null, Typeface.BOLD)
+            textSize = res.getDimension(R.dimen.ovl_text_sm) / res.displayMetrics.scaledDensity
+            typeface = Typeface.DEFAULT_BOLD
             letterSpacing = 0.04f
             gravity = Gravity.CENTER
             setSingleLine(true)
@@ -363,7 +354,7 @@ class CommandSheetOverlay(private val context: Context) {
         val cellBg = GradientDrawable().apply {
             setColor(ContextCompat.getColor(context, R.color.surf_raised))
             cornerRadius = cellCorner
-            setStroke(resources.getDimension(R.dimen.ovl_stroke).toInt(), ContextCompat.getColor(context, R.color.line_strong))
+            setStroke(res.getDimension(R.dimen.ovl_stroke).toInt(), ContextCompat.getColor(context, R.color.line_strong))
         }
         val cell = LinearLayout(themedContext).apply {
             orientation = LinearLayout.VERTICAL
@@ -415,17 +406,17 @@ class CommandSheetOverlay(private val context: Context) {
     private fun buildConfirmBar(onExit: () -> Unit): LinearLayout {
         val red = ContextCompat.getColor(context, R.color.state_red)
         val mid = ContextCompat.getColor(context, R.color.text_mid)
-        val spacingSm = resources.getDimension(R.dimen.ovl_spacing_sm).toInt()
-        val spacingMd = resources.getDimension(R.dimen.ovl_spacing_md).toInt()
-        val btnH = resources.getDimension(R.dimen.sheet_confirm_btn_h).toInt()
-        val btnCorner = resources.getDimension(R.dimen.ovl_corner_sm)
-        val barCorner = resources.getDimension(R.dimen.ovl_corner_sm)
+        val spacingSm = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
+        val spacingMd = res.getDimension(R.dimen.ovl_spacing_md).toInt()
+        val btnH = res.getDimension(R.dimen.sheet_confirm_btn_h).toInt()
+        val btnCorner = res.getDimension(R.dimen.ovl_corner_sm)
+        val barCorner = res.getDimension(R.dimen.ovl_corner_sm)
 
         val title = TextView(themedContext).apply {
             text = "Really exit? The agent session stops."
             setTextColor(red)
-            textSize = resources.getDimension(R.dimen.ovl_text_sm) / resources.displayMetrics.scaledDensity
-            typeface = Typeface.create(null, Typeface.BOLD)
+            textSize = res.getDimension(R.dimen.ovl_text_sm) / res.displayMetrics.scaledDensity
+            typeface = Typeface.DEFAULT_BOLD
             setSingleLine(true)
         }
 
@@ -466,7 +457,7 @@ class CommandSheetOverlay(private val context: Context) {
         val barBg = GradientDrawable().apply {
             setColor(ColorUtils.setAlphaComponent(red, 30))
             cornerRadius = barCorner
-            setStroke(resources.getDimension(R.dimen.ovl_stroke).toInt(), ColorUtils.setAlphaComponent(red, 90))
+            setStroke(res.getDimension(R.dimen.ovl_stroke).toInt(), ColorUtils.setAlphaComponent(red, 90))
         }
 
         return LinearLayout(themedContext).apply {
@@ -493,9 +484,6 @@ class CommandSheetOverlay(private val context: Context) {
             action?.invoke()
             return
         }
-        // Measure the confirm bar BEFORE revealing it so the window can shift up
-        // in the same frame instead of first growing downward over the pill and
-        // then jumping.
         bar.measure(
             View.MeasureSpec.makeMeasureSpec(container?.width ?: dp(300), View.MeasureSpec.AT_MOST),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
@@ -551,17 +539,10 @@ class CommandSheetOverlay(private val context: Context) {
     fun dismiss() {
         confirmTimer?.let { handler.removeCallbacks(it) }
         confirmTimer = null
-        // Idempotent: the pill's ACTION_OUTSIDE, the sheet's own outside-touch
-        // handler, and a pill tap can all fire dismiss for the same gesture.
-        // Without this guard a second call cancels and restarts the close
-        // animation, which reads as flicker.
         if (dismissing) return
         val root = container ?: return
         dismissing = true
         confirmBar = null
-        // Animate out, then detach. `container` stays set for the duration so
-        // `isShowing` keeps the pill from spawning a second sheet over the
-        // animating one; `onDismissed` fires once the window is actually gone.
         root.animate().cancel()
         root.animate()
             .alpha(0f)
