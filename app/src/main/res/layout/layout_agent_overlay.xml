@@ -5,27 +5,28 @@
     android:id="@+id/pillView"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
+    android:minHeight="46dp"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:paddingStart="10dp"
-    android:paddingTop="5dp"
-    android:paddingEnd="6dp"
-    android:paddingBottom="8dp"
+    android:paddingStart="12dp"
+    android:paddingTop="6dp"
+    android:paddingEnd="8dp"
+    android:paddingBottom="11dp"
     android:contentDescription="Agent control pill">
 
     <View
         android:id="@+id/pillDot"
-        android:layout_width="12dp"
-        android:layout_height="12dp"
+        android:layout_width="10dp"
+        android:layout_height="10dp"
         android:layout_gravity="center_vertical"
-        android:layout_marginEnd="8dp"
+        android:layout_marginEnd="10dp"
         android:background="@drawable/bg_pill_dot" />
 
     <LinearLayout
-        android:layout_width="112dp"
+        android:layout_width="104dp"
         android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"
-        android:layout_marginEnd="8dp"
+        android:layout_marginEnd="10dp"
         android:orientation="vertical">
 
         <TextView
@@ -34,7 +35,7 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:fontFamily="monospace"
-            android:letterSpacing="0.03"
+            android:letterSpacing="0.06"
             android:singleLine="true"
             android:text="Idle"
             android:textColor="@color/text_hi"
@@ -47,15 +48,15 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:singleLine="true"
-            android:text="Tap to open tools"
+            android:text="r0 · 0:00"
             android:textColor="@color/text_mid"
             android:textSize="9sp" />
     </LinearLayout>
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/morphButton"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
+        android:layout_width="34dp"
+        android:layout_height="34dp"
         android:layout_gravity="center_vertical"
         android:backgroundTint="@color/brand_mint"
         android:contentDescription="Stop or resume"
@@ -65,11 +66,11 @@
         android:insetBottom="0dp"
         android:paddingLeft="8dp"
         android:paddingRight="8dp"
-        app:cornerRadius="16dp"
+        app:cornerRadius="17dp"
         app:icon="@drawable/ic_play"
         app:iconGravity="textStart"
         app:iconPadding="0dp"
-        app:iconSize="16dp"
+        app:iconSize="17dp"
         app:iconTint="@color/brand_on_accent"
         app:strokeWidth="0dp"
         tools:ignore="MissingConstraints" />

@@ -41,7 +41,7 @@ class CommandPillView @JvmOverloads constructor(
     }
     private val rimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = dp(1.5f)
+        strokeWidth = dp(2f)
     }
     private val auraPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
@@ -138,12 +138,13 @@ class CommandPillView @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        cornerRadius = dp(22f)
+        // True capsule: the ends round to half the height.
+        cornerRadius = h / 2f
         pillRect.set(0f, 0f, w.toFloat(), h.toFloat())
         pillPath.reset()
         pillPath.addRoundRect(pillRect, cornerRadius, cornerRadius, Path.Direction.CW)
         val barH = dp(2.5f)
-        val margin = dp(8f)
+        val margin = dp(10f)
         barRect.set(margin, h - barH - margin, w - margin, h - margin)
         rebuildRim()
     }
@@ -284,8 +285,18 @@ class CommandPillView @JvmOverloads constructor(
 
         canvas.drawRoundRect(pillRect, cornerRadius, cornerRadius, bgPaint)
         drawDotGlow(canvas)
-        canvas.drawRoundRect(pillRect, cornerRadius, cornerRadius, borderPaint)
-        canvas.drawRoundRect(pillRect, cornerRadius, cornerRadius, rimPaint)
+        // Strokes are centered on the path, so inset each ring by half its
+        // width or the outer half would be clipped at the window edge.
+        val borderInset = dp(0.5f)
+        canvas.drawRoundRect(
+            RectF(pillRect.left + borderInset, pillRect.top + borderInset, pillRect.right - borderInset, pillRect.bottom - borderInset),
+            cornerRadius - borderInset, cornerRadius - borderInset, borderPaint
+        )
+        val rimInset = dp(1f)
+        canvas.drawRoundRect(
+            RectF(pillRect.left + rimInset, pillRect.top + rimInset, pillRect.right - rimInset, pillRect.bottom - rimInset),
+            cornerRadius - rimInset, cornerRadius - rimInset, rimPaint
+        )
 
         canvas.save()
         canvas.clipPath(pillPath)

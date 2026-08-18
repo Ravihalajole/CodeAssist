@@ -81,7 +81,7 @@ class CommandSheetOverlay(private val context: Context) {
         dismiss()
         dismissing = false
 
-        val sheetW = dp(300)
+        val sheetW = dp(312)
         val root = FrameLayout(themedContext).apply {
             alpha = 0f
             translationY = dp(16).toFloat()
@@ -90,20 +90,23 @@ class CommandSheetOverlay(private val context: Context) {
         }
 
         val rim = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(accent, 0x00FFFFFF.toInt())).apply {
-            cornerRadius = dp(22f).toFloat()
+            cornerRadius = dp(24f).toFloat()
         }
         val glass = GradientDrawable().apply {
             setColor(ContextCompat.getColor(context, R.color.ovl_pill_glass))
-            cornerRadius = dp(21f).toFloat()
+            cornerRadius = dp(23f).toFloat()
         }
-        val bg = android.graphics.drawable.LayerDrawable(arrayOf(rim, glass)).apply {
-            setLayerInset(1, dp(1), dp(1), dp(1), dp(1))
+        // Thin bright strip along the top edge, like the prototype's
+        // `inset 0 1px 0` glass highlight. It is pinned to the top via a large
+        // bottom inset once the sheet height is known.
+        val sheen = GradientDrawable().apply {
+            colors = intArrayOf(0x0FFFFFFF.toInt(), 0x00FFFFFF.toInt())
+            cornerRadius = dp(23f).toFloat()
         }
-        root.background = bg
 
         val content = LinearLayout(themedContext).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(8), dp(6), dp(8), dp(10))
+            setPadding(dp(9), dp(6), dp(9), dp(11))
         }
         root.addView(content)
 
@@ -113,7 +116,7 @@ class CommandSheetOverlay(private val context: Context) {
                 cornerRadius = dp(2f).toFloat()
             }
         }
-        content.addView(grip, LinearLayout.LayoutParams(dp(36), dp(4)).apply {
+        content.addView(grip, LinearLayout.LayoutParams(dp(40), dp(4)).apply {
             gravity = Gravity.CENTER_HORIZONTAL
         })
 
@@ -122,7 +125,7 @@ class CommandSheetOverlay(private val context: Context) {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
-            topMargin = dp(6)
+            topMargin = dp(5)
         })
 
         val grid = buildGrid(tools)
@@ -130,7 +133,7 @@ class CommandSheetOverlay(private val context: Context) {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply {
-            topMargin = dp(10)
+            topMargin = dp(9)
         })
 
         val confirm = buildConfirmBar(onExit)
@@ -148,6 +151,13 @@ class CommandSheetOverlay(private val context: Context) {
             View.MeasureSpec.makeMeasureSpec(context.resources.displayMetrics.heightPixels, View.MeasureSpec.AT_MOST)
         )
         val sheetH = root.measuredHeight.coerceAtLeast(1)
+
+        val bg = android.graphics.drawable.LayerDrawable(arrayOf(rim, glass, sheen)).apply {
+            setLayerInset(1, dp(1), dp(1), dp(1), dp(1))
+            val sheenH = dp(3)
+            setLayerInset(2, dp(1), dp(1), dp(1), (sheetH - sheenH).coerceAtLeast(0))
+        }
+        root.background = bg
 
         val metrics = context.resources.displayMetrics
         val gap = dp(12)
@@ -200,15 +210,14 @@ class CommandSheetOverlay(private val context: Context) {
         val hi = ContextCompat.getColor(context, R.color.text_hi)
 
         statusDot = View(themedContext).apply {
-            background = GradientDrawable().apply {
-                setColor(accent)
-                shape = GradientDrawable.OVAL
-            }
+            background = ContextCompat.getDrawable(context, R.drawable.bg_sheet_dot)?.mutate()
+            background?.setTint(accent)
         }
         statusText = TextView(themedContext).apply {
             text = status
             setTextColor(hi)
-            textSize = 12.5f
+            textSize = 13f
+            letterSpacing = 0.01f
             typeface = Typeface.DEFAULT_BOLD
             setSingleLine(true)
             ellipsize = android.text.TextUtils.TruncateAt.END
@@ -224,16 +233,21 @@ class CommandSheetOverlay(private val context: Context) {
         val infoCol = LinearLayout(themedContext).apply {
             orientation = LinearLayout.VERTICAL
             addView(statusText)
-            addView(teleText)
+            addView(teleText, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dp(1)
+            })
         }
 
         val close = MaterialButton(themedContext, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
             icon = ContextCompat.getDrawable(context, R.drawable.ic_close)
-            iconSize = dp(12)
+            iconSize = dp(13)
             iconTint = ColorStateList.valueOf(mid)
             backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.surf_high))
             strokeWidth = dp(0)
-            cornerRadius = dp(13)
+            cornerRadius = dp(14)
             insetLeft = 0
             insetTop = 0
             insetRight = 0
@@ -241,6 +255,20 @@ class CommandSheetOverlay(private val context: Context) {
             minWidth = 0
             minHeight = 0
             contentDescription = "Close"
+            setOnTouchListener { btn, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        btn.animate().scaleX(0.88f).scaleY(0.88f).setDuration(80).start()
+                        false
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        btn.animate().scaleX(1f).scaleY(1f).setDuration(140)
+                            .setInterpolator(OvershootInterpolator(0.7f)).start()
+                        false
+                    }
+                    else -> false
+                }
+            }
             setOnClickListener {
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 onClose()
@@ -250,14 +278,14 @@ class CommandSheetOverlay(private val context: Context) {
         return LinearLayout(themedContext).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(6), dp(2), dp(6), dp(4))
-            addView(statusDot, LinearLayout.LayoutParams(dp(9), dp(9)).apply {
+            setPadding(dp(6), dp(2), dp(2), dp(5))
+            addView(statusDot, LinearLayout.LayoutParams(dp(12), dp(12)).apply {
                 marginEnd = dp(10)
             })
             addView(infoCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                 marginEnd = dp(10)
             })
-            addView(close, LinearLayout.LayoutParams(dp(26), dp(26)))
+            addView(close, LinearLayout.LayoutParams(dp(28), dp(28)))
         }
     }
 
@@ -265,7 +293,7 @@ class CommandSheetOverlay(private val context: Context) {
         val grid = LinearLayout(themedContext).apply {
             orientation = LinearLayout.VERTICAL
         }
-        val cellW = dp(84)
+        val cellW = dp(94)
         val gap = dp(6)
         tools.chunked(3).forEachIndexed { rowIdx, rowTools ->
             val row = LinearLayout(themedContext).apply {
@@ -292,9 +320,12 @@ class CommandSheetOverlay(private val context: Context) {
         val isExit = spec.label == "Exit"
         val accent = spec.accent
 
+        // Tinted icon chip with a faint accent ring, echoing the prototype's
+        // `.tc` tile (accent ~14% fill on a dark tile).
         val chipBg = GradientDrawable().apply {
-            setColor(ColorUtils.setAlphaComponent(accent, 36))
-            cornerRadius = dp(8f).toFloat()
+            setColor(ColorUtils.setAlphaComponent(accent, 40))
+            cornerRadius = dp(10f).toFloat()
+            setStroke(dp(1), ColorUtils.setAlphaComponent(accent, 55))
         }
         val chip = FrameLayout(themedContext).apply {
             background = chipBg
@@ -307,19 +338,21 @@ class CommandSheetOverlay(private val context: Context) {
         }
         chip.addView(icon, FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
 
+        // Tool labels stay neutral like the prototype; the accent lives on the
+        // icon tile so the row reads calm instead of rainbow.
         val label = TextView(themedContext).apply {
             text = spec.label
-            setTextColor(accent)
+            setTextColor(ContextCompat.getColor(context, R.color.text_mid))
             textSize = 10f
             typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = 0.02f
+            letterSpacing = 0.04f
             gravity = Gravity.CENTER
             setSingleLine(true)
         }
 
         val cellBg = GradientDrawable().apply {
             setColor(ContextCompat.getColor(context, R.color.surf_raised))
-            cornerRadius = dp(14f).toFloat()
+            cornerRadius = dp(16f).toFloat()
             setStroke(dp(1), ContextCompat.getColor(context, R.color.line_strong))
         }
         val cell = LinearLayout(themedContext).apply {
@@ -327,13 +360,13 @@ class CommandSheetOverlay(private val context: Context) {
             gravity = Gravity.CENTER_HORIZONTAL
             background = cellBg
             isClickable = true
-            setPadding(0, dp(10), 0, dp(8))
-            addView(chip, LinearLayout.LayoutParams(dp(26), dp(26)))
+            setPadding(0, dp(12), 0, dp(10))
+            addView(chip, LinearLayout.LayoutParams(dp(30), dp(30)))
             addView(label, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply {
-                topMargin = dp(6)
+                topMargin = dp(7)
             })
         }
 
