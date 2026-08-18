@@ -47,9 +47,6 @@ class CommandPillView @JvmOverloads constructor(
     private val auraPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
     }
-    private val dotGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-    }
     private val ringTrackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0x14FFFFFF.toInt()
         style = Paint.Style.STROKE
@@ -171,30 +168,6 @@ class CommandPillView @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Accent halo around the status dot, mirroring the prototype's
-     * `box-shadow:0 0 10px accent`. Drawn in the pill's onDraw so it sits on the
-     * glass but underneath the dot child; breathes with the dot's pulse.
-     */
-    private fun drawDotGlow(canvas: Canvas) {
-        val dot = dotView ?: return
-        val cx = dot.left + dot.width / 2f
-        val cy = dot.top + dot.height / 2f
-        val r = dot.width * 2.2f
-        if (r <= 0f) return
-        dotGlowPaint.shader = RadialGradient(
-            cx, cy, r, accent, Color.TRANSPARENT, Shader.TileMode.CLAMP
-        )
-        val base = if (generating) 0.6f else 0.35f
-        val pulse = if (generating) (dot.scaleX) else 1f
-        dotGlowPaint.alpha = ((base * pulse * 255f).toInt()).coerceIn(0, 255)
-        canvas.save()
-        canvas.clipPath(pillPath)
-        canvas.drawCircle(cx, cy, r, dotGlowPaint)
-        canvas.restore()
-        dotGlowPaint.alpha = 255
-    }
-
     private fun setGenerating(gen: Boolean) {
         if (generating == gen) return
         generating = gen
@@ -284,7 +257,6 @@ class CommandPillView @JvmOverloads constructor(
         }
 
         canvas.drawRoundRect(pillRect, cornerRadius, cornerRadius, bgPaint)
-        drawDotGlow(canvas)
         // Strokes are centered on the path, so inset each ring by half its
         // width or the outer half would be clipped at the window edge.
         val borderInset = dp(0.5f)
