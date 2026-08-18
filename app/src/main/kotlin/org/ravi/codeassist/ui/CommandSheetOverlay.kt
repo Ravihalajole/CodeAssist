@@ -15,7 +15,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
-import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -86,17 +85,10 @@ class CommandSheetOverlay(private val context: Context) {
         }
 
         val cornerXl = res.getDimension(R.dimen.ovl_corner_xl)
-        val cornerLg = res.getDimension(R.dimen.ovl_corner_lg)
-        val rim = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(accent, 0x00FFFFFF.toInt())).apply {
-            cornerRadius = cornerXl
-        }
         val glass = GradientDrawable().apply {
             setColor(ContextCompat.getColor(context, R.color.ovl_pill_glass))
-            cornerRadius = cornerLg
-        }
-        val sheen = GradientDrawable().apply {
-            colors = intArrayOf(0x0FFFFFFF.toInt(), 0x00FFFFFF.toInt())
-            cornerRadius = cornerLg
+            cornerRadius = cornerXl
+            setStroke(res.getDimension(R.dimen.ovl_stroke).toInt(), ContextCompat.getColor(context, R.color.ovl_stroke))
         }
 
         val spacingSm = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
@@ -149,12 +141,7 @@ class CommandSheetOverlay(private val context: Context) {
         )
         val sheetH = root.measuredHeight.coerceAtLeast(1)
 
-        val bg = android.graphics.drawable.LayerDrawable(arrayOf(rim, glass, sheen)).apply {
-            setLayerInset(1, spacingSm, spacingSm, spacingSm, spacingSm)
-            val sheenH = dp(3f)
-            setLayerInset(2, spacingSm, spacingSm, spacingSm, (sheetH - sheenH).coerceAtLeast(0))
-        }
-        root.background = bg
+        root.background = glass
 
         val metrics = res.displayMetrics
         val gap = dp(12)
@@ -192,8 +179,8 @@ class CommandSheetOverlay(private val context: Context) {
             .translationY(0f)
             .scaleX(1f)
             .scaleY(1f)
-            .setDuration(320)
-            .setInterpolator(OvershootInterpolator(1.1f))
+            .setDuration(220)
+            .setInterpolator(DecelerateInterpolator())
             .start()
     }
 
@@ -261,8 +248,8 @@ class CommandSheetOverlay(private val context: Context) {
                         false
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        btn.animate().scaleX(1f).scaleY(1f).setDuration(140)
-                            .setInterpolator(OvershootInterpolator(0.7f)).start()
+                        btn.animate().scaleX(1f).scaleY(1f).setDuration(120)
+                            .setInterpolator(DecelerateInterpolator()).start()
                         false
                     }
                     else -> false
@@ -326,9 +313,8 @@ class CommandSheetOverlay(private val context: Context) {
         val cellCorner = res.getDimension(R.dimen.ovl_corner_md)
 
         val chipBg = GradientDrawable().apply {
-            setColor(ColorUtils.setAlphaComponent(accent, 40))
+            setColor(ColorUtils.setAlphaComponent(accent, 36))
             cornerRadius = chipCorner
-            setStroke(res.getDimension(R.dimen.ovl_stroke).toInt(), ColorUtils.setAlphaComponent(accent, 55))
         }
         val chip = FrameLayout(themedContext).apply {
             background = chipBg
@@ -354,7 +340,7 @@ class CommandSheetOverlay(private val context: Context) {
         val cellBg = GradientDrawable().apply {
             setColor(ContextCompat.getColor(context, R.color.surf_raised))
             cornerRadius = cellCorner
-            setStroke(res.getDimension(R.dimen.ovl_stroke).toInt(), ContextCompat.getColor(context, R.color.line_strong))
+            setStroke(res.getDimension(R.dimen.ovl_stroke).toInt(), ContextCompat.getColor(context, R.color.line_subtle))
         }
         val cell = LinearLayout(themedContext).apply {
             orientation = LinearLayout.VERTICAL
@@ -390,11 +376,11 @@ class CommandSheetOverlay(private val context: Context) {
         cell.setOnTouchListener { v, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    v.animate().scaleX(0.94f).scaleY(0.94f).setDuration(90).start()
+                    v.animate().scaleX(0.96f).scaleY(0.96f).setDuration(90).start()
                     false
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    v.animate().scaleX(1f).scaleY(1f).setDuration(140).setInterpolator(OvershootInterpolator(0.8f)).start()
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(120).setInterpolator(DecelerateInterpolator()).start()
                     false
                 }
                 else -> false

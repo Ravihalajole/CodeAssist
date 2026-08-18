@@ -167,11 +167,15 @@ class AgentOverlayManager(private val context: Context) {
         val morph = view.findViewById<com.google.android.material.button.MaterialButton>(R.id.morphButton)
         morph.setOnClickListener {
             morph.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            dismissSheet()
-            if (isGenerating) {
-                onStop()
+            if (sheetOverlay?.isShowing == true) {
+                dismissSheet()
             } else {
-                org.ravi.codeassist.AgentAccessibilityService.instance?.resumeOrSync()
+                dismissSheet()
+                if (isGenerating) {
+                    onStop()
+                } else {
+                    org.ravi.codeassist.AgentAccessibilityService.instance?.resumeOrSync()
+                }
             }
         }
 

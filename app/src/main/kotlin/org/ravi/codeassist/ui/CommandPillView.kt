@@ -178,8 +178,7 @@ class CommandPillView @JvmOverloads constructor(
             btn.setBackgroundResource(if (gen) R.drawable.bg_morph_stop else R.drawable.bg_morph_play)
             btn.backgroundTintList = null
             btn.iconTint = ColorStateList.valueOf(
-                if (gen) ContextCompat.getColor(context, R.color.text_hi)
-                else ContextCompat.getColor(context, R.color.brand_on_accent)
+                ContextCompat.getColor(context, R.color.brand_on_accent)
             )
         }
         if (gen) {
