@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Overlay corner radii — progression: sm → md → lg → xl -->
+    <dimen name="ovl_corner_sm">12dp</dimen>
+    <dimen name="ovl_corner_md">16dp</dimen>
+    <dimen name="ovl_corner_lg">20dp</dimen>
+    <dimen name="ovl_corner_xl">24dp</dimen>
+
+    <!-- Overlay spacing — tight progression -->
+    <dimen name="ovl_spacing_xs">4dp</dimen>
+    <dimen name="ovl_spacing_sm">8dp</dimen>
+    <dimen name="ovl_spacing_md">12dp</dimen>
+    <dimen name="ovl_spacing_lg">16dp</dimen>
+    <dimen name="ovl_spacing_xl">24dp</dimen>
+
+    <!-- Overlay type scale -->
+    <dimen name="ovl_text_xs">10sp</dimen>
+    <dimen name="ovl_text_sm">11sp</dimen>
+    <dimen name="ovl_text_md">13sp</dimen>
+    <dimen name="ovl_text_lg">16sp</dimen>
+
+    <!-- Overlay stroke -->
+    <dimen name="ovl_stroke">1dp</dimen>
+
+    <!-- Pill specifics -->
+    <dimen name="pill_dot_size">10dp</dimen>
+    <dimen name="pill_morph_size">36dp</dimen>
+    <dimen name="pill_morph_icon">18dp</dimen>
+
+    <!-- Sheet specifics -->
+    <dimen name="sheet_width">312dp</dimen>
+    <dimen name="sheet_grip_w">40dp</dimen>
+    <dimen name="sheet_grip_h">4dp</dimen>
+    <dimen name="sheet_status_dot">12dp</dimen>
+    <dimen name="sheet_close_size">28dp</dimen>
+    <dimen name="sheet_close_icon">14dp</dimen>
+    <dimen name="sheet_tool_cell_w">96dp</dimen>
+    <dimen name="sheet_tool_icon_chip">30dp</dimen>
+    <dimen name="sheet_tool_icon">18dp</dimen>
+    <dimen name="sheet_tool_icon_corner">10dp</dimen>
+    <dimen name="sheet_confirm_btn_h">32dp</dimen>
+
+    <!-- Confirmation specifics -->
+    <dimen name="confirm_scroll_h">240dp</dimen>
+
+</resources>

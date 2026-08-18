@@ -10,6 +10,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -135,6 +136,17 @@ class OverlayConfirmationManager(private val context: Context) {
         }
 
         windowManager.addView(confirmationView, params)
+
+        confirmationView?.alpha = 0f
+        confirmationView?.scaleX = 0.95f
+        confirmationView?.scaleY = 0.95f
+        confirmationView?.animate()
+            ?.alpha(1f)
+            ?.scaleX(1f)
+            ?.scaleY(1f)
+            ?.setDuration(200)
+            ?.setInterpolator(android.view.animation.DecelerateInterpolator())
+            ?.start()
     }
 
     private fun executeBatch(commands: List<CodeCommand>, workspaceRoot: String, onResult: (Boolean, String) -> Unit) {
@@ -158,8 +170,12 @@ class OverlayConfirmationManager(private val context: Context) {
 
     private fun showDiffsDialog(patchCommands: List<CodeCommand.Patch>, workspaceRoot: String) {
         val sb = java.lang.StringBuilder()
+        val colorHi = ContextCompat.getColor(context, R.color.text_hi)
+        val colorRed = ContextCompat.getColor(context, R.color.state_red)
+        val colorMint = ContextCompat.getColor(context, R.color.brand_mint)
+        val colorLow = ContextCompat.getColor(context, R.color.text_low)
         patchCommands.forEach { cmd ->
-            sb.append("<b><font color='#ECECEF'>File: ${cmd.path}</font></b><br><br>")
+            sb.append("<b><font color='#${Integer.toHexString(colorHi).removePrefix("FF")}'>File: ${cmd.path}</font></b><br><br>")
             val preview = org.ravi.codeassist.CommandExecutor.previewPatch(workspaceRoot, cmd)
             sb.append(if (preview != null) {
                 TransactionSummaryController.generateSmartDiffHtml(preview.first, preview.second)
@@ -171,19 +187,26 @@ class OverlayConfirmationManager(private val context: Context) {
 
         val themedContext = ContextThemeWrapper(context, R.style.Theme_CodeAssist)
 
-        val bgColor = resolveColorAttr(com.google.android.material.R.attr.colorSurfaceContainer, 0xFF0D0D10.toInt())
-        val strokeColor = resolveColorAttr(com.google.android.material.R.attr.colorOutlineVariant, 0xFF2C2C33.toInt())
-        val onSurfaceColor = resolveColorAttr(com.google.android.material.R.attr.colorOnSurface, 0xFFECECEF.toInt())
-        val innerBgColor = resolveColorAttr(com.google.android.material.R.attr.colorSurfaceContainerHigh, 0xFF131318.toInt())
+        val bgColor = resolveColorAttr(com.google.android.material.R.attr.colorSurfaceContainer, ContextCompat.getColor(context, R.color.surf_card))
+        val strokeColor = resolveColorAttr(com.google.android.material.R.attr.colorOutlineVariant, ContextCompat.getColor(context, R.color.line_strong))
+        val onSurfaceColor = resolveColorAttr(com.google.android.material.R.attr.colorOnSurface, ContextCompat.getColor(context, R.color.text_hi))
+        val innerBgColor = resolveColorAttr(com.google.android.material.R.attr.colorSurfaceContainerHigh, ContextCompat.getColor(context, R.color.surf_raised))
+
+        val density = context.resources.displayMetrics.density
+        val cornerXl = context.resources.getDimension(R.dimen.ovl_corner_xl)
+        val cornerMd = context.resources.getDimension(R.dimen.ovl_corner_md)
+        val spacingXl = (48 * density).toInt()
+        val spacingLg = (32 * density).toInt()
+        val strokeW = context.resources.getDimension(R.dimen.ovl_stroke).toInt()
 
         val bgDrawable = android.graphics.drawable.GradientDrawable().apply {
             setColor(bgColor)
-            cornerRadius = 48f
-            setStroke(2, strokeColor)
+            cornerRadius = cornerXl
+            setStroke(strokeW, strokeColor)
         }
 
         val tv = TextView(themedContext).apply {
-            setPadding(32, 32, 32, 32)
+            setPadding(spacingLg, spacingLg, spacingLg, spacingLg)
             text = android.text.Html.fromHtml(sb.toString(), android.text.Html.FROM_HTML_MODE_LEGACY)
             typeface = android.graphics.Typeface.MONOSPACE
             setTextColor(onSurfaceColor)
@@ -197,21 +220,21 @@ class OverlayConfirmationManager(private val context: Context) {
         val dialogView = LinearLayout(themedContext).apply {
             orientation = LinearLayout.VERTICAL
             background = bgDrawable
-            setPadding(48, 48, 48, 48)
+            setPadding(spacingXl, spacingXl, spacingXl, spacingXl)
 
             val title = TextView(themedContext).apply {
                 text = "Pre-Flight Diff Viewer"
-                textSize = 20f
+                textSize = context.resources.getDimension(R.dimen.ovl_text_lg) / context.resources.displayMetrics.scaledDensity
                 setTextColor(onSurfaceColor)
                 setTypeface(null, android.graphics.Typeface.BOLD)
-                setPadding(0, 0, 0, 32)
+                setPadding(0, 0, 0, spacingLg)
             }
             addView(title)
 
             val innerCard = LinearLayout(themedContext).apply {
                 background = android.graphics.drawable.GradientDrawable().apply {
                     setColor(innerBgColor)
-                    cornerRadius = 24f
+                    cornerRadius = cornerMd
                 }
                 addView(scrollView, LinearLayout.LayoutParams(
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT,
@@ -232,7 +255,7 @@ class OverlayConfirmationManager(private val context: Context) {
                 android.view.ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = android.view.Gravity.END
-                topMargin = 32
+                topMargin = spacingLg
             })
 
             val lp = WindowManager.LayoutParams(

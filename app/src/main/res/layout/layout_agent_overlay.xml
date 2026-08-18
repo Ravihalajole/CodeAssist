@@ -8,25 +8,26 @@
     android:minHeight="46dp"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:paddingStart="12dp"
-    android:paddingTop="7dp"
-    android:paddingEnd="8dp"
-    android:paddingBottom="8dp"
+    android:paddingStart="@dimen/ovl_spacing_md"
+    android:paddingTop="@dimen/ovl_spacing_sm"
+    android:paddingEnd="10dp"
+    android:paddingBottom="@dimen/ovl_spacing_sm"
     android:contentDescription="Agent control pill">
 
     <View
         android:id="@+id/pillDot"
-        android:layout_width="10dp"
-        android:layout_height="10dp"
+        android:layout_width="@dimen/pill_dot_size"
+        android:layout_height="@dimen/pill_dot_size"
         android:layout_gravity="center_vertical"
-        android:layout_marginEnd="10dp"
+        android:layout_marginEnd="@dimen/ovl_spacing_md"
         android:background="@drawable/bg_pill_dot" />
 
     <LinearLayout
-        android:layout_width="104dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"
-        android:layout_marginEnd="10dp"
+        android:layout_marginEnd="@dimen/ovl_spacing_md"
+        android:maxWidth="120dp"
         android:orientation="vertical">
 
         <TextView
@@ -34,12 +35,12 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
-            android:fontFamily="monospace"
-            android:letterSpacing="0.06"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.02"
             android:singleLine="true"
             android:text="Idle"
             android:textColor="@color/text_hi"
-            android:textSize="11.5sp"
+            android:textSize="@dimen/ovl_text_sm"
             android:textStyle="bold" />
 
         <TextView
@@ -50,13 +51,13 @@
             android:singleLine="true"
             android:text="r0 · 0:00"
             android:textColor="@color/text_mid"
-            android:textSize="9sp" />
+            android:textSize="@dimen/ovl_text_xs" />
     </LinearLayout>
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/morphButton"
-        android:layout_width="34dp"
-        android:layout_height="34dp"
+        android:layout_width="@dimen/pill_morph_size"
+        android:layout_height="@dimen/pill_morph_size"
         android:layout_gravity="center_vertical"
         android:backgroundTint="@color/brand_mint"
         android:contentDescription="Stop or resume"
@@ -64,13 +65,13 @@
         android:insetTop="0dp"
         android:insetRight="0dp"
         android:insetBottom="0dp"
-        android:paddingLeft="8dp"
-        android:paddingRight="8dp"
-        app:cornerRadius="17dp"
+        android:paddingLeft="9dp"
+        android:paddingRight="9dp"
+        app:cornerRadius="18dp"
         app:icon="@drawable/ic_play"
         app:iconGravity="textStart"
         app:iconPadding="0dp"
-        app:iconSize="17dp"
+        app:iconSize="@dimen/pill_morph_icon"
         app:iconTint="@color/brand_on_accent"
         app:strokeWidth="0dp"
         tools:ignore="MissingConstraints" />

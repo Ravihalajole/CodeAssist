@@ -85,6 +85,32 @@
         <item name="strokeColor">@android:color/transparent</item>
     </style>
 
+    <!-- Overlay text styles — consistent type scale for all overlay windows -->
+    <style name="OvlText.Title">
+        <item name="android:textSize">@dimen/ovl_text_lg</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+
+    <style name="OvlText.Status">
+        <item name="android:textSize">@dimen/ovl_text_md</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">@color/text_hi</item>
+        <item name="android:letterSpacing">0.01</item>
+    </style>
+
+    <style name="OvlText.Body">
+        <item name="android:textSize">@dimen/ovl_text_md</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+
+    <style name="OvlText.Caption">
+        <item name="android:textSize">@dimen/ovl_text_xs</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:textColor">@color/text_mid</item>
+    </style>
+
     <!-- 2. The Transparent Theme for the Clipboard Bridge -->
     <style name="Theme.CodeAssist.Transparent" parent="Theme.Material3.Dark.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>

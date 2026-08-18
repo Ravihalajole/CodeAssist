@@ -3,22 +3,22 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="20dp">
+    android:padding="@dimen/ovl_spacing_lg">
 
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardCornerRadius="28dp"
-        app:cardElevation="24dp"
+        app:cardCornerRadius="@dimen/ovl_corner_lg"
+        app:cardElevation="8dp"
         app:cardBackgroundColor="@color/ovl_raised"
         app:strokeColor="@color/ovl_stroke"
-        app:strokeWidth="1dp">
+        app:strokeWidth="@dimen/ovl_stroke">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="24dp">
+            android:padding="@dimen/ovl_spacing_xl">
 
             <!-- Title Header -->
             <TextView
@@ -26,28 +26,27 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Confirm Target"
-                android:textColor="?attr/colorOnSurface"
-                android:textAppearance="?attr/textAppearanceTitleLarge"
+                style="@style/OvlText.Title"
                 android:textStyle="bold"
-                android:layout_marginBottom="16dp"/>
+                android:layout_marginBottom="@dimen/ovl_spacing_lg"/>
 
             <!-- Data Card -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:cardBackgroundColor="@color/ovl_card"
-                app:cardCornerRadius="16dp"
+                app:cardCornerRadius="@dimen/ovl_corner_md"
                 app:cardElevation="0dp"
-                android:layout_marginBottom="20dp">
+                android:layout_marginBottom="@dimen/ovl_spacing_lg">
 
                 <TextView
                     android:id="@+id/tvElementDetails"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif-condensed"
-                    android:padding="16dp"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textSize="13sp"
+                    android:fontFamily="sans-serif"
+                    android:padding="@dimen/ovl_spacing_lg"
+                    style="@style/OvlText.Body"
+                    android:textSize="@dimen/ovl_text_md"
                     android:lineSpacingExtra="4dp" />
             </com.google.android.material.card.MaterialCardView>
 
@@ -57,10 +56,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Navigate Hierarchy"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:textAppearance="?attr/textAppearanceLabelMedium"
+                style="@style/OvlText.Caption"
                 android:textAllCaps="true"
-                android:layout_marginBottom="12dp"
+                android:layout_marginBottom="@dimen/ovl_spacing_md"
                 android:visibility="gone"/>
 
             <HorizontalScrollView
@@ -68,7 +66,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:scrollbars="none"
-                android:layout_marginBottom="24dp"
+                android:layout_marginBottom="@dimen/ovl_spacing_xl"
                 android:visibility="gone">
                 <LinearLayout
                     android:id="@+id/llChildrenList"
@@ -97,9 +95,8 @@
                     style="@style/Widget.Material3.Button.OutlinedButton"
                     android:layout_width="wrap_content"
                     android:layout_height="48dp"
-                    android:layout_marginStart="8dp"
+                    android:layout_marginStart="@dimen/ovl_spacing_sm"
                     android:text="Parent"
-                    android:textColor="?attr/colorOnSurface"
                     app:strokeColor="@color/ovl_handle" />
 
                 <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1" />

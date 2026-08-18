@@ -57,7 +57,7 @@ object TransactionSummaryController {
         }
 
         var suffixCount = 0
-        while (suffixCount < (searchLines.size - prefixCount) && suffixCount < (replaceLines.size - prefixCount) && 
+        while (suffixCount < (searchLines.size - prefixCount) && suffixCount < (replaceLines.size - prefixCount) &&
                searchLines[searchLines.size - 1 - suffixCount] == replaceLines[replaceLines.size - 1 - suffixCount]) {
             suffixCount++
         }

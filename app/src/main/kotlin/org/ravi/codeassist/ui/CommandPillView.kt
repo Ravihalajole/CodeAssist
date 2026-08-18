@@ -36,9 +36,9 @@ class CommandPillView @JvmOverloads constructor(
         style = Paint.Style.FILL
     }
     private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0x14FFFFFF.toInt()
+        color = ContextCompat.getColor(context, R.color.ovl_core_border)
         style = Paint.Style.STROKE
-        strokeWidth = dp(1f)
+        strokeWidth = resources.getDimension(R.dimen.ovl_stroke)
     }
     private val rimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -48,7 +48,7 @@ class CommandPillView @JvmOverloads constructor(
         style = Paint.Style.FILL
     }
     private val ringTrackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0x14FFFFFF.toInt()
+        color = ContextCompat.getColor(context, R.color.ovl_track)
         style = Paint.Style.STROKE
         strokeWidth = dp(2f)
     }
@@ -60,7 +60,8 @@ class CommandPillView @JvmOverloads constructor(
     private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         shader = LinearGradient(
             0f, 0f, 0f, dp(1.5f),
-            0x14FFFFFF.toInt(), 0x00FFFFFF.toInt(), Shader.TileMode.CLAMP
+            ContextCompat.getColor(context, R.color.ovl_core_border),
+            Color.TRANSPARENT, Shader.TileMode.CLAMP
         )
     }
 
@@ -257,12 +258,10 @@ class CommandPillView @JvmOverloads constructor(
         }
 
         canvas.drawRoundRect(pillRect, cornerRadius, cornerRadius, bgPaint)
-        // Strokes are centered on the path, so inset each ring by half its
-        // width or the outer half would be clipped at the window edge.
-        val borderInset = dp(0.5f)
+        val halfStroke = resources.getDimension(R.dimen.ovl_stroke) / 2f
         canvas.drawRoundRect(
-            RectF(pillRect.left + borderInset, pillRect.top + borderInset, pillRect.right - borderInset, pillRect.bottom - borderInset),
-            cornerRadius - borderInset, cornerRadius - borderInset, borderPaint
+            RectF(pillRect.left + halfStroke, pillRect.top + halfStroke, pillRect.right - halfStroke, pillRect.bottom - halfStroke),
+            cornerRadius - halfStroke, cornerRadius - halfStroke, borderPaint
         )
         val rimInset = dp(1f)
         canvas.drawRoundRect(

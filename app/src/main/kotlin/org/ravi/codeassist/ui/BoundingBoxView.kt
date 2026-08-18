@@ -9,6 +9,8 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.util.AttributeSet
 import android.view.View
+import androidx.core.content.ContextCompat
+import org.ravi.codeassist.R
 
 class BoundingBoxView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
@@ -19,7 +21,7 @@ class BoundingBoxView @JvmOverloads constructor(
     }
 
     private val scrimPaint = Paint().apply {
-        color = Color.parseColor("#99000000") // 60% Black scrim
+        color = ContextCompat.getColor(context, R.color.ovl_scrim_strong)
         style = Paint.Style.FILL
     }
 
@@ -29,7 +31,7 @@ class BoundingBoxView @JvmOverloads constructor(
     }
 
     private val strokePaint = Paint().apply {
-        color = Color.parseColor("#34E0A1") // Brand mint spotlight stroke
+        color = ContextCompat.getColor(context, R.color.brand_mint)
         style = Paint.Style.STROKE
         strokeWidth = 6f
         isAntiAlias = true

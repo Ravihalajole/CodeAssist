@@ -5,64 +5,62 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/ovl_scrim"
-    android:padding="24dp">
+    android:padding="@dimen/ovl_spacing_xl">
 
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         app:cardBackgroundColor="@color/ovl_raised"
-        app:cardCornerRadius="24dp"
-        app:cardElevation="24dp"
+        app:cardCornerRadius="@dimen/ovl_corner_lg"
+        app:cardElevation="8dp"
         app:strokeColor="@color/ovl_stroke"
-        app:strokeWidth="1dp">
+        app:strokeWidth="@dimen/ovl_stroke">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="24dp">
+            android:padding="@dimen/ovl_spacing_xl">
 
             <TextView
                 android:id="@+id/tvOverlayTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Action Required"
-                android:textColor="?attr/colorOnSurface"
-                android:textAppearance="?attr/textAppearanceHeadlineSmall"
+                style="@style/OvlText.Title"
                 android:textStyle="bold" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="@dimen/ovl_spacing_xs"
                 android:text="The agent proposed a code modification batch."
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:textAppearance="?attr/textAppearanceBodyMedium" />
+                style="@style/OvlText.Caption" />
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:layout_marginBottom="16dp"
+                android:layout_marginTop="@dimen/ovl_spacing_lg"
+                android:layout_marginBottom="@dimen/ovl_spacing_lg"
                 app:cardBackgroundColor="@color/ovl_card"
-                app:cardCornerRadius="12dp"
+                app:cardCornerRadius="@dimen/ovl_corner_md"
                 app:strokeColor="@color/ovl_stroke"
-                app:strokeWidth="1dp">
-                
+                app:strokeWidth="@dimen/ovl_stroke">
+
                 <ScrollView
                     android:layout_width="match_parent"
-                    android:layout_height="200dp"
+                    android:layout_height="@dimen/confirm_scroll_h"
                     android:fadeScrollbars="false"
-                    android:padding="12dp">
+                    android:padding="@dimen/ovl_spacing_md">
 
                     <TextView
                         android:id="@+id/tvOverlaySummary"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:fontFamily="monospace"
-                        android:textColor="?attr/colorOnSurface"
-                        android:textSize="13sp" />
+                        style="@style/OvlText.Body"
+                        android:textSize="@dimen/ovl_text_md" />
                 </ScrollView>
             </com.google.android.material.card.MaterialCardView>
 
@@ -70,11 +68,11 @@
                 android:id="@+id/overlayProgress"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="@dimen/ovl_spacing_lg"
                 android:indeterminate="true"
                 android:visibility="gone"
                 app:indicatorColor="@color/brand_mint"
-                app:trackCornerRadius="4dp"/>
+                app:trackCornerRadius="@dimen/ovl_spacing_xs"/>
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -95,7 +93,7 @@
                     style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
+                    android:layout_marginStart="@dimen/ovl_spacing_sm"
                     android:text="Apply Patch"
                     app:backgroundTint="@color/brand_mint"
                     app:iconTint="@color/brand_on_accent"
