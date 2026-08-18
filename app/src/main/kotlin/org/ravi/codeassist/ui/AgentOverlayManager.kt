@@ -2,6 +2,7 @@ package org.ravi.codeassist.ui
 
 import android.content.Context
 import android.graphics.PixelFormat
+import android.os.SystemClock
 import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -89,6 +90,10 @@ class AgentOverlayManager(private val context: Context) {
         var initialTouchY = 0f
         var dragged = false
         var wasSheetOpen = false
+        // Debounce pill taps: rapid re-taps toggle the sheet open/close mid
+        // animation and read as flicker. Ignore taps arriving within this
+        // window of the previous one.
+        var lastTapAt = 0L
 
         view.setOnTouchListener { _, event ->
             val layoutParams = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false
@@ -126,6 +131,11 @@ class AgentOverlayManager(private val context: Context) {
                     if (!dragged) {
                         pillView?.setPressFeedback(false)
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        val now = SystemClock.uptimeMillis()
+                        if (now - lastTapAt < 250) {
+                            return@setOnTouchListener true
+                        }
+                        lastTapAt = now
                         if (wasSheetOpen) {
                             dismissSheet()
                         } else {
@@ -191,7 +201,7 @@ class AgentOverlayManager(private val context: Context) {
             winH = overlayView?.measuredHeight ?: 0
         }
         if (winW <= 0) winW = fallback
-        if (winH <= 0) winH = dp(46f)
+        if (winH <= 0) winH = dp(45f)
         val metrics = context.resources.displayMetrics
         val centerX = (metrics.widthPixels - winW) / 2 + lp.x + winW / 2
         val pillTop = metrics.heightPixels - lp.y - winH
@@ -264,19 +274,19 @@ class AgentOverlayManager(private val context: Context) {
 
     private fun overlayUiFor(state: AgentState): OverlayUi {
         val tele = org.ravi.codeassist.agent.AgentOrchestrator.telemetry()
-        val round = tele.round
-        val clock = formatElapsed(tele.elapsedSeconds)
-        val action = tele.lastAction.ifBlank { "working" }
+        // Compact status: round + elapsed clock. The action name lives in the
+        // sheet's full status; the pill sub line stays short.
+        val compact = "r${tele.round} · ${formatElapsed(tele.elapsedSeconds)}"
         return when (state) {
-            is AgentState.IDLE -> OverlayUi(ContextCompat.getColor(context, R.color.state_cyan), false, "Idle", "round $round · $clock · tap for tools")
-            is AgentState.ANALYZING_SCREEN -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Reading screen", "round $round · $clock · $action")
-            is AgentState.AWAITING_LLM -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Thinking", "round $round · $clock · $action")
-            is AgentState.EXECUTING_ACTION -> OverlayUi(ContextCompat.getColor(context, R.color.brand_mint), true, humanAction(state.actionName), "round $round · $clock · $action")
-            is AgentState.WAITING_FOR_MUTATION -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Applying changes", "round $round · $clock · $action")
-            is AgentState.WAITING_FOR_USER -> OverlayUi(ContextCompat.getColor(context, R.color.state_blue), false, "Needs input", "round $round · $clock · tap to resume")
+            is AgentState.IDLE -> OverlayUi(ContextCompat.getColor(context, R.color.state_cyan), false, "Idle", compact)
+            is AgentState.ANALYZING_SCREEN -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Scanning", compact)
+            is AgentState.AWAITING_LLM -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Thinking", compact)
+            is AgentState.EXECUTING_ACTION -> OverlayUi(ContextCompat.getColor(context, R.color.brand_mint), true, humanAction(state.actionName), compact)
+            is AgentState.WAITING_FOR_MUTATION -> OverlayUi(ContextCompat.getColor(context, R.color.state_amber), true, "Writing", compact)
+            is AgentState.WAITING_FOR_USER -> OverlayUi(ContextCompat.getColor(context, R.color.state_blue), false, "Paused", compact)
             is AgentState.ERROR -> OverlayUi(ContextCompat.getColor(context, R.color.state_red), false, "Stopped", state.message)
-            is AgentState.TOOLBOX_OPEN -> OverlayUi(ContextCompat.getColor(context, R.color.state_violet), false, "Tools", "round $round · $clock")
-            is AgentState.SCROLL_CONFIG_ACTIVE -> OverlayUi(ContextCompat.getColor(context, R.color.state_cyan), false, "Scroll zone", "round $round · $clock")
+            is AgentState.TOOLBOX_OPEN -> OverlayUi(ContextCompat.getColor(context, R.color.state_violet), false, "Tools", compact)
+            is AgentState.SCROLL_CONFIG_ACTIVE -> OverlayUi(ContextCompat.getColor(context, R.color.state_cyan), false, "Scroll zone", compact)
         }
     }
 

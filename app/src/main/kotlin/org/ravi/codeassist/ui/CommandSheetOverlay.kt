@@ -33,6 +33,7 @@ class CommandSheetOverlay(private val context: Context) {
     private val density = context.resources.displayMetrics.density
 
     private var container: FrameLayout? = null
+    private var dismissing = false
     private var statusDot: View? = null
     private var statusText: TextView? = null
     private var teleText: TextView? = null
@@ -78,6 +79,7 @@ class CommandSheetOverlay(private val context: Context) {
         onExit: () -> Unit
     ) {
         dismiss()
+        dismissing = false
 
         val sheetW = dp(300)
         val root = FrameLayout(themedContext).apply {
@@ -501,7 +503,13 @@ class CommandSheetOverlay(private val context: Context) {
     fun dismiss() {
         confirmTimer?.let { handler.removeCallbacks(it) }
         confirmTimer = null
+        // Idempotent: the pill's ACTION_OUTSIDE, the sheet's own outside-touch
+        // handler, and a pill tap can all fire dismiss for the same gesture.
+        // Without this guard a second call cancels and restarts the close
+        // animation, which reads as flicker.
+        if (dismissing) return
         val root = container ?: return
+        dismissing = true
         confirmBar = null
         // Animate out, then detach. `container` stays set for the duration so
         // `isShowing` keeps the pill from spawning a second sheet over the
@@ -515,6 +523,7 @@ class CommandSheetOverlay(private val context: Context) {
             .setDuration(140)
             .setInterpolator(DecelerateInterpolator())
             .withEndAction {
+                dismissing = false
                 container = null
                 try {
                     windowManager.removeView(root)
