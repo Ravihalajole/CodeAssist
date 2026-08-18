@@ -28,7 +28,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Action Required"
-                style="@style/OvlText.Title"
+                android:textSize="@dimen/ovl_text_lg"
+                android:fontFamily="sans-serif-medium"
+                android:textColor="?attr/colorOnSurface"
                 android:textStyle="bold" />
 
             <TextView
@@ -36,7 +38,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/ovl_spacing_xs"
                 android:text="The agent proposed a code modification batch."
-                style="@style/OvlText.Caption" />
+                android:textSize="@dimen/ovl_text_xs"
+                android:fontFamily="sans-serif"
+                android:textColor="@color/text_mid" />
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
@@ -59,8 +63,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:fontFamily="monospace"
-                        style="@style/OvlText.Body"
-                        android:textSize="@dimen/ovl_text_md" />
+                        android:textSize="@dimen/ovl_text_md"
+                        android:textColor="?attr/colorOnSurface" />
                 </ScrollView>
             </com.google.android.material.card.MaterialCardView>
 
