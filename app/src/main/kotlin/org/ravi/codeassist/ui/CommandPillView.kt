@@ -120,8 +120,9 @@ class CommandPillView @JvmOverloads constructor(
      * return on release. The window-level touch listener (AgentOverlayManager)
      * drives this so taps and drags get the same tactile feel. Skipped while the
      * overlay is mid-fade so a press can't cancel the visibility animation.
+     * Named to avoid clashing with [View.setPressed]'s pressed-state API.
      */
-    fun setPressed(pressed: Boolean) {
+    fun setPressFeedback(pressed: Boolean) {
         if (alpha < 1f) return
         animate().cancel()
         if (pressed) {

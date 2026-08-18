@@ -152,7 +152,7 @@ class CommandSheetOverlay(private val context: Context) {
         val topBound = (metrics.heightPixels - sheetH).coerceAtLeast(0)
         // Anchor above the pill, or flip below it when there isn't enough room
         // (pill dragged near the top of the screen).
-        val y = if (preferAbove && (pillTop - gap - sheetH) >= dp(8)) {
+        val anchorY = if (preferAbove && (pillTop - gap - sheetH) >= dp(8)) {
             pillTop - gap - sheetH
         } else {
             (pillBottom + gap).coerceIn(dp(8), topBound.coerceAtLeast(dp(8)))
@@ -165,7 +165,7 @@ class CommandSheetOverlay(private val context: Context) {
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = (centerX - sheetW / 2).coerceIn(0, (metrics.widthPixels - sheetW).coerceAtLeast(0))
-            y = y
+            y = anchorY
         }
 
         // Only ACTION_OUTSIDE closes the sheet. Internal touches are consumed so

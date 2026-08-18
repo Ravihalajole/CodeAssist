@@ -100,7 +100,7 @@ class AgentOverlayManager(private val context: Context) {
                     initialY = layoutParams.y
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
-                    pillView?.setPressed(true)
+                    pillView?.setPressFeedback(true)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -110,7 +110,7 @@ class AgentOverlayManager(private val context: Context) {
                         if (!dragged) {
                             dismissSheet()
                             dragged = true
-                            pillView?.setPressed(false)
+                            pillView?.setPressFeedback(false)
                         }
                         val (clampedX, clampedY) = clampToScreen(initialX + dx.toInt(), initialY - dy.toInt())
                         layoutParams.x = clampedX
@@ -124,7 +124,7 @@ class AgentOverlayManager(private val context: Context) {
                 MotionEvent.ACTION_UP -> {
                     sharedPref.edit().putInt("OVERLAY_POS_X", layoutParams.x).putInt("OVERLAY_POS_Y", layoutParams.y).apply()
                     if (!dragged) {
-                        pillView?.setPressed(false)
+                        pillView?.setPressFeedback(false)
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         if (wasSheetOpen) {
                             dismissSheet()
@@ -132,7 +132,7 @@ class AgentOverlayManager(private val context: Context) {
                             openSheet()
                         }
                     } else {
-                        pillView?.setPressed(false)
+                        pillView?.setPressFeedback(false)
                     }
                     true
                 }
@@ -144,7 +144,7 @@ class AgentOverlayManager(private val context: Context) {
                     if (sheet?.hitTest(event.rawX.toInt(), event.rawY.toInt()) != true) {
                         dismissSheet()
                     }
-                    pillView?.setPressed(false)
+                    pillView?.setPressFeedback(false)
                     true
                 }
                 else -> false
