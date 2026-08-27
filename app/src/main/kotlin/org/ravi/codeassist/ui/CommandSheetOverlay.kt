@@ -124,24 +124,13 @@ class CommandSheetOverlay(private val context: Context) {
         windowManager.addView(root, params)
         container = root
 
-        // Re-anchor after layout to correct estimated height without flicker.
-        root.post {
-            val realH = root.height.coerceAtLeast(1)
-            if (realH != estimateH && preferAbove) {
-                val correctedY = (pillTop - gap - realH).coerceAtLeast(dp(8))
-                try {
-                    params.y = correctedY
-                    windowManager.updateViewLayout(root, params)
-                } catch (_: Exception) {}
-            }
-        }
-
         root.animate()
             .alpha(1f)
             .translationY(0f)
             .scaleX(1f)
             .scaleY(1f)
             .setDuration(200)
+            .withLayer()
             .setInterpolator(DecelerateInterpolator())
             .start()
     }
@@ -281,12 +270,14 @@ class CommandSheetOverlay(private val context: Context) {
         if (dismissing) return
         val root = container ?: return
         dismissing = true
+        root.removeCallbacks(null)
         root.animate().cancel()
         root.animate()
             .alpha(0f)
             .translationY(dp(8f).toFloat())
             .scaleX(0.98f).scaleY(0.98f)
             .setDuration(140)
+            .withLayer()
             .setInterpolator(DecelerateInterpolator())
             .withEndAction {
                 dismissing = false
