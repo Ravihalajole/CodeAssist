@@ -819,6 +819,10 @@ class MainActivity : AppCompatActivity() {
             dialog.dismiss()
             showCheckpointsDialog()
         }
+        dialogView.findViewById<View>(R.id.rowGitInit).setOnClickListener {
+            dialog.dismiss()
+            runInitGitAction()
+        }
         dialogView.findViewById<View>(R.id.rowGitRemotes).setOnClickListener {
             dialog.dismiss()
             showRemotesDialog()
@@ -929,39 +933,56 @@ class MainActivity : AppCompatActivity() {
         } else {
             getString(R.string.no_remotes)
         }
+        val initStatusView = dialogView.findViewById<TextView>(R.id.tvGitInitStatus)
+        val isRepoForInit = ctx.status?.isRepo == true
+        initStatusView.text = when {
+            !hasWorkspace -> getString(R.string.workspace_not_set)
+            isRepoForInit -> getString(R.string.git_init_status_done)
+            else -> getString(R.string.git_init_status_ready)
+        }
 
+        val isRepo = ctx.status?.isRepo == true
+        val hasCommits = ctx.commits.isNotEmpty()
+        // Sync needs repo + remotes; history needs repo + commits
         applyGitRowAvailability(
             dialogView,
             hasWorkspace = hasWorkspace,
+            isRepo = isRepo,
             hasRemotes = hasRemotes,
             hasChanges = hasChanges,
-            hasOtherBranches = ctx.otherBranches.isNotEmpty()
+            hasOtherBranches = ctx.otherBranches.isNotEmpty(),
+            hasCommits = hasCommits
         )
     }
 
     private fun applyGitRowAvailability(
         dialogView: View,
         hasWorkspace: Boolean,
+        isRepo: Boolean,
         hasRemotes: Boolean,
         hasChanges: Boolean,
-        hasOtherBranches: Boolean
+        hasOtherBranches: Boolean,
+        hasCommits: Boolean
     ) {
-        setGitRowEnabled(dialogView, R.id.rowGitPush, hasWorkspace && hasRemotes)
-        setGitRowEnabled(dialogView, R.id.rowGitPull, hasWorkspace && hasRemotes)
-        setGitRowEnabled(dialogView, R.id.rowGitFetch, hasWorkspace && hasRemotes)
-        setGitRowEnabled(dialogView, R.id.rowGitCommit, hasWorkspace)
-        setGitRowEnabled(dialogView, R.id.rowGitRevert, hasWorkspace)
-        setGitRowEnabled(dialogView, R.id.rowGitReset, hasWorkspace)
-        setGitRowEnabled(dialogView, R.id.rowGitMerge, hasWorkspace && hasOtherBranches)
-        setGitRowEnabled(dialogView, R.id.rowGitDiscard, hasWorkspace && hasChanges)
-        setGitRowEnabled(dialogView, R.id.rowGitBranch, hasWorkspace)
-        setGitRowEnabled(dialogView, R.id.rowGitCheckpoints, hasWorkspace)
-        setGitRowEnabled(dialogView, R.id.rowGitRemotes, hasWorkspace)
+        setGitRowEnabled(dialogView, R.id.rowGitInit, hasWorkspace && !isRepo)
+        setGitRowEnabled(dialogView, R.id.rowGitPush, isRepo && hasRemotes)
+        setGitRowEnabled(dialogView, R.id.rowGitPull, isRepo && hasRemotes)
+        setGitRowEnabled(dialogView, R.id.rowGitFetch, isRepo && hasRemotes)
+        setGitRowEnabled(dialogView, R.id.rowGitCommit, hasWorkspace && isRepo)
+        setGitRowEnabled(dialogView, R.id.rowGitRevert, isRepo && hasCommits)
+        setGitRowEnabled(dialogView, R.id.rowGitReset, isRepo && hasCommits)
+        setGitRowEnabled(dialogView, R.id.rowGitMerge, isRepo && hasOtherBranches)
+        setGitRowEnabled(dialogView, R.id.rowGitDiscard, isRepo && hasChanges)
+        setGitRowEnabled(dialogView, R.id.rowGitBranch, isRepo)
+        setGitRowEnabled(dialogView, R.id.rowGitCheckpoints, isRepo)
+        setGitRowEnabled(dialogView, R.id.rowGitRemotes, isRepo)
     }
 
     private fun setGitRowEnabled(dialogView: View, rowId: Int, enabled: Boolean) {
         val row = dialogView.findViewById<View>(rowId)
         row.isEnabled = enabled
+        row.isClickable = enabled
+        row.isFocusable = enabled
         row.alpha = if (enabled) 1f else 0.45f
     }
 
@@ -1332,6 +1353,38 @@ class MainActivity : AppCompatActivity() {
         val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null) ?: return
         val rootFile = File(workspaceRoot)
 
+        // If workspace is not a git repo, offer to init instead of showing empty commit
+        lifecycleScope.launch(Dispatchers.IO) {
+            val isRepo = GitManager.isGitInitialized(rootFile)
+            withContext(Dispatchers.Main) {
+                if (!isRepo) {
+                    com.google.android.material.dialog.MaterialAlertDialogBuilder(this@MainActivity)
+                        .setTitle(R.string.commit_init_title)
+                        .setMessage(R.string.commit_init_msg)
+                        .setPositiveButton(R.string.commit_init_action) { _, _ ->
+                            val authorName = sharedPref.getString("GIT_AUTHOR_NAME", "CodeAssist AI") ?: "CodeAssist AI"
+                            val authorEmail = sharedPref.getString("GIT_AUTHOR_EMAIL", "ai@codeassist.local") ?: "ai@codeassist.local"
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                val ok = GitManager.initGit(rootFile, authorName, authorEmail)
+                                withContext(Dispatchers.Main) {
+                                    if (ok) Toast.makeText(this@MainActivity, R.string.commit_init_done, Toast.LENGTH_SHORT).show()
+                                    else Toast.makeText(this@MainActivity, R.string.git_init_failed, Toast.LENGTH_LONG).show()
+                                    refreshWorkspaceStatus(rootFile.absolutePath)
+                                    refreshActionsSnapshot(rootFile.absolutePath)
+                                    if (ok) loadCommitOverviewAndShow(rootFile)
+                                }
+                            }
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show()
+                    return@withContext
+                }
+                loadCommitOverviewAndShow(rootFile)
+            }
+        }
+    }
+
+    private fun loadCommitOverviewAndShow(rootFile: File) {
         logsProgress.visibility = View.VISIBLE
         btnGitOptions.isEnabled = false
         lifecycleScope.launch(Dispatchers.IO) {
@@ -1339,17 +1392,27 @@ class MainActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 logsProgress.visibility = View.GONE
                 btnGitOptions.isEnabled = true
-                showCommitDialog(rootFile, overview)
+                if (overview.staged.isEmpty() && overview.unstaged.isEmpty() && overview.untracked.isEmpty()) {
+                    if (overview.conflicts.isNotEmpty()) {
+                        Toast.makeText(this@MainActivity, getString(R.string.git_commit_conflicts, overview.conflicts.size), Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(this@MainActivity, getString(R.string.commit_no_changes), Toast.LENGTH_SHORT).show()
+                    }
+                    return@withContext
+                }
+                showCommitSelectDialog(rootFile, overview)
             }
         }
     }
 
-    private fun showCommitDialog(rootFile: File, overview: GitManager.ChangesOverview) {
-        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_commit, null)
-        val groups = dialogView.findViewById<LinearLayout>(R.id.llCommitChangeGroups)
-        val summary = dialogView.findViewById<TextView>(R.id.tvCommitChangeSummary)
-        val input = dialogView.findViewById<TextInputEditText>(R.id.etCommitMessage)
+    private fun showCommitSelectDialog(rootFile: File, overview: GitManager.ChangesOverview, preselected: Set<String>? = null) {
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_commit_select, null)
+        val groups = dialogView.findViewById<LinearLayout>(R.id.llCommitSelectGroups)
+        val summary = dialogView.findViewById<TextView>(R.id.tvCommitSelectSummary)
+        val btnSelectAll = dialogView.findViewById<MaterialButton>(R.id.btnSelectAll)
+        val btnDeselectAll = dialogView.findViewById<MaterialButton>(R.id.btnDeselectAll)
         val selected = mutableMapOf<String, Boolean>()
+        val checkBoxes = mutableListOf<com.google.android.material.checkbox.MaterialCheckBox>()
 
         val all = overview.staged + overview.unstaged + overview.untracked
         val totalAdded = all.sumOf { it.added }
@@ -1363,7 +1426,13 @@ class MainActivity : AppCompatActivity() {
             header.findViewById<TextView>(R.id.tvGroupName).text = title
             header.findViewById<TextView>(R.id.tvGroupCount).text = changes.size.toString()
             groups.addView(header)
-            changes.forEach { change -> addChangeRow(groups, selected, change, selectable) }
+            changes.forEach { change ->
+                val cb = addChangeRow(groups, selected, change, selectable)
+                if (cb != null) {
+                    if (preselected != null) cb.isChecked = change.path in preselected
+                    checkBoxes.add(cb)
+                }
+            }
         }
 
         addGroup(getString(R.string.commit_group_staged), overview.staged, true)
@@ -1373,35 +1442,62 @@ class MainActivity : AppCompatActivity() {
             GitManager.FileChange(path, GitManager.ChangeStatus.CONFLICTED, 0, 0)
         }, false)
 
-        if (all.isEmpty()) {
-            val empty = TextView(this)
-            empty.text = getString(R.string.commit_no_changes)
-            empty.setTextAppearance(this, com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
-            val ta = theme.obtainStyledAttributes(intArrayOf(com.google.android.material.R.attr.colorOnSurfaceVariant))
-            empty.setTextColor(ta.getColor(0, android.graphics.Color.GRAY))
-            ta.recycle()
-            empty.setPadding(0, 8, 0, 8)
-            groups.addView(empty)
+        btnSelectAll.setOnClickListener {
+            checkBoxes.forEach { cb -> if (cb.isEnabled) cb.isChecked = true }
+        }
+        btnDeselectAll.setOnClickListener {
+            checkBoxes.forEach { cb -> if (cb.isEnabled) cb.isChecked = false }
         }
 
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle(R.string.git_action_commit)
             .setView(dialogView)
-            .setPositiveButton(R.string.git_action_commit) { _, _ ->
-                val message = input.text?.toString()?.trim()
-                if (message.isNullOrEmpty()) {
-                    Toast.makeText(this, "Commit message cannot be empty.", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
+            .setPositiveButton(R.string.commit_next, null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+
+        dialog.setOnShowListener {
+            val positive = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            positive.setOnClickListener {
                 val paths = selected.filterValues { it }.keys.toList()
                 if (paths.isEmpty()) {
-                    Toast.makeText(this, "Select at least one file to commit.", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
+                    Toast.makeText(this, getString(R.string.commit_no_selection), Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
                 }
+                dialog.dismiss()
+                showCommitMessageDialog(rootFile, overview, paths)
+            }
+        }
+        dialog.show()
+    }
+
+    private fun showCommitMessageDialog(rootFile: File, overview: GitManager.ChangesOverview, paths: List<String>) {
+        val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_commit_message, null)
+        val tvSelected = dialogView.findViewById<TextView>(R.id.tvCommitMessageSelected)
+        val input = dialogView.findViewById<TextInputEditText>(R.id.etCommitMessage2)
+
+        val autoMsg = GitManager.generateCommitMessage(paths, overview)
+        tvSelected.text = getString(R.string.commit_success, paths.size) + " • " + paths.take(3).joinToString(", ") + if (paths.size > 3) " +${paths.size - 3} more" else ""
+        input.hint = autoMsg
+
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.git_action_commit)
+            .setView(dialogView)
+            .setPositiveButton(R.string.git_action_commit, null)
+            .setNegativeButton(R.string.commit_back) { _, _ -> showCommitSelectDialog(rootFile, overview, paths.toSet()) }
+            .setNeutralButton(android.R.string.cancel, null)
+            .create()
+
+        dialog.setOnShowListener {
+            val positive = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            positive.setOnClickListener {
+                var message = input.text?.toString()?.trim().orEmpty()
+                if (message.isEmpty()) message = autoMsg
+                dialog.dismiss()
                 runCommitSelected(rootFile, paths, message)
             }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        }
+        dialog.show()
     }
 
     private fun addChangeRow(
@@ -1409,7 +1505,7 @@ class MainActivity : AppCompatActivity() {
         selected: MutableMap<String, Boolean>,
         change: GitManager.FileChange,
         selectable: Boolean
-    ) {
+    ): com.google.android.material.checkbox.MaterialCheckBox? {
         val row = android.view.LayoutInflater.from(this).inflate(R.layout.item_git_change, groups, false)
         val cb = row.findViewById<com.google.android.material.checkbox.MaterialCheckBox>(R.id.cbChangeSelect)
         val tvStatus = row.findViewById<TextView>(R.id.tvChangeStatus)
@@ -1444,6 +1540,7 @@ class MainActivity : AppCompatActivity() {
         selected[change.path] = selectable
         cb.setOnCheckedChangeListener { _, isChecked -> selected[change.path] = isChecked }
         groups.addView(row)
+        return if (selectable) cb else null
     }
 
     private fun runCommitSelected(rootFile: File, paths: List<String>, message: String) {
@@ -2258,6 +2355,44 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun runInitGitAction() {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
+        if (workspaceRoot.isNullOrEmpty()) {
+            Toast.makeText(this, getString(R.string.workspace_not_set), Toast.LENGTH_SHORT).show()
+            return
+        }
+        val rootFile = File(workspaceRoot)
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+        lifecycleScope.launch(Dispatchers.IO) {
+            if (GitManager.isGitInitialized(rootFile)) {
+                withContext(Dispatchers.Main) {
+                    logsProgress.visibility = View.GONE
+                    btnGitOptions.isEnabled = true
+                    Toast.makeText(this@MainActivity, getString(R.string.git_init_already), Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
+            val authorName = sharedPref.getString("GIT_AUTHOR_NAME", "CodeAssist AI") ?: "CodeAssist AI"
+            val authorEmail = sharedPref.getString("GIT_AUTHOR_EMAIL", "ai@codeassist.local") ?: "ai@codeassist.local"
+            val ok = GitManager.initGit(rootFile, authorName, authorEmail)
+            val isRepo = ok && GitManager.isGitInitialized(rootFile)
+            withContext(Dispatchers.Main) {
+                logsProgress.visibility = View.GONE
+                btnGitOptions.isEnabled = true
+                if (isRepo) {
+                    Toast.makeText(this@MainActivity, getString(R.string.git_init_success), Toast.LENGTH_SHORT).show()
+                    refreshLogsData()
+                    refreshWorkspaceStatus(rootFile.absolutePath)
+                    refreshActionsSnapshot(rootFile.absolutePath)
+                } else {
+                    Toast.makeText(this@MainActivity, getString(R.string.git_init_failed), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
     // --- GIT REMOTES ---
 
     private fun showRemotesDialog() {
@@ -2438,18 +2573,23 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.branch_new_desc)
         )
 
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setView(dialogView)
-            .setPositiveButton(R.string.branch_new_action) { _, _ ->
+            .setPositiveButton(R.string.branch_new_action, null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val name = etName.text?.toString()?.trim()
                 if (name.isNullOrEmpty()) {
                     Toast.makeText(this, R.string.branch_name_empty, Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
+                    return@setOnClickListener
                 }
+                dialog.dismiss()
                 runCreateBranch(rootFile, name, cbCheckout.isChecked)
             }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        }
+        dialog.show()
     }
 
     private fun runCreateBranch(rootFile: File, name: String, switchTo: Boolean) {

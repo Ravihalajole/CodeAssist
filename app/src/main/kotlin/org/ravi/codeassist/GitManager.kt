@@ -140,9 +140,8 @@ object GitManager {
      * enclosing one would fragment the parent repo's tracking. When the
      * workspace is already covered by an enclosing repo, this is a no-op.
      */
-    suspend fun initGit(workspaceRoot: File, authorName: String = AUTHOR_NAME, authorEmail: String = AUTHOR_EMAIL) = gitMutex.withLock {
-        if (isGitInitialized(workspaceRoot)) return@withLock
-
+    suspend fun initGit(workspaceRoot: File, authorName: String = AUTHOR_NAME, authorEmail: String = AUTHOR_EMAIL): Boolean = gitMutex.withLock {
+        if (isGitInitialized(workspaceRoot)) return@withLock true
         try {
             cleanupStaleLocks(workspaceRoot)
             Git.init().setDirectory(workspaceRoot).call().use { git ->
@@ -150,7 +149,6 @@ object GitManager {
                 if (!gitignore.exists()) {
                     gitignore.writeText("build/\n.gradle/\n.idea/\n*.iml\nlocal.properties\n.codeassist/\n")
                 }
-                
                 git.add().addFilepattern(".").call()
                 git.commit()
                     .setMessage("Initial commit before CodeAssist tracking")
@@ -158,8 +156,10 @@ object GitManager {
                     .setCommitter(authorName, authorEmail)
                     .call()
             }
+            isGitInitialized(workspaceRoot)
         } catch (_: Exception) {
             cleanupStaleLocks(workspaceRoot)
+            false
         }
     }
 
@@ -227,6 +227,7 @@ object GitManager {
      */
     suspend fun commitAllChanges(workspaceRoot: File, message: String, authorName: String = AUTHOR_NAME, authorEmail: String = AUTHOR_EMAIL): String? = gitMutex.withLock {
         val repoRoot = repoRootFor(workspaceRoot) ?: return null
+        val effectiveMessage = message.trim().ifEmpty { generateCommitMessage(emptyList()) }
         cleanupStaleLocks(workspaceRoot)
         return try {
             Git.open(repoRoot).use { git ->
@@ -238,7 +239,7 @@ object GitManager {
                 addCmd.call()
 
                 val commitResult = git.commit()
-                    .setMessage(message)
+                    .setMessage(effectiveMessage)
                     .setAuthor(authorName, authorEmail)
                     .setCommitter(authorName, authorEmail)
                     .call()
@@ -263,6 +264,7 @@ object GitManager {
         return try {
             Git.open(repoRoot).use { git ->
                 flushRepositoryCaches(git)
+                ensureMergeIdentity(git)
                 val commitId = git.repository.resolve(commitHash) ?: return false
                 git.revert().include(commitId).call()
                 true
@@ -317,6 +319,8 @@ object GitManager {
      */
     suspend fun createCheckpoint(workspaceRoot: File, label: String): String? {
         val repoRoot = repoRootFor(workspaceRoot) ?: return null
+        // Ensure repo has at least one commit; initGit may have been skipped.
+        if (!isGitInitialized(workspaceRoot)) return null
         val committed = commitAllChanges(workspaceRoot, "[CodeAssist checkpoint] $label")
         return committed ?: currentHead(workspaceRoot)
     }
@@ -509,8 +513,12 @@ object GitManager {
         username: String?,
         password: String?
     ): CloneResult = gitMutex.withLock {
-        if (destDir.exists() && (destDir.list()?.isNotEmpty() == true)) {
-            return@withLock CloneResult(false, "Destination folder already exists and is not empty.", null)
+        if (destDir.exists()) {
+            if (!destDir.isDirectory) return@withLock CloneResult(false, "Destination path is a file, not a directory.", null)
+            val kids = try { destDir.list() } catch (_: Exception) { null }
+            if (kids != null && kids.isNotEmpty()) {
+                return@withLock CloneResult(false, "Destination folder already exists and is not empty.", null)
+            }
         }
         destDir.parentFile?.mkdirs()
         try {
@@ -576,7 +584,7 @@ object GitManager {
         val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock null
         if (branch.isNullOrBlank()) return@withLock null
         try {
-            Git.open(repoRoot).use { git -> commitsAheadInternal(git, branch) }
+            Git.open(repoRoot).use { git -> commitsAheadWithFallback(git, branch) }
         } catch (_: Exception) {
             null
         }
@@ -597,6 +605,38 @@ object GitManager {
                 var count = 0
                 for (commit in walk) count++
                 count
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun commitsAheadWithFallback(git: Git, branch: String?): Int? {
+        if (branch.isNullOrBlank()) return null
+        commitsAheadInternal(git, branch)?.let { return it }
+        return try {
+            val headId = git.repository.resolve("HEAD") ?: return null
+            val remotes = remoteDetails(git).map { it.first }
+            val sortedRemotes = remotes.sortedWith(compareBy({ it != "origin" }, { it }))
+            for (remote in sortedRemotes) {
+                val refName = "refs/remotes/$remote/$branch"
+                val remoteId = git.repository.findRef(refName)?.objectId
+                    ?: runCatching { git.repository.resolve(refName) }.getOrNull()
+                    ?: continue
+                org.eclipse.jgit.revwalk.RevWalk(git.repository).use { walk ->
+                    walk.markStart(walk.parseCommit(headId))
+                    walk.markUninteresting(walk.parseCommit(remoteId))
+                    var count = 0
+                    for (c in walk) count++
+                    return count
+                }
+            }
+            // No remote tracking branch exists — every local commit is "ahead".
+            org.eclipse.jgit.revwalk.RevWalk(git.repository).use { walk ->
+                walk.markStart(walk.parseCommit(headId))
+                var count = 0
+                for (c in walk) count++
+                if (count > 0) count else null
             }
         } catch (_: Exception) {
             null
@@ -631,7 +671,7 @@ object GitManager {
                     remotes = remoteDetails(git).map { it.first }.sorted(),
                     branches = branchList(git),
                     currentBranch = branch,
-                    commitsAhead = commitsAheadInternal(git, branch)
+                    commitsAhead = commitsAheadWithFallback(git, branch)
                 )
             }
         } catch (_: Exception) {
@@ -659,7 +699,7 @@ object GitManager {
             Git.open(repoRoot).use { git ->
                 flushRepositoryCaches(git)
                 if (File(repoRoot, ".git/shallow").exists()) {
-                    git.fetch().setRemote(remoteOrUrl).setDepth(0).call()
+                    runCatching { git.fetch().setRemote(remoteOrUrl).setDepth(2147483647).call() }
                 }
                 val command = git.push()
                     .setRemote(remoteOrUrl)
@@ -679,7 +719,24 @@ object GitManager {
                         }
                     }
                 }
-                if (failures.isEmpty()) null else failures.joinToString("\n")
+                if (failures.isEmpty()) {
+                    // If branch had no upstream, set it to track the pushed remote
+                    // so future "commits ahead" shows correctly (like `git push -u`).
+                    runCatching {
+                        val cfg = git.repository.config
+                        if (cfg.getString("branch", branch, "remote").isNullOrBlank()) {
+                            // Only set upstream when remoteOrUrl is a named remote, not a URL
+                            val isUrl = remoteOrUrl.contains("://") || remoteOrUrl.contains("@")
+                            val remoteName = if (isUrl) null else remoteOrUrl
+                            if (remoteName != null && remoteDetails(git).any { it.first == remoteName }) {
+                                cfg.setString("branch", branch, "remote", remoteName)
+                                cfg.setString("branch", branch, "merge", "refs/heads/$branch")
+                                cfg.save()
+                            }
+                        }
+                    }
+                    null
+                } else failures.joinToString("\n")
             }
         } catch (e: Exception) {
             val msg = e.message ?: "Push failed."
@@ -792,7 +849,7 @@ object GitManager {
 
                 sb.append("PER-FILE (workspace listing, recursive):\n")
                 val files = mutableListOf<File>()
-                fun collect(d: File) { d.listFiles()?.forEach { if (it.isDirectory) collect(it) else files.add(it) } }
+                fun collect(d: File) { d.listFiles()?.forEach { if (it.isDirectory) { if (it.name == ".git") return@forEach; collect(it) } else files.add(it) } }
                 collect(workspaceRoot)
                 sb.append("  files = ").append(files.size).append(if (files.size > 60) " (showing first 60)\n" else "\n")
                 repo.newObjectInserter().use { inserter ->
@@ -1032,9 +1089,27 @@ object GitManager {
     // --- EXTENDED GIT ACTIONS ---
 
     /**
+     * Generates a fallback commit message from the set of [paths] and the
+     * overview diff stats. Never returns blank — used when the user leaves
+     * the commit message empty.
+     */
+    fun generateCommitMessage(paths: List<String>, overview: ChangesOverview? = null): String {
+        if (paths.isEmpty()) return "chore: update workspace"
+        val names = paths.map { it.substringAfterLast('/') }.take(3).joinToString(", ")
+        val more = if (paths.size > 3) " +${paths.size - 3} more" else ""
+        val verb = when {
+            overview != null && overview.conflicts.isNotEmpty() -> "fix: resolve conflicts in"
+            paths.any { it.endsWith(".md", ignoreCase = true) } && paths.size == 1 -> "docs: update"
+            else -> "chore: update"
+        }
+        return "$verb ${paths.size} file(s): $names$more"
+    }
+
+    /**
      * Stages only [paths] (repo-relative, e.g. from a status call) and commits
-     * them with [message]. Deletions are staged via `git add` semantics. Returns
-     * null on success, or a friendly error message.
+     * them with [message]. Deletions are staged via `git rm`. If [message] is
+     * blank the commit uses an auto-generated fallback so the call never fails
+     * for an empty message. Returns null on success, or a friendly error.
      */
     suspend fun commitSelected(
         workspaceRoot: File,
@@ -1044,9 +1119,8 @@ object GitManager {
         authorEmail: String = AUTHOR_EMAIL
     ): String? = gitMutex.withLock {
         val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
-        val trimmed = message.trim()
-        if (trimmed.isEmpty()) return@withLock "Commit message cannot be empty."
         if (paths.isEmpty()) return@withLock "No files selected to commit."
+        val effectiveMessage = message.trim().ifEmpty { generateCommitMessage(paths) }
         cleanupStaleLocks(workspaceRoot)
         try {
             Git.open(repoRoot).use { git ->
@@ -1059,7 +1133,7 @@ object GitManager {
                     }
                 }
                 git.commit()
-                    .setMessage(trimmed)
+                    .setMessage(effectiveMessage)
                     .setAuthor(authorName, authorEmail)
                     .setCommitter(authorName, authorEmail)
                     .call()
@@ -1069,6 +1143,8 @@ object GitManager {
             "Nothing to commit — the selected files are already up to date."
         } catch (e: Exception) {
             e.message ?: "Commit failed."
+        } finally {
+            cleanupStaleLocks(workspaceRoot)
         }
     }
 
@@ -1140,7 +1216,7 @@ object GitManager {
                     remotes = remoteDetails(git),
                     branches = branchList(git),
                     checkpointCount = checkpointList(git).size,
-                    commitsAhead = commitsAheadInternal(git, branch)
+                    commitsAhead = commitsAheadWithFallback(git, branch)
                 )
             }
         } catch (_: Exception) {
@@ -1164,7 +1240,7 @@ object GitManager {
             Git.open(repoRoot).use { git ->
                 flushRepositoryCaches(git)
                 if (File(repoRoot, ".git/shallow").exists()) {
-                    git.fetch().setRemote(remote).setDepth(0).call()
+                    runCatching { git.fetch().setRemote(remote).setDepth(2147483647).call() }
                 }
                 val command = git.pull().setRemote(remote)
                 if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
@@ -1173,7 +1249,15 @@ object GitManager {
                 ensureMergeIdentity(git)
                 val result = command.call()
                 if (result.isSuccessful) null
-                else "Pull failed${result.fetchedFrom?.let { " from $it" } ?: ""}."
+                else {
+                    val mergeStatus = result.mergeResult?.mergeStatus
+                    if (mergeStatus == MergeResult.MergeStatus.CONFLICTING) {
+                        val files = result.mergeResult?.conflicts?.keys?.joinToString(", ") ?: "unknown files"
+                        "Pull resulted in conflicts in: $files. Resolve them before continuing."
+                    } else if (result.fetchResult != null && result.fetchResult.messages.isNotBlank()) {
+                        "Pull failed: ${result.fetchResult.messages.trim().take(300)}"
+                    } else "Pull failed${result.fetchedFrom?.let { " from $it" } ?: ""}."
+                }
             }
         } catch (e: Exception) {
             e.message ?: "Pull failed."
@@ -1192,7 +1276,7 @@ object GitManager {
             Git.open(repoRoot).use { git ->
                 flushRepositoryCaches(git)
                 if (File(repoRoot, ".git/shallow").exists()) {
-                    git.fetch().setRemote(remote).setDepth(0).call()
+                    runCatching { git.fetch().setRemote(remote).setDepth(2147483647).call() }
                 }
                 val command = git.fetch().setRemote(remote)
                 if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
@@ -1216,16 +1300,32 @@ object GitManager {
         val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return@withLock "Branch name cannot be empty."
+        if (!isValidBranchName(trimmed)) return@withLock "Invalid branch name. Avoid spaces and characters: ~ ^ : ? * [ \\ ..  and cannot end with .lock or /."
+        if (trimmed.endsWith(".lock") || trimmed.endsWith("/")) return@withLock "Invalid branch name."
         cleanupStaleLocks(workspaceRoot)
         try {
             Git.open(repoRoot).use { git ->
                 flushRepositoryCaches(git)
-                git.branchCreate().setName(trimmed).setStartPoint(startRef).call()
+                // If repo has no commits, HEAD resolve will fail; JGit then creates orphan branch correctly.
+                val start = runCatching { git.repository.resolve(startRef) }.getOrNull()
+                if (start == null && startRef == "HEAD") {
+                    // No HEAD: create branch without start point (orphan, will be created on next commit)
+                    git.branchCreate().setName(trimmed).call()
+                } else {
+                    git.branchCreate().setName(trimmed).setStartPoint(startRef).call()
+                }
                 null
             }
         } catch (e: Exception) {
             e.message ?: "Failed to create branch."
         }
+    }
+
+    private fun isValidBranchName(name: String): Boolean {
+        if (name.contains(' ') || name.contains("..") || name.contains("~") || name.contains("^") || name.contains(":") || name.contains("?") || name.contains("*") || name.contains("[") || name.contains("\\")) return false
+        if (name.startsWith("-") || name.startsWith("/") || name.contains("//")) return false
+        if (name.contains("@{")) return false
+        return Regex("^[A-Za-z0-9._/\\-]+$").matches(name)
     }
 
     /**
@@ -1334,6 +1434,7 @@ object GitManager {
         val trimmedName = name.trim()
         val trimmedUrl = url.trim()
         if (trimmedName.isEmpty()) return@withLock "Remote name cannot be empty."
+        if (!Regex("^[A-Za-z0-9._-]+$").matches(trimmedName)) return@withLock "Invalid remote name. Use letters, digits, . _ - only (no spaces)."
         if (trimmedUrl.isEmpty()) return@withLock "Remote URL cannot be empty."
         cleanupStaleLocks(workspaceRoot)
         try {

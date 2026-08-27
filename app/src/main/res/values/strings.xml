@@ -61,6 +61,19 @@
     <string name="commit_group_conflicts">Conflicts</string>
     <string name="commit_no_changes">No changes to commit.</string>
     <string name="commit_success">Committed %1$d file(s).</string>
+    <string name="commit_select_title">Select files</string>
+    <string name="commit_select_hint">Choose files to include in this commit. Conflicts cannot be committed.</string>
+    <string name="commit_select_all">Select all</string>
+    <string name="commit_deselect_all">Deselect all</string>
+    <string name="commit_next">Next</string>
+    <string name="commit_back">Back</string>
+    <string name="commit_message_auto_help">Leave empty to use auto-generated message.</string>
+    <string name="commit_message_auto_note">If left empty, a message like “chore: update 3 file(s): Foo.kt, Bar.kt…” will be used.</string>
+    <string name="commit_no_selection">Select at least one file to commit.</string>
+    <string name="commit_init_title">Initialize Git repository?</string>
+    <string name="commit_init_msg">This workspace is not a Git repository yet. Initialize one so you can commit and track changes?</string>
+    <string name="commit_init_action">Initialize</string>
+    <string name="commit_init_done">Git repository initialized.</string>
     <string name="diff_loading">Loading diff…</string>
     <string name="diff_unavailable">Diff unavailable for this file.</string>
     <string name="revert_pick_hint">Commit to revert</string>
@@ -84,6 +97,16 @@
     <string name="git_status_push">%1$s · %2$s</string>
     <string name="git_status_head">HEAD: %1$s</string>
     <string name="git_status_branch">Current: %1$s</string>
+
+    <!-- Git Init -->
+    <string name="git_action_init">Initialize Repository</string>
+    <string name="git_action_init_desc">Create a Git repository in the current workspace</string>
+    <string name="git_init_status_ready">Workspace not tracked — tap to initialize</string>
+    <string name="git_init_status_done">Repository initialized</string>
+    <string name="git_init_success">Git repository initialized.</string>
+    <string name="git_init_already">Workspace is already a Git repository.</string>
+    <string name="git_init_failed">Failed to initialize repository.</string>
+    <string name="git_push_no_upstream_with_count">%1$d local commit(s) — no upstream set</string>
 
     <!-- Git Actions dialog -->
     <string name="git_section_sync">Sync</string>
