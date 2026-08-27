@@ -99,14 +99,17 @@ class CommandSheetOverlay(private val context: Context) {
             topMargin = spacingSm
         })
 
-        // Estimate sheet height without pre-measure; rely on WRAP_CONTENT anchor.
-        // Use a conservative height for positioning to avoid jump.
-        val estimateH = dp(220f)
+        // Measure real height to anchor precisely above pill — avoids estimate jump that read as flicker.
+        root.measure(
+            View.MeasureSpec.makeMeasureSpec(sheetW, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val realH = root.measuredHeight.coerceAtLeast(dp(120f))
         val metrics = res.displayMetrics
         val gap = dp(8f)
-        val topBound = (metrics.heightPixels - estimateH).coerceAtLeast(0)
-        val anchorY = if (preferAbove && (pillTop - gap - estimateH) >= dp(8)) {
-            pillTop - gap - estimateH
+        val topBound = (metrics.heightPixels - realH).coerceAtLeast(0)
+        val anchorY = if (preferAbove && (pillTop - gap - realH) >= dp(8)) {
+            pillTop - gap - realH
         } else {
             (pillBottom + gap).coerceIn(dp(8), topBound.coerceAtLeast(dp(8)))
         }
