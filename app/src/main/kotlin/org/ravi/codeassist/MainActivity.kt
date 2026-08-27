@@ -1474,11 +1474,13 @@ class MainActivity : AppCompatActivity() {
     private fun showCommitMessageDialog(rootFile: File, overview: GitManager.ChangesOverview, paths: List<String>) {
         val dialogView = android.view.LayoutInflater.from(this).inflate(R.layout.dialog_git_commit_message, null)
         val tvSelected = dialogView.findViewById<TextView>(R.id.tvCommitMessageSelected)
+        val til = dialogView.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.tilCommitMessage)
         val input = dialogView.findViewById<TextInputEditText>(R.id.etCommitMessage2)
 
         val autoMsg = GitManager.generateCommitMessage(paths, overview)
         tvSelected.text = getString(R.string.commit_success, paths.size) + " • " + paths.take(3).joinToString(", ") + if (paths.size > 3) " +${paths.size - 3} more" else ""
-        input.hint = autoMsg
+        til.placeholderText = autoMsg
+        input.hint = null
 
         val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle(R.string.git_action_commit)

@@ -16,11 +16,13 @@
         android:layout_marginBottom="12dp"/>
 
     <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilCommitMessage"
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="@string/commit_message_hint"
-        app:helperText="@string/commit_message_auto_help">
+        app:helperText="@string/commit_message_auto_help"
+        app:placeholderTextColor="?attr/colorOnSurfaceVariant">
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etCommitMessage2"
             android:layout_width="match_parent"
