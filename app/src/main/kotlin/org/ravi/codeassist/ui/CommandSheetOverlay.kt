@@ -5,8 +5,6 @@ import android.content.res.ColorStateList
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.os.Handler
-import android.os.Looper
 import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -27,7 +25,6 @@ import org.ravi.codeassist.R
 class CommandSheetOverlay(private val context: Context) {
 
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    private val handler = Handler(Looper.getMainLooper())
     private val themedContext = ContextThemeWrapper(context, R.style.Theme_CodeAssist)
     private val density = context.resources.displayMetrics.density
     private val res get() = context.resources
@@ -37,9 +34,6 @@ class CommandSheetOverlay(private val context: Context) {
     private var statusDot: View? = null
     private var statusText: TextView? = null
     private var teleText: TextView? = null
-    private var confirmBar: LinearLayout? = null
-    private var confirmTimer: Runnable? = null
-    private var onExitAction: (() -> Unit)? = null
 
     var onDismissed: (() -> Unit)? = null
 
@@ -76,78 +70,45 @@ class CommandSheetOverlay(private val context: Context) {
         dismiss()
         dismissing = false
 
-        val sheetW = dp(312f)
+        val sheetW = res.getDimension(R.dimen.sheet_width).toInt()
         val root = FrameLayout(themedContext).apply {
             alpha = 0f
-            translationY = dp(16f).toFloat()
-            scaleX = 0.97f
-            scaleY = 0.97f
+            translationY = dp(12f).toFloat()
+            scaleX = 0.98f
+            scaleY = 0.98f
         }
 
-        val cornerXl = res.getDimension(R.dimen.ovl_corner_xl)
+        val corner = res.getDimension(R.dimen.ovl_corner_xl)
         val glass = GradientDrawable().apply {
             setColor(ContextCompat.getColor(context, R.color.ovl_pill_glass))
-            cornerRadius = cornerXl
+            cornerRadius = corner
             setStroke(res.getDimension(R.dimen.ovl_stroke).toInt(), ContextCompat.getColor(context, R.color.ovl_stroke))
         }
 
         val spacingSm = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
         val spacingMd = res.getDimension(R.dimen.ovl_spacing_md).toInt()
-        val spacingLg = res.getDimension(R.dimen.ovl_spacing_lg).toInt()
         val content = LinearLayout(themedContext).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(spacingMd, spacingSm, spacingMd, spacingLg)
+            setPadding(spacingMd, spacingSm, spacingMd, spacingSm)
         }
         root.addView(content)
 
-        val gripW = res.getDimension(R.dimen.sheet_grip_w).toInt()
-        val gripH = res.getDimension(R.dimen.sheet_grip_h).toInt()
-        val grip = View(themedContext).apply {
-            background = ContextCompat.getDrawable(context, R.drawable.bg_sheet_grip)
-        }
-        content.addView(grip, LinearLayout.LayoutParams(gripW, gripH).apply {
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
-
         val header = buildHeader(accent, status, tele, onClose)
-        content.addView(header, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply {
-            topMargin = spacingSm
-        })
+        content.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
-        val grid = buildGrid(tools)
-        content.addView(grid, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply {
+        val grid = buildGrid(tools, onExit)
+        content.addView(grid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             topMargin = spacingMd
         })
 
-        val confirm = buildConfirmBar(onExit)
-        confirmBar = confirm
-        onExitAction = onExit
-        content.addView(confirm, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply {
-            topMargin = spacingSm
-        })
-
-        root.measure(
-            View.MeasureSpec.makeMeasureSpec(sheetW, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(res.displayMetrics.heightPixels, View.MeasureSpec.AT_MOST)
-        )
-        val sheetH = root.measuredHeight.coerceAtLeast(1)
-
-        root.background = glass
-
+        // Estimate sheet height without pre-measure; rely on WRAP_CONTENT anchor.
+        // Use a conservative height for positioning to avoid jump.
+        val estimateH = dp(220f)
         val metrics = res.displayMetrics
-        val gap = dp(12)
-        val topBound = (metrics.heightPixels - sheetH).coerceAtLeast(0)
-        val anchorY = if (preferAbove && (pillTop - gap - sheetH) >= dp(8)) {
-            pillTop - gap - sheetH
+        val gap = dp(8f)
+        val topBound = (metrics.heightPixels - estimateH).coerceAtLeast(0)
+        val anchorY = if (preferAbove && (pillTop - gap - estimateH) >= dp(8)) {
+            pillTop - gap - estimateH
         } else {
             (pillBottom + gap).coerceIn(dp(8), topBound.coerceAtLeast(dp(8)))
         }
@@ -166,20 +127,30 @@ class CommandSheetOverlay(private val context: Context) {
             if (event.action == MotionEvent.ACTION_OUTSIDE) {
                 dismiss()
                 true
-            } else {
-                true
-            }
+            } else true
         }
 
         windowManager.addView(root, params)
         container = root
+
+        // Re-anchor after layout to correct estimated height without flicker.
+        root.post {
+            val realH = root.height.coerceAtLeast(1)
+            if (realH != estimateH && preferAbove) {
+                val correctedY = (pillTop - gap - realH).coerceAtLeast(dp(8))
+                try {
+                    params.y = correctedY
+                    windowManager.updateViewLayout(root, params)
+                } catch (_: Exception) {}
+            }
+        }
 
         root.animate()
             .alpha(1f)
             .translationY(0f)
             .scaleX(1f)
             .scaleY(1f)
-            .setDuration(220)
+            .setDuration(200)
             .setInterpolator(DecelerateInterpolator())
             .start()
     }
@@ -187,7 +158,6 @@ class CommandSheetOverlay(private val context: Context) {
     private fun buildHeader(accent: Int, status: String, tele: String, onClose: () -> Unit): LinearLayout {
         val mid = ContextCompat.getColor(context, R.color.text_mid)
         val hi = ContextCompat.getColor(context, R.color.text_hi)
-
         val dotSize = res.getDimension(R.dimen.sheet_status_dot).toInt()
         val spacingMd = res.getDimension(R.dimen.ovl_spacing_md).toInt()
         val spacingSm = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
@@ -216,10 +186,7 @@ class CommandSheetOverlay(private val context: Context) {
         val infoCol = LinearLayout(themedContext).apply {
             orientation = LinearLayout.VERTICAL
             addView(statusText)
-            addView(teleText, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
+            addView(teleText, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = dp(1f)
             })
         }
@@ -234,27 +201,9 @@ class CommandSheetOverlay(private val context: Context) {
             backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.surf_high))
             strokeWidth = 0
             cornerRadius = closeCorner
-            insetLeft = 0
-            insetTop = 0
-            insetRight = 0
-            insetBottom = 0
-            minWidth = 0
-            minHeight = 0
+            insetLeft = 0; insetTop = 0; insetRight = 0; insetBottom = 0
+            minWidth = 0; minHeight = 0
             contentDescription = "Close"
-            setOnTouchListener { btn, event ->
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        btn.animate().scaleX(0.88f).scaleY(0.88f).setDuration(80).start()
-                        false
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        btn.animate().scaleX(1f).scaleY(1f).setDuration(120)
-                            .setInterpolator(DecelerateInterpolator()).start()
-                        false
-                    }
-                    else -> false
-                }
-            }
             setOnClickListener {
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 onClose()
@@ -264,46 +213,34 @@ class CommandSheetOverlay(private val context: Context) {
         return LinearLayout(themedContext).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(spacingSm, dp(2f), dp(2f), dp(5f))
-            addView(statusDot, LinearLayout.LayoutParams(dotSize, dotSize).apply {
-                marginEnd = spacingMd
-            })
-            addView(infoCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                marginEnd = spacingMd
-            })
+            setPadding(spacingSm, dp(2f), dp(2f), dp(2f))
+            addView(statusDot, LinearLayout.LayoutParams(dotSize, dotSize).apply { marginEnd = spacingMd })
+            addView(infoCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = spacingMd })
             addView(close, LinearLayout.LayoutParams(closeSize, closeSize))
         }
     }
 
-    private fun buildGrid(tools: List<ToolSpec>): LinearLayout {
-        val grid = LinearLayout(themedContext).apply {
-            orientation = LinearLayout.VERTICAL
-        }
+    private fun buildGrid(tools: List<ToolSpec>, onExit: () -> Unit): LinearLayout {
+        val grid = LinearLayout(themedContext).apply { orientation = LinearLayout.VERTICAL }
         val cellW = res.getDimension(R.dimen.sheet_tool_cell_w).toInt()
         val gap = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
         tools.chunked(3).forEachIndexed { rowIdx, rowTools ->
-            val row = LinearLayout(themedContext).apply {
-                orientation = LinearLayout.HORIZONTAL
-            }
+            val row = LinearLayout(themedContext).apply { orientation = LinearLayout.HORIZONTAL }
             rowTools.forEachIndexed { colIdx, spec ->
-                val cell = buildTool(spec)
+                val cell = buildTool(spec, onExit)
                 val lp = LinearLayout.LayoutParams(cellW, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     if (colIdx > 0) marginStart = gap
                 }
                 row.addView(cell, lp)
             }
-            grid.addView(row, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
+            grid.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 if (rowIdx > 0) topMargin = gap
             })
         }
         return grid
     }
 
-    private fun buildTool(spec: ToolSpec): LinearLayout {
-        val isExit = spec.label == "Exit"
+    private fun buildTool(spec: ToolSpec, onExit: () -> Unit): LinearLayout {
         val accent = spec.accent
         val spacingSm = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
         val spacingMd = res.getDimension(R.dimen.ovl_spacing_md).toInt()
@@ -313,17 +250,14 @@ class CommandSheetOverlay(private val context: Context) {
         val cellCorner = res.getDimension(R.dimen.ovl_corner_md)
 
         val chipBg = GradientDrawable().apply {
-            setColor(ColorUtils.setAlphaComponent(accent, 36))
+            setColor(ColorUtils.setAlphaComponent(accent, 34))
             cornerRadius = chipCorner
         }
-        val chip = FrameLayout(themedContext).apply {
-            background = chipBg
-        }
+        val chip = FrameLayout(themedContext).apply { background = chipBg }
         val icon = ImageView(themedContext).apply {
             setImageResource(spec.iconRes)
             setColorFilter(accent)
-            isClickable = false
-            isFocusable = false
+            isClickable = false; isFocusable = false
         }
         chip.addView(icon, FrameLayout.LayoutParams(iconSize, iconSize, Gravity.CENTER))
 
@@ -346,174 +280,43 @@ class CommandSheetOverlay(private val context: Context) {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             background = cellBg
-            isClickable = true
+            isClickable = true; isFocusable = true
             setPadding(0, spacingMd, 0, spacingSm)
             addView(chip, LinearLayout.LayoutParams(chipSize, chipSize))
-            addView(label, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(7f)
-            })
+            addView(label, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6f) })
         }
 
-        val onToolTap = {
-            if (isExit) {
-                handleExitTap()
+        cell.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            if (spec.label == "Exit") {
+                showExitConfirm(onExit)
             } else {
                 dismiss()
                 spec.action()
             }
         }
-        chip.setOnClickListener {
-            chip.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            onToolTap()
-        }
-        cell.setOnClickListener {
-            cell.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-            onToolTap()
-        }
-        cell.setOnTouchListener { v, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    v.animate().scaleX(0.96f).scaleY(0.96f).setDuration(90).start()
-                    false
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    v.animate().scaleX(1f).scaleY(1f).setDuration(120).setInterpolator(DecelerateInterpolator()).start()
-                    false
-                }
-                else -> false
-            }
-        }
         return cell
     }
 
-    private fun buildConfirmBar(onExit: () -> Unit): LinearLayout {
-        val red = ContextCompat.getColor(context, R.color.state_red)
-        val mid = ContextCompat.getColor(context, R.color.text_mid)
-        val spacingSm = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
-        val spacingMd = res.getDimension(R.dimen.ovl_spacing_md).toInt()
-        val btnH = res.getDimension(R.dimen.sheet_confirm_btn_h).toInt()
-        val btnCorner = dimenDp(R.dimen.ovl_corner_sm)
-        val barCorner = res.getDimension(R.dimen.ovl_corner_sm)
-
-        val title = TextView(themedContext).apply {
-            text = "Really exit? The agent session stops."
-            setTextColor(red)
-            textSize = res.getDimension(R.dimen.ovl_text_sm) / res.displayMetrics.scaledDensity
-            typeface = Typeface.DEFAULT_BOLD
-            setSingleLine(true)
-        }
-
-        val yes = MaterialButton(themedContext, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-            text = "Exit"
-            setTextColor(ContextCompat.getColor(context, R.color.text_hi))
-            backgroundTintList = ColorStateList.valueOf(red)
-            cornerRadius = btnCorner
-            insetLeft = dp(2f)
-            insetTop = 0
-            insetRight = dp(2f)
-            insetBottom = 0
-            minWidth = 0
-            minHeight = 0
-            setOnClickListener {
-                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                dismiss()
-                onExit()
-            }
-        }
-        val keep = MaterialButton(themedContext, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-            text = "Keep"
-            setTextColor(mid)
-            backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.surf_high))
-            cornerRadius = btnCorner
-            insetLeft = dp(2f)
-            insetTop = 0
-            insetRight = dp(2f)
-            insetBottom = 0
-            minWidth = 0
-            minHeight = 0
-            setOnClickListener {
-                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                hideConfirmBar()
-            }
-        }
-
-        val barBg = GradientDrawable().apply {
-            setColor(ColorUtils.setAlphaComponent(red, 30))
-            cornerRadius = barCorner
-            setStroke(res.getDimension(R.dimen.ovl_stroke).toInt(), ColorUtils.setAlphaComponent(red, 90))
-        }
-
-        return LinearLayout(themedContext).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = barBg
-            visibility = View.GONE
-            setPadding(spacingMd, dp(7f), spacingMd, dp(7f))
-            addView(title, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                marginEnd = spacingSm
-            })
-            addView(yes, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, btnH).apply {
-                marginEnd = spacingSm
-            })
-            addView(keep, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, btnH))
-        }
-    }
-
-    private fun handleExitTap() {
-        val bar = confirmBar ?: return
-        if (bar.visibility == View.VISIBLE) {
-            val action = onExitAction
+    private fun showExitConfirm(onExit: () -> Unit) {
+        // Use system dialog instead of expanding sheet — no layout shift, no timer flicker.
+        try {
+            val dialog = android.app.AlertDialog.Builder(themedContext)
+                .setTitle("Exit agent?")
+                .setMessage("The current session will be stopped.")
+                .setPositiveButton("Exit") { _, _ ->
+                    dismiss()
+                    onExit()
+                }
+                .setNegativeButton("Keep", null)
+                .create()
+            dialog.window?.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
+            dialog.show()
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)?.setTextColor(ContextCompat.getColor(context, R.color.state_red))
+        } catch (_: Exception) {
             dismiss()
-            action?.invoke()
-            return
+            onExit()
         }
-        bar.measure(
-            View.MeasureSpec.makeMeasureSpec(container?.width ?: dp(300), View.MeasureSpec.AT_MOST),
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        )
-        val barH = bar.measuredHeight
-        val lp = container?.layoutParams as? WindowManager.LayoutParams
-        if (lp != null) {
-            lp.y = (lp.y - barH - dp(2)).coerceAtLeast(dp(8))
-            try {
-                windowManager.updateViewLayout(container, lp)
-            } catch (_: Exception) {}
-        }
-        bar.visibility = View.VISIBLE
-        bar.alpha = 0f
-        bar.translationY = dp(6).toFloat()
-        bar.animate()
-            .alpha(1f)
-            .translationY(0f)
-            .setDuration(180)
-            .setInterpolator(DecelerateInterpolator())
-            .start()
-        val timer = Runnable { hideConfirmBar() }
-        confirmTimer = timer
-        handler.postDelayed(timer, 5000)
-    }
-
-    private fun hideConfirmBar() {
-        confirmTimer?.let { handler.removeCallbacks(it) }
-        confirmTimer = null
-        val bar = confirmBar ?: return
-        if (bar.visibility != View.VISIBLE) return
-        bar.animate()
-            .alpha(0f)
-            .setDuration(120)
-            .withEndAction {
-                bar.visibility = View.GONE
-                val h = bar.measuredHeight
-                val lp = container?.layoutParams as? WindowManager.LayoutParams ?: return@withEndAction
-                lp.y += h + dp(2)
-                try {
-                    windowManager.updateViewLayout(container, lp)
-                } catch (_: Exception) {}
-            }
-            .start()
     }
 
     fun updateStatus(accent: Int, status: String, tele: String) {
@@ -523,35 +326,26 @@ class CommandSheetOverlay(private val context: Context) {
     }
 
     fun dismiss() {
-        confirmTimer?.let { handler.removeCallbacks(it) }
-        confirmTimer = null
         if (dismissing) return
         val root = container ?: return
         dismissing = true
-        confirmBar = null
         root.animate().cancel()
         root.animate()
             .alpha(0f)
-            .translationY(dp(10).toFloat())
-            .scaleX(0.97f)
-            .scaleY(0.97f)
+            .translationY(dp(8f).toFloat())
+            .scaleX(0.98f).scaleY(0.98f)
             .setDuration(140)
             .setInterpolator(DecelerateInterpolator())
             .withEndAction {
                 dismissing = false
                 container = null
-                try {
-                    windowManager.removeView(root)
-                } catch (_: Exception) {}
+                try { windowManager.removeView(root) } catch (_: Exception) {}
                 onDismissed?.invoke()
             }
             .start()
     }
 
     private fun dp(v: Int): Int = (v * density).toInt()
-
     private fun dp(v: Float): Int = (v * density).toInt()
-
-    private fun dimenDp(resId: Int): Int =
-        (res.getDimension(resId) / res.displayMetrics.density).toInt()
+    private fun dimenDp(resId: Int): Int = (res.getDimension(resId) / res.displayMetrics.density).toInt()
 }

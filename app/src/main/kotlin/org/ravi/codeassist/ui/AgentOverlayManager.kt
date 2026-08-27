@@ -89,12 +89,8 @@ class AgentOverlayManager(private val context: Context) {
         var initialTouchX = 0f
         var initialTouchY = 0f
         var dragged = false
-        // Debounce pill taps: the sheet entrance alone takes 320ms, so rapid
-        // re-taps inside that window would toggle it closed right after opening
-        // and read as flicker. Toggle decisions are made from the live sheet
-        // state at release, not a snapshot taken at press.
         var lastTapAt = 0L
-        val tapCooldown = 400L
+        val tapCooldown = 260L
 
         view.setOnTouchListener { _, event ->
             val layoutParams = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false
@@ -147,16 +143,12 @@ class AgentOverlayManager(private val context: Context) {
                     true
                 }
                 MotionEvent.ACTION_OUTSIDE -> {
-                    // The sheet window also trips this listener (it's a separate
-                    // overlay), so a tap inside the sheet must not close it —
-                    // only touches beyond both windows dismiss it.
-                    val sheet = sheetOverlay
-                    if (sheet?.hitTest(event.rawX.toInt(), event.rawY.toInt()) != true) {
-                        dismissSheet()
-                        // Treat the outside tap as a toggle action too, so a quick
-                        // pill tap right after can't bounce the sheet back open.
-                        lastTapAt = SystemClock.uptimeMillis()
+                    if (sheetOverlay?.isShowing == true) {
+                        // Sheet owns outside taps — pill ignores to avoid double-dismiss flicker.
+                        pillView?.setPressFeedback(false)
+                        return@setOnTouchListener false
                     }
+                    dismissSheet()
                     pillView?.setPressFeedback(false)
                     true
                 }
@@ -193,25 +185,31 @@ class AgentOverlayManager(private val context: Context) {
 
     private fun openSheet() {
         if (sheetOverlay?.isShowing == true) return
-        val lp = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return
-        val fallback = dp(250f)
-        // Measure the pill on demand so the sheet always anchors to its real
-        // bounds, even if the user taps before the first layout pass.
-        var winW = overlayView?.width ?: 0
-        var winH = overlayView?.height ?: 0
+        val view = overlayView ?: return
+        val lp = view.layoutParams as? WindowManager.LayoutParams ?: return
+        var winW = view.width
+        var winH = view.height
         if (winW <= 0 || winH <= 0) {
-            overlayView?.measure(
-                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
-                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-            )
-            winW = overlayView?.measuredWidth ?: 0
-            winH = overlayView?.measuredHeight ?: 0
+            val loc = IntArray(2)
+            view.getLocationOnScreen(loc)
+            winW = view.measuredWidth.takeIf { it > 0 } ?: dp(148f)
+            winH = view.measuredHeight.takeIf { it > 0 } ?: dp(40f)
+            if (loc[1] != 0) {
+                val metrics = context.resources.displayMetrics
+                val centerX = loc[0] + winW / 2
+                val pillTop = loc[1]
+                showSheetAt(centerX, pillTop, winW, winH)
+                return
+            }
         }
-        if (winW <= 0) winW = fallback
-        if (winH <= 0) winH = dp(48f)
         val metrics = context.resources.displayMetrics
         val centerX = (metrics.widthPixels - winW) / 2 + lp.x + winW / 2
         val pillTop = metrics.heightPixels - lp.y - winH
+        showSheetAt(centerX, pillTop, winW, winH)
+    }
+
+    private fun showSheetAt(centerX: Int, pillTop: Int, winW: Int, winH: Int) {
+        val metrics = context.resources.displayMetrics
 
         val mint = ContextCompat.getColor(context, R.color.brand_mint)
         val violet = ContextCompat.getColor(context, R.color.state_violet)

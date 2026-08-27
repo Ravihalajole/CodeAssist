@@ -40,10 +40,6 @@ class CommandPillView @JvmOverloads constructor(
         style = Paint.Style.STROKE
         strokeWidth = resources.getDimension(R.dimen.ovl_stroke)
     }
-    private val rimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = dp(2f)
-    }
     private val auraPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
     }
@@ -56,13 +52,6 @@ class CommandPillView @JvmOverloads constructor(
         style = Paint.Style.STROKE
         strokeWidth = dp(2f)
         strokeCap = Paint.Cap.ROUND
-    }
-    private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        shader = LinearGradient(
-            0f, 0f, 0f, dp(1.5f),
-            ContextCompat.getColor(context, R.color.ovl_core_border),
-            Color.TRANSPARENT, Shader.TileMode.CLAMP
-        )
     }
 
     private val pillRect = RectF()
@@ -139,18 +128,15 @@ class CommandPillView @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        // True capsule: the ends round to half the height.
         cornerRadius = h / 2f
         pillRect.set(0f, 0f, w.toFloat(), h.toFloat())
         pillPath.reset()
         pillPath.addRoundRect(pillRect, cornerRadius, cornerRadius, Path.Direction.CW)
-        rebuildRim()
     }
 
     fun applyUi(accentColor: Int, isGenerating: Boolean, isGlow: Boolean, label: String, sub: String) {
         if (accentColor != 0 && accentColor != accent) {
             accent = accentColor
-            rebuildRim()
             invalidate()
         }
         dotView?.background?.setTint(accent)
@@ -158,15 +144,6 @@ class CommandPillView @JvmOverloads constructor(
         subView?.text = sub
         setGenerating(isGenerating)
         setGlow(isGlow)
-    }
-
-    private fun rebuildRim() {
-        if (pillRect.width() > 0f) {
-            rimPaint.shader = LinearGradient(
-                pillRect.left, pillRect.top, pillRect.right, pillRect.bottom,
-                accent, Color.TRANSPARENT, Shader.TileMode.CLAMP
-            )
-        }
     }
 
     private fun setGenerating(gen: Boolean) {
@@ -244,7 +221,6 @@ class CommandPillView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-
         if (glow && auraAlpha > 0f) {
             val radius = min(width, height).toFloat() * 0.85f
             auraPaint.shader = RadialGradient(
@@ -255,26 +231,13 @@ class CommandPillView @JvmOverloads constructor(
             canvas.drawCircle(width / 2f, height / 2f, radius, auraPaint)
             auraPaint.alpha = 255
         }
-
         canvas.drawRoundRect(pillRect, cornerRadius, cornerRadius, bgPaint)
         val halfStroke = resources.getDimension(R.dimen.ovl_stroke) / 2f
         canvas.drawRoundRect(
             RectF(pillRect.left + halfStroke, pillRect.top + halfStroke, pillRect.right - halfStroke, pillRect.bottom - halfStroke),
             cornerRadius - halfStroke, cornerRadius - halfStroke, borderPaint
         )
-        val rimInset = dp(1f)
-        canvas.drawRoundRect(
-            RectF(pillRect.left + rimInset, pillRect.top + rimInset, pillRect.right - rimInset, pillRect.bottom - rimInset),
-            cornerRadius - rimInset, cornerRadius - rimInset, rimPaint
-        )
-
-        canvas.save()
-        canvas.clipPath(pillPath)
-        canvas.drawRect(pillRect.left, pillRect.top, pillRect.right, pillRect.top + dp(1.5f), highlightPaint)
-        canvas.restore()
         if (generating) {
-            // Compact activity ring around the morph button: a faint track plus a
-            // rotating accent arc. Zero extra footprint on the pill.
             val btn = morphButton ?: return
             val cx = btn.left + btn.width / 2f
             val cy = btn.top + btn.height / 2f
