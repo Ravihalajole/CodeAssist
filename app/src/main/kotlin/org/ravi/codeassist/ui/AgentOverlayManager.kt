@@ -56,7 +56,7 @@ class AgentOverlayManager(private val context: Context) {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
@@ -143,14 +143,9 @@ class AgentOverlayManager(private val context: Context) {
                     true
                 }
                 MotionEvent.ACTION_OUTSIDE -> {
-                    if (sheetOverlay?.isShowing == true) {
-                        // Sheet owns outside taps — pill ignores to avoid double-dismiss flicker.
-                        pillView?.setPressFeedback(false)
-                        return@setOnTouchListener false
-                    }
-                    dismissSheet()
+                    // No tap-outside-to-close — sheet closes only via X or pill toggle.
                     pillView?.setPressFeedback(false)
-                    true
+                    false
                 }
                 else -> false
             }

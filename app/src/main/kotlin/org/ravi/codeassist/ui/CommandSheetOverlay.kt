@@ -31,9 +31,6 @@ class CommandSheetOverlay(private val context: Context) {
 
     private var container: FrameLayout? = null
     private var dismissing = false
-    private var statusDot: View? = null
-    private var statusText: TextView? = null
-    private var teleText: TextView? = null
 
     var onDismissed: (() -> Unit)? = null
 
@@ -93,12 +90,13 @@ class CommandSheetOverlay(private val context: Context) {
         }
         root.addView(content)
 
-        val header = buildHeader(accent, status, tele, onClose)
+        // Minimal header — only close button, no status/dot
+        val header = buildHeader(onClose)
         content.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         val grid = buildGrid(tools, onExit)
         content.addView(grid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = spacingMd
+            topMargin = spacingSm
         })
 
         // Estimate sheet height without pre-measure; rely on WRAP_CONTENT anchor.
@@ -115,19 +113,12 @@ class CommandSheetOverlay(private val context: Context) {
         val params = WindowManager.LayoutParams(
             sheetW, WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = (centerX - sheetW / 2).coerceIn(0, (metrics.widthPixels - sheetW).coerceAtLeast(0))
             y = anchorY
-        }
-
-        root.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_OUTSIDE) {
-                dismiss()
-                true
-            } else true
         }
 
         windowManager.addView(root, params)
@@ -155,42 +146,8 @@ class CommandSheetOverlay(private val context: Context) {
             .start()
     }
 
-    private fun buildHeader(accent: Int, status: String, tele: String, onClose: () -> Unit): LinearLayout {
+    private fun buildHeader(onClose: () -> Unit): LinearLayout {
         val mid = ContextCompat.getColor(context, R.color.text_mid)
-        val hi = ContextCompat.getColor(context, R.color.text_hi)
-        val dotSize = res.getDimension(R.dimen.sheet_status_dot).toInt()
-        val spacingMd = res.getDimension(R.dimen.ovl_spacing_md).toInt()
-        val spacingSm = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
-
-        statusDot = View(themedContext).apply {
-            background = ContextCompat.getDrawable(context, R.drawable.bg_sheet_dot)?.mutate()
-            background?.setTint(accent)
-        }
-        statusText = TextView(themedContext).apply {
-            text = status
-            setTextColor(hi)
-            textSize = res.getDimension(R.dimen.ovl_text_md) / res.displayMetrics.scaledDensity
-            letterSpacing = 0.01f
-            typeface = Typeface.DEFAULT_BOLD
-            setSingleLine(true)
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-        teleText = TextView(themedContext).apply {
-            text = tele
-            setTextColor(mid)
-            textSize = res.getDimension(R.dimen.ovl_text_xs) / res.displayMetrics.scaledDensity
-            setSingleLine(true)
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-
-        val infoCol = LinearLayout(themedContext).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(statusText)
-            addView(teleText, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = dp(1f)
-            })
-        }
-
         val closeSize = res.getDimension(R.dimen.sheet_close_size).toInt()
         val closeIcon = res.getDimension(R.dimen.sheet_close_icon).toInt()
         val closeCorner = dimenDp(R.dimen.ovl_corner_sm)
@@ -209,13 +166,10 @@ class CommandSheetOverlay(private val context: Context) {
                 onClose()
             }
         }
-
         return LinearLayout(themedContext).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(spacingSm, dp(2f), dp(2f), dp(2f))
-            addView(statusDot, LinearLayout.LayoutParams(dotSize, dotSize).apply { marginEnd = spacingMd })
-            addView(infoCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = spacingMd })
+            gravity = Gravity.END
+            setPadding(0, 0, 0, 0)
             addView(close, LinearLayout.LayoutParams(closeSize, closeSize))
         }
     }
@@ -223,7 +177,7 @@ class CommandSheetOverlay(private val context: Context) {
     private fun buildGrid(tools: List<ToolSpec>, onExit: () -> Unit): LinearLayout {
         val grid = LinearLayout(themedContext).apply { orientation = LinearLayout.VERTICAL }
         val cellW = res.getDimension(R.dimen.sheet_tool_cell_w).toInt()
-        val gap = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
+        val gap = dp(6f)
         tools.chunked(3).forEachIndexed { rowIdx, rowTools ->
             val row = LinearLayout(themedContext).apply { orientation = LinearLayout.HORIZONTAL }
             rowTools.forEachIndexed { colIdx, spec ->
@@ -242,8 +196,8 @@ class CommandSheetOverlay(private val context: Context) {
 
     private fun buildTool(spec: ToolSpec, onExit: () -> Unit): LinearLayout {
         val accent = spec.accent
-        val spacingSm = res.getDimension(R.dimen.ovl_spacing_sm).toInt()
-        val spacingMd = res.getDimension(R.dimen.ovl_spacing_md).toInt()
+        val spacingSm = dp(6f)
+        val spacingMd = dp(8f)
         val chipSize = res.getDimension(R.dimen.sheet_tool_icon_chip).toInt()
         val iconSize = res.getDimension(R.dimen.sheet_tool_icon).toInt()
         val chipCorner = res.getDimension(R.dimen.sheet_tool_icon_corner)
@@ -320,9 +274,7 @@ class CommandSheetOverlay(private val context: Context) {
     }
 
     fun updateStatus(accent: Int, status: String, tele: String) {
-        statusDot?.background?.setTint(accent)
-        statusText?.text = status
-        teleText?.text = tele
+        // Header no longer shows status — pill remains the single source of truth.
     }
 
     fun dismiss() {
