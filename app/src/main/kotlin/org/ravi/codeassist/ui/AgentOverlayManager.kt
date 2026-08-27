@@ -220,6 +220,8 @@ class AgentOverlayManager(private val context: Context) {
         return card
     }
 
+    private data class ToolDef(val label: String, val iconRes: Int, val accent: Int, val action: () -> Unit)
+
     private fun buildGridView(themed: Context): LinearLayout {
         val mint = ContextCompat.getColor(context, R.color.brand_mint)
         val violet = ContextCompat.getColor(context, R.color.state_violet)
@@ -227,17 +229,17 @@ class AgentOverlayManager(private val context: Context) {
         val mid = ContextCompat.getColor(context, R.color.text_mid)
         val red = ContextCompat.getColor(context, R.color.state_red)
         val tools = listOf(
-            Triple("Resume", R.drawable.ic_stroke_play to mint) to { org.ravi.codeassist.agent.ToolboxManager.getTool("resume_session")?.onExecute() },
-            Triple("Init", R.drawable.ic_play to mint) to { org.ravi.codeassist.agent.ToolboxManager.getTool("init_workspace")?.onExecute() },
-            Triple("Bounds", R.drawable.ic_target_crosshair to violet) to { org.ravi.codeassist.agent.ToolboxManager.getTool("configure_scroll_zone")?.onExecute() },
-            Triple("Reset", R.drawable.ic_tool_reset to amber) to { org.ravi.codeassist.agent.ToolboxManager.getTool("new_session")?.onExecute() },
-            Triple("App", R.drawable.ic_nav_settings to mid) to {
+            ToolDef("Resume", R.drawable.ic_stroke_play, mint) { org.ravi.codeassist.agent.ToolboxManager.getTool("resume_session")?.onExecute() },
+            ToolDef("Init", R.drawable.ic_play, mint) { org.ravi.codeassist.agent.ToolboxManager.getTool("init_workspace")?.onExecute() },
+            ToolDef("Bounds", R.drawable.ic_target_crosshair, violet) { org.ravi.codeassist.agent.ToolboxManager.getTool("configure_scroll_zone")?.onExecute() },
+            ToolDef("Reset", R.drawable.ic_tool_reset, amber) { org.ravi.codeassist.agent.ToolboxManager.getTool("new_session")?.onExecute() },
+            ToolDef("App", R.drawable.ic_nav_settings, mid) {
                 val intent = android.content.Intent(context, org.ravi.codeassist.MainActivity::class.java).apply {
                     flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
                 }
                 context.startActivity(intent)
             },
-            Triple("Exit", R.drawable.ic_close to red) to { showExitConfirm() },
+            ToolDef("Exit", R.drawable.ic_close, red) { showExitConfirm() },
         )
         val grid = LinearLayout(themed).apply { orientation = LinearLayout.VERTICAL }
         val density = context.resources.displayMetrics.density
@@ -245,13 +247,8 @@ class AgentOverlayManager(private val context: Context) {
         val cellW = context.resources.getDimension(R.dimen.sheet_tool_cell_w).toInt()
         tools.chunked(3).forEachIndexed { rowIdx, row ->
             val rowView = LinearLayout(themed).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
-            row.forEachIndexed { colIdx, (labelIcon, action) ->
-                val (label, iconRes) = labelIcon
-                // iconRes is Pair(res, color) actually stored as Pair<Int,Int> in second
-                // Our tools list above stores Triple with Pair; unwrap:
-                val resId = (iconRes as Pair<Int,Int>).first
-                val accent = (iconRes as Pair<Int,Int>).second
-                val cell = buildToolCell(themed, label, resId, accent, action)
+            row.forEachIndexed { colIdx, tool ->
+                val cell = buildToolCell(themed, tool.label, tool.iconRes, tool.accent, tool.action)
                 val lp = LinearLayout.LayoutParams(cellW, ViewGroup.LayoutParams.WRAP_CONTENT).apply { if (colIdx>0) marginStart = gap }
                 rowView.addView(cell, lp)
             }
