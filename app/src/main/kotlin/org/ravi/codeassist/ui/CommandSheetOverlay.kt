@@ -64,7 +64,11 @@ class CommandSheetOverlay(private val context: Context) {
         onClose: () -> Unit,
         onExit: () -> Unit
     ) {
-        dismiss()
+        // If a sheet is already showing, remove it instantly — don't animate old out while new fades in (causes overlap flicker)
+        container?.let { old ->
+            try { windowManager.removeView(old) } catch (_: Exception) {}
+            container = null
+        }
         dismissing = false
 
         val sheetW = res.getDimension(R.dimen.sheet_width).toInt()
@@ -127,13 +131,17 @@ class CommandSheetOverlay(private val context: Context) {
         windowManager.addView(root, params)
         container = root
 
-        root.animate()
+        // Animate content, not window root — avoids surface flicker (window stays opaque)
+        content.alpha = 0f
+        content.translationY = dp(12f).toFloat()
+        content.scaleX = 0.96f
+        content.scaleY = 0.96f
+        content.animate()
             .alpha(1f)
             .translationY(0f)
             .scaleX(1f)
             .scaleY(1f)
             .setDuration(200)
-            .withLayer()
             .setInterpolator(DecelerateInterpolator())
             .start()
     }
@@ -272,15 +280,15 @@ class CommandSheetOverlay(private val context: Context) {
     fun dismiss() {
         if (dismissing) return
         val root = container ?: return
+        val content = root.getChildAt(0) ?: root
         dismissing = true
-        root.removeCallbacks(null)
+        content.animate().cancel()
         root.animate().cancel()
-        root.animate()
+        content.animate()
             .alpha(0f)
             .translationY(dp(8f).toFloat())
             .scaleX(0.98f).scaleY(0.98f)
             .setDuration(140)
-            .withLayer()
             .setInterpolator(DecelerateInterpolator())
             .withEndAction {
                 dismissing = false
