@@ -35,7 +35,7 @@
     <dimen name="sheet_status_dot">12dp</dimen>
     <dimen name="sheet_close_size">24dp</dimen>
     <dimen name="sheet_close_icon">12dp</dimen>
-    <dimen name="sheet_tool_cell_w">80dp</dimen>
+    <dimen name="sheet_tool_cell_w">78dp</dimen>
     <dimen name="sheet_tool_icon_chip">28dp</dimen>
     <dimen name="sheet_tool_icon">16dp</dimen>
     <dimen name="sheet_tool_icon_corner">10dp</dimen>
