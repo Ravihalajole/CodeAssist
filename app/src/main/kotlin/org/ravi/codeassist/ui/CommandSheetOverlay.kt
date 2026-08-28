@@ -87,18 +87,12 @@ class CommandSheetOverlay(private val context: Context) {
         val spacingMd = res.getDimension(R.dimen.ovl_spacing_md).toInt()
         val content = LinearLayout(themedContext).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(spacingMd, spacingSm, spacingMd, spacingSm)
+            setPadding(spacingMd, spacingMd, spacingMd, spacingMd)
         }
         root.addView(content)
-
-        // Minimal header — only close button, no status/dot
-        val header = buildHeader(onClose)
-        content.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-
+        // No header — close via outside tap or pill
         val grid = buildGrid(tools, onExit)
-        content.addView(grid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = spacingSm
-        })
+        content.addView(grid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         // Measure real height to anchor precisely above pill — avoids estimate jump that read as flicker.
         root.measure(
@@ -114,15 +108,26 @@ class CommandSheetOverlay(private val context: Context) {
         } else {
             (pillBottom + gap).coerceIn(dp(8), topBound.coerceAtLeast(dp(8)))
         }
+        // Background — solid glass bento card with scrim feel
+        root.background = glass
+        // Dim scrim behind sheet is handled by window background; keep glass opaque enough
         val params = WindowManager.LayoutParams(
             sheetW, WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = (centerX - sheetW / 2).coerceIn(0, (metrics.widthPixels - sheetW).coerceAtLeast(0))
             y = anchorY
+        }
+
+        // Outside tap closes — user requested
+        root.setOnTouchListener { _, ev ->
+            if (ev.action == MotionEvent.ACTION_OUTSIDE) {
+                dismiss()
+                true
+            } else false
         }
 
         windowManager.addView(root, params)
@@ -141,34 +146,6 @@ class CommandSheetOverlay(private val context: Context) {
             .setDuration(200)
             .setInterpolator(DecelerateInterpolator())
             .start()
-    }
-
-    private fun buildHeader(onClose: () -> Unit): LinearLayout {
-        val mid = ContextCompat.getColor(context, R.color.text_mid)
-        val closeSize = res.getDimension(R.dimen.sheet_close_size).toInt()
-        val closeIcon = res.getDimension(R.dimen.sheet_close_icon).toInt()
-        val closeCorner = dimenDp(R.dimen.ovl_corner_sm)
-        val close = MaterialButton(themedContext, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-            icon = ContextCompat.getDrawable(context, R.drawable.ic_close)
-            iconSize = closeIcon
-            iconTint = ColorStateList.valueOf(mid)
-            backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.surf_high))
-            strokeWidth = 0
-            cornerRadius = closeCorner
-            insetLeft = 0; insetTop = 0; insetRight = 0; insetBottom = 0
-            minWidth = 0; minHeight = 0
-            contentDescription = "Close"
-            setOnClickListener {
-                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                onClose()
-            }
-        }
-        return LinearLayout(themedContext).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.END
-            setPadding(0, 0, 0, 0)
-            addView(close, LinearLayout.LayoutParams(closeSize, closeSize))
-        }
     }
 
     private fun buildGrid(tools: List<ToolSpec>, onExit: () -> Unit): LinearLayout {
