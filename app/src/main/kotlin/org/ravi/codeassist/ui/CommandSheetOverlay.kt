@@ -73,10 +73,7 @@ class CommandSheetOverlay(private val context: Context) {
 
         val sheetW = res.getDimension(R.dimen.sheet_width).toInt()
         val root = FrameLayout(themedContext).apply {
-            alpha = 0f
-            translationY = dp(12f).toFloat()
-            scaleX = 0.98f
-            scaleY = 0.98f
+            alpha = 1f
         }
 
         val corner = res.getDimension(R.dimen.ovl_corner_xl)
