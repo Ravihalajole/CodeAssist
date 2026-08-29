@@ -146,11 +146,11 @@
                         android:insetTop="0dp"
                         android:insetRight="0dp"
                         android:insetBottom="0dp"
-                        app:icon="@drawable/ic_history"
+                        app:icon="@drawable/ic_tool_reset"
                         app:iconSize="20dp"
                         app:iconTint="?attr/colorOnSurfaceVariant"
                         app:backgroundTint="@android:color/transparent"
-                        android:contentDescription="Execution history" />
+                        android:contentDescription="Refresh git status" />
 
                     <View
                         android:layout_width="1dp"

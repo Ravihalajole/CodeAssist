@@ -575,7 +575,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnExecutionHistory.setOnClickListener {
-            showExecutionHistoryDialog()
+            refreshGitStatus()
         }
 
         btnGitOptions.setOnClickListener { showGitActionsDialog() }
@@ -998,28 +998,25 @@ class MainActivity : AppCompatActivity() {
         return labels to refs
     }
 
-    private fun showExecutionHistoryDialog() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            val records = org.ravi.codeassist.database.ExecutionHistory.recent(this@MainActivity)
-            withContext(Dispatchers.Main) {
-                if (records.isEmpty()) {
-                    Toast.makeText(this@MainActivity, "No execution history yet.", Toast.LENGTH_SHORT).show()
-                    return@withContext
-                }
-                val sheet = com.google.android.material.bottomsheet.BottomSheetDialog(this@MainActivity)
-                val sheetView = android.view.LayoutInflater.from(this@MainActivity)
-                    .inflate(R.layout.bottom_sheet_execution_history, null)
-                val rv = sheetView.findViewById<RecyclerView>(R.id.rvExecutionHistory)
-                rv.layoutManager = LinearLayoutManager(this@MainActivity)
-                rv.adapter = ExecutionHistoryAdapter(records)
-                sheetView.findViewById<MaterialButton>(R.id.btnClearHistory).setOnClickListener {
-                    org.ravi.codeassist.database.ExecutionHistory.clear(this@MainActivity)
-                    Toast.makeText(this@MainActivity, "Execution history cleared.", Toast.LENGTH_SHORT).show()
-                    sheet.dismiss()
-                }
-                sheet.setContentView(sheetView)
-                sheet.show()
-            }
+    private fun refreshGitStatus() {
+        val sharedPref = getSharedPreferences("CodeAssistPrefs", Context.MODE_PRIVATE)
+        val workspaceRoot = sharedPref.getString("WORKSPACE_ROOT", null)
+        if (workspaceRoot.isNullOrEmpty()) {
+            Toast.makeText(this, getString(R.string.workspace_not_set), Toast.LENGTH_SHORT).show()
+            return
+        }
+        logsProgress.visibility = View.VISIBLE
+        btnGitOptions.isEnabled = false
+        btnExecutionHistory.isEnabled = false
+        refreshLogsData()
+        refreshWorkspaceStatus(workspaceRoot)
+        refreshActionsSnapshot(workspaceRoot)
+        lifecycleScope.launch {
+            kotlinx.coroutines.delay(600)
+            logsProgress.visibility = View.GONE
+            btnGitOptions.isEnabled = true
+            btnExecutionHistory.isEnabled = true
+            Toast.makeText(this@MainActivity, "Git status refreshed", Toast.LENGTH_SHORT).show()
         }
     }
 
