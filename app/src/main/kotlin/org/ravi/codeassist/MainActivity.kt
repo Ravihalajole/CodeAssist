@@ -1826,6 +1826,7 @@ class MainActivity : AppCompatActivity() {
         val etRemote = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etPushRemote)
         val etBranch = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etPushBranch)
         val etCred = dialogView.findViewById<MaterialAutoCompleteTextView>(R.id.etPushCred)
+        val cbForce = dialogView.findViewById<com.google.android.material.checkbox.MaterialCheckBox>(R.id.cbForcePush)
 
         if (remotes.isNotEmpty()) {            etRemote.setSimpleItems(remotes.toTypedArray())
             etRemote.setText(if ("origin" in remotes) "origin" else remotes.first(), false)
@@ -1849,37 +1850,57 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.git_status_push, currentBranch ?: branches.firstOrNull().orEmpty(), aheadText)
         )
 
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setView(dialogView)
-            .setPositiveButton(R.string.push_action) { _, _ ->
+            .setPositiveButton(R.string.push_action, null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            val btn = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            btn.setOnClickListener {
                 val remote = etRemote.text?.toString()?.trim().orEmpty()
                 val branch = etBranch.text?.toString()?.trim().orEmpty()
                 val (username, token) = resolveCredProfile(etCred)
+                val force = cbForce.isChecked
                 if (remote.isEmpty()) {
                     Toast.makeText(this, "Select or type a remote.", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
+                    return@setOnClickListener
                 }
                 if (branch.isEmpty()) {
                     Toast.makeText(this, "Select a branch to push.", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
+                    return@setOnClickListener
                 }
-                runPush(File(workspaceRoot), remote, branch, username, token)
+                if (force) {
+                    com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                        .setTitle(R.string.push_force_confirm_title)
+                        .setMessage(getString(R.string.push_force_confirm_msg, branch, remote))
+                        .setPositiveButton(R.string.push_action) { _, _ ->
+                            dialog.dismiss()
+                            runPush(File(workspaceRoot), remote, branch, username, token, force = true)
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show()
+                } else {
+                    dialog.dismiss()
+                    runPush(File(workspaceRoot), remote, branch, username, token, force = false)
+                }
             }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        }
+        dialog.show()
     }
 
-    private fun runPush(rootFile: File, remote: String, branch: String, username: String?, token: String?) {
+    private fun runPush(rootFile: File, remote: String, branch: String, username: String?, token: String?, force: Boolean = false) {
         logsProgress.visibility = View.VISIBLE
         btnGitOptions.isEnabled = false
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val error = GitManager.pushToRemote(rootFile, remote, branch, username, token)
+            val error = GitManager.pushToRemote(rootFile, remote, branch, username, token, force)
             withContext(Dispatchers.Main) {
                 logsProgress.visibility = View.GONE
                 btnGitOptions.isEnabled = true
                 if (error == null) {
-                    Toast.makeText(this@MainActivity, getString(R.string.push_success, branch, remote), Toast.LENGTH_SHORT).show()
+                    val msg = if (force) getString(R.string.push_success_forced, branch, remote) else getString(R.string.push_success, branch, remote)
+                    Toast.makeText(this@MainActivity, msg, Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
                 }

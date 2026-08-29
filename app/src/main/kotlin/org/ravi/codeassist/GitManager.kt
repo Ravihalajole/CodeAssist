@@ -690,7 +690,8 @@ object GitManager {
         remoteOrUrl: String,
         branch: String,
         username: String?,
-        password: String?
+        password: String?,
+        force: Boolean = false
     ): String? = gitMutex.withLock {
         val repoRoot = repoRootFor(workspaceRoot) ?: return@withLock "Workspace is not a Git repository."
         if (branch.isBlank()) return@withLock "Select a branch to push."
@@ -701,9 +702,11 @@ object GitManager {
                 if (File(repoRoot, ".git/shallow").exists()) {
                     runCatching { git.fetch().setRemote(remoteOrUrl).setDepth(2147483647).call() }
                 }
+                val refSpec = if (force) RefSpec("+refs/heads/$branch:refs/heads/$branch") else RefSpec("refs/heads/$branch:refs/heads/$branch")
                 val command = git.push()
                     .setRemote(remoteOrUrl)
-                    .setRefSpecs(RefSpec("refs/heads/$branch:refs/heads/$branch"))
+                    .setForce(force)
+                    .setRefSpecs(refSpec)
                     .setTimeout(60)
                 if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
                     command.setCredentialsProvider(UsernamePasswordCredentialsProvider(username, password))

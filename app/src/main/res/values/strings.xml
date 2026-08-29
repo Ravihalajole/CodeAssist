@@ -241,7 +241,12 @@
     <string name="push_remote_help">Pick a configured remote or type a URL.</string>
     <string name="push_branch_hint">Branch</string>
     <string name="push_action">Push</string>
+    <string name="push_force_label">Force push (overwrite remote)</string>
+    <string name="push_force_desc">Rewrites remote history — use only if you understand the consequences.</string>
+    <string name="push_force_confirm_title">Force push?</string>
+    <string name="push_force_confirm_msg">Force pushing overwrites the remote branch “%1$s” on “%2$s” and discards commits that exist only on the remote. This cannot be undone. Continue?</string>
     <string name="push_success">Pushed %1$s to %2$s</string>
+    <string name="push_success_forced">Force-pushed %1$s to %2$s</string>
     <string name="push_no_workspace">No workspace selected.</string>
     <string name="push_not_repo">Workspace is not a Git repository.</string>
 
